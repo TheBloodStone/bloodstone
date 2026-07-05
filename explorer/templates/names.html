@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Names · Bloodstone{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>On-chain Names</h1>
+  <p class="muted">Namecoin-style names registered on Bloodstone</p>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Registered Names</h2>
+    <form class="inline-form" method="get">
+      <label>Start after:</label>
+      <input type="text" name="start" value="{{ start }}" placeholder="d/name">
+      <button type="submit">Scan</button>
+    </form>
+  </div>
+  {% if names %}
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Value</th>
+          <th>Address</th>
+          <th>Height</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in names %}
+        <tr>
+          <td><a href="{{ url_for('name_page', name=entry.name) }}">{{ entry.name }}</a></td>
+          <td class="mono small wrap">{{ entry.value|default('')|truncate(80) }}</td>
+          <td class="mono">{% if entry.address %}<a href="{{ url_for('address_page', address=entry.address) }}">{{ short_hash(entry.address, 8, 6) }}</a>{% else %}—{% endif %}</td>
+          <td>{% if entry.height %}<a href="{{ url_for('block_page', query=entry.height) }}">{{ entry.height }}</a>{% else %}—{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty-state">No names found{% if start %} after <code>{{ start }}</code>{% endif %}.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Document generators · Admin · Bloodstone{% endblock %}
+{% block content %}
+<section class="page-head">
+  <h1>Document generators</h1>
+  <p class="muted">Build white papers and release notes, copy to <span class="mono">/downloads/</span>, publish to chain mesh, and sync to the worker.</p>
+  <div class="btn-row">
+    <a class="btn btn-ghost" href="{{ url_for('admin') }}">← Service admin</a>
+    <button type="button" class="btn btn-ghost" id="admin-generators-refresh">Refresh status</button>
+    <form action="{{ url_for('admin_logout') }}" method="post" style="display:inline">
+      <button type="submit" class="btn btn-ghost">Logout</button>
+    </form>
+  </div>
+</section>
+
+<section class="panel highlight-panel">
+  <div class="panel-head">
+    <h2>Generator catalog</h2>
+    <p class="panel-sub muted small" id="admin-generators-global-status">Loading…</p>
+  </div>
+  <div class="panel-body">
+    <p class="muted small">
+      Scripts live under <span class="mono">/root/bloodstone-docs/</span> (Node <span class="mono">docx</span> builders)
+      and <span class="mono">/root/</span> (Python builders). Logs:
+      <span class="mono">/var/log/bloodstone-doc-generators/</span>
+    </p>
+    <div class="admin-gen-grid" id="admin-generators-list">
+      <p class="muted">Loading generators…</p>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Utilities</h2>
+    <p class="panel-sub muted small">Maintenance tasks related to published documentation.</p>
+  </div>
+  <div class="panel-body admin-gen-grid" id="admin-generators-utils"></div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>After generating</h2>
+  </div>
+  <div class="panel-body muted small">
+    <ul>
+      <li><strong>Copy to /downloads/</strong> — mirrors the built <span class="mono">.docx</span> to the public downloads folder on this VPS.</li>
+      <li><strong>Publish to chain mesh</strong> — registers the file under <span class="mono">downloads/…</span> with optional BSM1 on-chain anchor.</li>
+      <li><strong>Sync to worker</strong> — rsyncs new files to the downloads worker (<span class="mono">192.119.82.145</span>) when the sync script is available.</li>
+    </ul>
+    <p>
+      Live-Patchable Node white paper is maintained manually (no generator script). Use
+      <strong>Republish canonical mesh docs</strong> to push it and Time Capsule to the mesh when their files change.
+    </p>
+  </div>
+</section>
+{% endblock %}
+{% block extra_scripts %}
+<script type="module">
+  import { initAdminGenerators } from "{{ url_for('static', filename='js/admin-generators.js') }}?v=20260704-admin-gen";
+  initAdminGenerators();
+</script>
+{% endblock %}

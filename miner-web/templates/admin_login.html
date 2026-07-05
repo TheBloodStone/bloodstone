@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Admin · Bloodstone Mining{% endblock %}
+{% block content %}
+<section class="login-card">
+  <h1>Admin login</h1>
+  <p class="muted">Edit faucet and stratum pool settings.</p>
+  <form method="post" class="stack-form" action="{{ url_for('admin_login', next=request.args.get('next')) }}">
+    <label>Password
+      <input type="password" name="password" required autofocus>
+    </label>
+    <label>Master Creator code <span class="muted small">(optional — unlocks fleet admin edits)</span>
+      <input type="password" name="master_creator_code" class="mono" autocomplete="off"
+             placeholder="MASTER-CREATOR-…">
+    </label>
+    <button type="submit" class="btn">Sign in</button>
+  </form>
+</section>
+{% endblock %}

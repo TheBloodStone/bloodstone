@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Transaction · Bloodstone{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>Transaction</h1>
+  <p class="mono hash-full"><a href="{{ url_for('tx_page', txid=tx.txid) }}">{{ tx.txid }}</a></p>
+  {% if tx.btxid and tx.btxid != tx.txid %}
+  <p class="muted mono">btxid: {{ tx.btxid }}</p>
+  {% endif %}
+</section>
+
+{% if mesh_anchors %}
+<section class="panel mesh-anchor-panel">
+  <div class="panel-head"><h2>Chain Mesh Anchor (BSM1)</h2></div>
+  {% for anchor in mesh_anchors %}
+  <div class="detail-card">
+    <dl>
+      <dt>Protocol</dt><dd><span class="badge badge-name">{{ anchor.magic }}</span></dd>
+      <dt>Merkle root</dt><dd class="mono small">{{ anchor.merkle_root }}</dd>
+      <dt>Asset ID prefix</dt><dd class="mono small">{{ anchor.asset_id_prefix }}</dd>
+      {% if anchor.asset_key %}
+      <dt>Mesh asset</dt>
+      <dd>
+        <strong>{{ anchor.display_name or anchor.asset_key }}</strong><br>
+        <span class="mono small">{{ anchor.asset_key }}</span>
+        {% if anchor.asset_key.startswith('downloads/') %}
+        <br><a href="{{ public_root }}/{{ anchor.asset_key }}" target="_blank" rel="noopener">Download file</a>
+        · <a href="{{ mining_url }}api/chain-mesh/asset/{{ anchor.asset_key }}" target="_blank" rel="noopener">Chunk manifest</a>
+        {% endif %}
+      </dd>
+      {% endif %}
+      <dt>Output</dt><dd>#{{ anchor.vout }}</dd>
+    </dl>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<div class="detail-grid">
+  <div class="detail-card">
+    <h3>Summary</h3>
+    <dl>
+      <dt>Block</dt>
+      <dd>{% if tx.blockhash %}<a href="{{ url_for('block_page', query=tx.blockhash) }}">{{ short_hash(tx.blockhash) }}</a> ({{ tx.confirmations }} conf){% else %}<span class="badge badge-pending">Unconfirmed</span>{% endif %}</dd>
+      <dt>Time</dt><dd>{{ fmt_time(tx.blocktime) if tx.blocktime else '—' }}</dd>
+      <dt>Size</dt><dd>{{ tx.size }} B (vsize {{ tx.vsize }})</dd>
+      <dt>Version</dt><dd>{{ tx.version }}</dd>
+      <dt>Locktime</dt><dd>{{ tx.locktime }}</dd>
+    </dl>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel-head"><h2>Inputs ({{ tx.vin|length }})</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Source</th><th>Amount</th></tr></thead>
+      <tbody>
+        {% for vin in tx.vin %}
+        <tr>
+          <td>{{ loop.index0 }}</td>
+          <td class="mono">
+            {% if vin.coinbase %}<span class="badge badge-coinbase">Coinbase</span> {{ vin.coinbase }}
+            {% else %}<a href="{{ url_for('tx_page', txid=vin.txid) }}">{{ short_hash(vin.txid) }}</a>:{{ vin.vout }}{% endif %}
+          </td>
+          <td>{% if vin.coinbase %}—{% else %}{{ fmt_amount(vin.get('value')) }} STONE{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Outputs ({{ tx.vout|length }})</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Address</th><th>Amount</th><th>Type</th><th>Extra</th></tr></thead>
+      <tbody>
+        {% for vout in tx.vout %}
+        <tr>
+          <td>{{ vout.n }}</td>
+          <td class="mono">
+            {% if vout.scriptPubKey.address %}
+            <a href="{{ url_for('address_page', address=vout.scriptPubKey.address) }}">{{ vout.scriptPubKey.address }}</a>
+            {% elif vout.scriptPubKey.addresses %}
+            {% for addr in vout.scriptPubKey.addresses %}
+            <a href="{{ url_for('address_page', address=addr) }}">{{ addr }}</a>{% if not loop.last %}, {% endif %}
+            {% endfor %}
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ fmt_amount(vout.value) }} STONE</td>
+          <td>{{ vout.scriptPubKey.type }}</td>
+          <td>
+            {% if vout.scriptPubKey.nameOp %}
+            <span class="badge badge-name">{{ vout.scriptPubKey.nameOp.op }}</span>
+            <a href="{{ url_for('name_page', name=vout.scriptPubKey.nameOp.name) }}">{{ vout.scriptPubKey.nameOp.name }}</a>
+            {% elif vout.scriptPubKey.burn %}
+            <span class="badge badge-burn">burn</span>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<details class="raw-panel">
+  <summary>Raw transaction hex</summary>
+  <pre class="mono">{{ tx.hex }}</pre>
+</details>
+{% endblock %}

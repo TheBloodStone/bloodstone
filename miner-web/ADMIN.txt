@@ -1,0 +1,3 @@
+Bloodstone Mining Dashboard admin
+URL: http://64.188.22.190:8893/admin
+Password: kHwaacLvdpvFGg

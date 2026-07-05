@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Sell{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>List for sale</h1>
+  <p class="hero-sub">Sell a name you own from your web wallet. Log in first so the DEX can sign on your behalf.</p>
+</section>
+
+<section class="panel">
+  <div class="panel-body">
+    <form class="stack-form" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <label>
+        Name
+        <input name="name" list="owned-names" placeholder="p/mynode" required>
+        {% if names %}
+        <datalist id="owned-names">
+          {% for n in names %}
+          <option value="{{ n.name }}">{{ n.name }}</option>
+          {% endfor %}
+        </datalist>
+        {% endif %}
+      </label>
+
+      <label>
+        Listing type
+        <select name="listing_type">
+          <option value="name_sale">Name transfer (recommended)</option>
+          <option value="ask">Atomic ask (pre-signed update)</option>
+        </select>
+      </label>
+
+      <label>
+        Price (STONE)
+        <input name="price" type="text" inputmode="decimal" placeholder="10" required>
+      </label>
+
+      <label>
+        Title (optional)
+        <input name="title" maxlength="120" placeholder="Short description for buyers">
+      </label>
+
+      <label>
+        New name value (ask only, JSON)
+        <textarea name="value" placeholder='{"note":"sold with ask"}'>{}</textarea>
+      </label>
+
+      <div class="btn-row">
+        <button class="btn" type="submit">Create listing</button>
+        <a class="btn btn-ghost" href="{{ url_for('index') }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

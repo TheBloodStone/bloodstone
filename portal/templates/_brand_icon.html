@@ -1,0 +1,5 @@
+{% if coin_icon_url %}
+<img src="{{ coin_icon_url }}" alt="" class="brand-coin" width="32" height="32">
+{% else %}
+<span class="brand-gem">{{ brand_fallback_icon|default('💎') }}</span>
+{% endif %}

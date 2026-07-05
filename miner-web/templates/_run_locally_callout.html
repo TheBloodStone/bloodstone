@@ -1,0 +1,40 @@
+{% if run_locally and run_locally.has_downloads %}
+<section class="run-locally-callout" id="run-locally">
+  <div class="run-locally-inner">
+    <h2>Run locally — help lighten the VPS</h2>
+    <p class="run-locally-lead">
+      Install Bloodstone on your own PC to sync the chain, use a desktop wallet, and mine with local software
+      instead of leaning on the server. Browser mining and the web wallet are convenient, but local installs
+      spread the load across the community.
+    </p>
+    <div class="run-locally-actions">
+      {% if run_locally.miner_win %}
+      <a class="btn" href="{{ run_locally.miner_win.url }}">Windows CPU miner v{{ run_locally.miner_pack_version }}</a>
+      {% endif %}
+      {% if run_locally.wallet_gui %}
+      <a class="btn btn-ghost" href="{{ run_locally.wallet_gui.url }}">Wallet &amp; Node GUI v{{ run_locally.wallet_gui_version }}</a>
+      {% endif %}
+      {% if run_locally.wallet_gui_portable %}
+      <a class="btn btn-ghost" href="{{ run_locally.wallet_gui_portable.url }}">Wallet portable</a>
+      {% endif %}
+      {% if run_locally.node_gui %}
+      <a class="btn btn-ghost" href="{{ run_locally.node_gui.url }}">Node GUI v{{ run_locally.node_gui_version }}</a>
+      {% endif %}
+      {% if run_locally.linux_node %}
+      <a class="btn btn-ghost" href="{{ run_locally.linux_node.url }}">Linux node v{{ run_locally.node_version }}</a>
+      {% endif %}
+      {% if run_locally.android_miner_apk %}
+      <a class="btn btn-ghost" href="{{ run_locally.android_miner_apk.url }}">Android node + miner v{{ run_locally.android_miner_version }}</a>
+      {% endif %}
+      <a class="btn btn-ghost" href="{{ run_locally.downloads_page }}">All downloads</a>
+    </div>
+    {% if mining_focus %}
+    <p class="muted small run-locally-tip">
+      <strong>Mining tip:</strong> download the Windows CPU miner zip above, run <code>Setup.bat</code>, then pick a pool from the menu.
+      Or use <strong>Awesome Miner</strong> with CpuMiner-Opt and a custom Stratum pool — see each pool page for host, port, and worker (your STONE address).
+      Local miners replace browser mining and reduce load on the pool bridge.
+    </p>
+    {% endif %}
+  </div>
+</section>
+{% endif %}

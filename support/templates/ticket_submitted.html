@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Ticket created{% endblock %}
+{% block content %}
+<section class="panel success-panel">
+  <div class="panel-head"><h2>Ticket created</h2></div>
+  <div class="panel-body">
+    <p>Save these — you’ll need them to view replies:</p>
+    <dl class="detail-dl">
+      <dt>Ticket ID</dt><dd class="mono highlight">{{ public_id }}</dd>
+      <dt>Access link</dt><dd class="mono wrap"><a href="{{ view_url }}">{{ view_url }}</a></dd>
+    </dl>
+    <p class="muted small">Bookmark the access link or copy your ticket ID and token from the URL.</p>
+    <a class="btn" href="{{ view_url }}">View ticket</a>
+  </div>
+</section>
+{% endblock %}

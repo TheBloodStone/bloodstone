@@ -1,0 +1,65 @@
+{
+  "name": "bloodstone-wallet-node-gui",
+  "productName": "Bloodstone Wallet & Node",
+  "version": "0.7.11",
+  "description": "Bloodstone desktop wallet and full node for Windows",
+  "main": "src/main.js",
+  "author": "Bloodstone",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win --x64",
+    "dist:portable": "electron-builder --win portable --x64"
+  },
+  "dependencies": {
+    "sql.js": "^1.12.0"
+  },
+  "devDependencies": {
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "org.bloodstone.nodegui",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "resources/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "bin/win64",
+        "to": "bin",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "artifactName": "bloodstone-wallet-node-gui-0.7.11-win64.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Bloodstone Wallet & Node"
+    },
+    "portable": {
+      "artifactName": "bloodstone-wallet-node-gui-0.7.11-win64-portable.exe"
+    }
+  }
+}

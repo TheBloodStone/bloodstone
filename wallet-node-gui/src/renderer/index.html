@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bloodstone Wallet & Node</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">◆</div>
+        <div>
+          <h1>Bloodstone Wallet & Node</h1>
+          <p class="subtitle">Desktop wallet and full node for Bloodstone mainnet</p>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span id="run-indicator" class="pill pill-off">Stopped</span>
+        <button id="btn-start" class="btn btn-primary">Start Node</button>
+        <button id="btn-stop" class="btn btn-danger" disabled>Stop</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="dashboard">Node</button>
+      <button class="tab" data-tab="wallet">Wallet</button>
+      <button class="tab" data-tab="rpc">RPC Console</button>
+      <button class="tab" data-tab="logs">Logs</button>
+      <button class="tab" data-tab="settings">Settings</button>
+    </nav>
+
+    <main>
+      <section id="panel-dashboard" class="panel active">
+        <div id="legacy-migration-alert" class="sync-alert hidden" role="status">
+          <strong>Upgraded from Bloodstone Node.</strong>
+          <span>Your chain data and wallets in <code class="mono">%APPDATA%\Bloodstone</code> were kept.
+            Use <strong>Settings → Local node</strong> to sync on this PC, or <strong>Use VPS</strong> for web-wallet accounts.
+            The new app adds a <strong>Wallet</strong> tab for web sign-in.</span>
+        </div>
+        <div id="rpc-alert" class="sync-alert hidden" role="alert">
+          <strong>Cannot read node status (RPC).</strong>
+          <span id="rpc-alert-text"></span>
+        </div>
+        <div id="sync-error-alert" class="sync-alert hidden" role="alert">
+          <strong>Sync blocked.</strong>
+          <span id="sync-error-text"></span>
+          <div class="sync-alert-actions">
+            <button type="button" id="btn-repair-sync" class="btn btn-ghost btn-sm">Repair sync</button>
+            <button type="button" id="btn-reset-chain-dashboard" class="btn btn-danger btn-sm">Reset chain data</button>
+          </div>
+        </div>
+        <div id="stuck-alert" class="sync-alert hidden" role="alert">
+          <strong>Block download stalled.</strong>
+          <span id="stuck-alert-text">Headers are ahead of the validated block height. Try <strong>Repair sync</strong> or <strong>Reset chain data</strong> below (wallets are kept).</span>
+          <div class="sync-alert-actions">
+            <button type="button" id="btn-reset-chain-stuck" class="btn btn-danger btn-sm">Reset chain data</button>
+          </div>
+        </div>
+        <div id="sync-alert" class="sync-alert hidden" role="alert">
+          <strong>No peers connected.</strong>
+          <span id="sync-alert-text">The node cannot download blocks until it connects to the seed at 64.188.22.190:17333. Open Settings, confirm the seed address, save, then restart the node. Allow bloodstoned.exe through Windows Firewall (port 17333).</span>
+        </div>
+        <div class="stats-grid">
+          <article class="stat-card">
+            <span class="label">Block height</span>
+            <strong id="stat-blocks">—</strong>
+            <span id="stat-headers" class="stat-sub muted small hidden"></span>
+          </article>
+          <article class="stat-card">
+            <span class="label">Sync progress</span>
+            <strong id="stat-sync">—</strong>
+            <div class="progress"><div id="sync-bar" class="progress-fill"></div></div>
+          </article>
+          <article class="stat-card">
+            <span class="label">Peers</span>
+            <strong id="stat-peers">—</strong>
+          </article>
+          <article class="stat-card">
+            <span class="label">Chain</span>
+            <strong id="stat-chain">main</strong>
+          </article>
+        </div>
+
+        <div class="info-grid">
+          <article class="info-card">
+            <h2>Network</h2>
+            <dl>
+              <dt>Best block</dt>
+              <dd id="stat-hash" class="mono truncate">—</dd>
+              <dt>Difficulty</dt>
+              <dd id="stat-diff">—</dd>
+              <dt>Client</dt>
+              <dd id="stat-subver">—</dd>
+            </dl>
+          </article>
+          <article class="info-card">
+            <h2>Quick help</h2>
+            <ul class="help-list">
+              <li>P2P port: <strong>17333</strong> — allow in Windows Firewall for incoming peers.</li>
+              <li>RPC port: <strong>18332</strong> — local only; credentials are managed in Settings (not displayed).</li>
+              <li>Data folder opens from Settings → Open data directory.</li>
+              <li>Multi-algo fork active from block <strong>1</strong> (neoscrypt, yespower, sha256d).</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section id="panel-wallet" class="panel">
+        <div id="wallet-login-panel" class="wallet-login">
+          <article class="info-card wallet-card">
+            <h2>Sign in</h2>
+            <p class="muted small">Use the same username and password as the Bloodstone web wallet.</p>
+            <form id="wallet-login-form" class="wallet-form" action="#" method="post">
+              <div class="form-row">
+                <label for="wallet-login-username">Username</label>
+                <input id="wallet-login-username" name="username" type="text" required autocomplete="username" />
+              </div>
+              <div class="form-row">
+                <label for="wallet-login-password">Password</label>
+                <input id="wallet-login-password" name="password" type="password" required autocomplete="current-password" />
+              </div>
+              <p id="wallet-login-error" class="form-error"></p>
+              <p id="wallet-login-status" class="muted small"></p>
+              <button type="submit" id="wallet-login-submit" class="btn btn-primary">Sign in</button>
+            </form>
+          </article>
+        </div>
+
+        <div id="wallet-main-panel" class="hidden">
+          <div id="wallet-vps-alert" class="sync-alert hidden" role="alert">
+            <strong>VPS wallet required.</strong>
+            <span id="wallet-vps-alert-text">This account uses a wallet on the Bloodstone VPS. Settings → Use VPS must be active.</span>
+          </div>
+          <div class="wallet-toolbar">
+            <span>Signed in as <strong id="wallet-signed-in-as">—</strong></span>
+            <label class="wallet-switch-label muted small">
+              Active wallet
+              <select id="wallet-active-select" class="wallet-select mono"></select>
+            </label>
+            <div class="wallet-toolbar-actions">
+              <button type="button" id="wallet-btn-refresh" class="btn btn-ghost btn-sm">Refresh</button>
+              <button type="button" id="wallet-btn-logout" class="btn btn-ghost btn-sm">Sign out</button>
+            </div>
+          </div>
+
+          <nav class="wallet-inner-tabs" aria-label="Wallet views">
+            <button type="button" class="wallet-inner-tab active" data-wallet-view="overview">Overview</button>
+            <button type="button" class="wallet-inner-tab" data-wallet-view="gift">Gift codes</button>
+            <button type="button" class="wallet-inner-tab" data-wallet-view="referrals">Referrals</button>
+          </nav>
+
+          <div id="wallet-overview-view">
+          <div class="stats-grid wallet-stats">
+            <article class="stat-card">
+              <span class="label">Spendable balance</span>
+              <strong id="wallet-balance">—</strong>
+            </article>
+            <article class="stat-card">
+              <span class="label">Unconfirmed</span>
+              <strong id="wallet-unconfirmed">—</strong>
+            </article>
+            <article class="stat-card">
+              <span class="label">Wallet</span>
+              <strong id="wallet-name" class="mono">—</strong>
+            </article>
+          </div>
+
+          <div class="info-grid wallet-grid">
+            <article class="info-card">
+              <h2>Receive</h2>
+              <p class="muted small">Primary address</p>
+              <p id="wallet-primary-address" class="mono break-all">—</p>
+              <button type="button" id="wallet-btn-new-address" class="btn btn-ghost btn-sm">New address</button>
+              <table class="wallet-table">
+                <thead><tr><th>Address</th><th>Received</th></tr></thead>
+                <tbody id="wallet-address-list"></tbody>
+              </table>
+            </article>
+
+            <article class="info-card">
+              <h2>Unlock wallet</h2>
+              <p class="muted small">Enter your wallet encryption passphrase (not your login password).</p>
+              <form id="wallet-unlock-form" class="wallet-form">
+                <input name="passphrase" type="password" placeholder="Wallet passphrase" required />
+                <p id="wallet-unlock-error" class="form-error"></p>
+                <button type="submit" class="btn btn-ghost btn-sm">Unlock 30 min</button>
+              </form>
+            </article>
+
+            <article class="info-card">
+              <h2>Send</h2>
+              <form id="wallet-send-form" class="wallet-form">
+                <input name="address" type="text" placeholder="Recipient address (S...)" required />
+                <input name="amount" type="number" step="any" min="0" placeholder="Amount (STONE)" required />
+                <input name="comment" type="text" placeholder="Comment (optional)" />
+                <input name="passphrase" type="password" placeholder="Wallet passphrase (if locked)" />
+                <p id="wallet-send-error" class="form-error"></p>
+                <p id="wallet-send-result" class="form-success"></p>
+                <button type="submit" class="btn btn-primary">Send</button>
+              </form>
+            </article>
+
+            <article class="info-card wallet-span-2">
+              <h2>Recent transactions</h2>
+              <table class="wallet-table">
+                <thead><tr><th>Type</th><th>Amount</th><th>Conf</th><th>TxID</th></tr></thead>
+                <tbody id="wallet-tx-list"></tbody>
+              </table>
+            </article>
+          </div>
+          </div>
+
+          <div id="wallet-gift-view" class="hidden">
+            <p class="muted small gift-intro">
+              Create one-time codes backed by STONE from your wallet. Escrow funding and payouts
+              appear in transaction history — not here.
+            </p>
+            <div class="stats-grid wallet-stats gift-stats">
+              <article class="stat-card">
+                <span class="label">Your active codes</span>
+                <strong id="gift-active-count">—</strong>
+              </article>
+              <article class="stat-card">
+                <span class="label">STONE in your active codes</span>
+                <strong id="gift-active-escrow">—</strong>
+              </article>
+              <article class="stat-card">
+                <span class="label">Redeem to</span>
+                <strong id="gift-primary-address" class="mono small-text">—</strong>
+              </article>
+            </div>
+
+            <div class="info-grid gift-grid">
+              <article class="info-card">
+                <h2>Create a gift code</h2>
+                <p class="muted small">
+                  Amount is sent from <strong id="gift-active-wallet" class="mono">—</strong> into escrow.
+                  Network fee is paid on top.
+                </p>
+                <p id="gift-create-pass-hint" class="muted small hidden">
+                  Wallet is locked — enter your encryption passphrase below.
+                </p>
+                <form id="gift-create-form" class="wallet-form">
+                  <input id="gift-create-passphrase" name="passphrase" type="password"
+                         placeholder="Wallet passphrase (if locked)" class="hidden" />
+                  <input name="amount" type="number" step="any" min="0" placeholder="Amount (STONE)" required />
+                  <p id="gift-create-min" class="muted small"></p>
+                  <p id="gift-create-error" class="form-error"></p>
+                  <p id="gift-create-result" class="form-success"></p>
+                  <div id="gift-created-box" class="gift-created-box hidden">
+                    <span class="muted small">Share this code:</span>
+                    <code id="gift-created-code" class="mono gift-code-display"></code>
+                    <button type="button" id="gift-btn-copy-code" class="btn btn-ghost btn-sm">Copy code</button>
+                  </div>
+                  <button type="submit" id="gift-create-submit" class="btn btn-primary">Create gift code</button>
+                </form>
+              </article>
+
+              <article class="info-card">
+                <h2>Redeem a gift code</h2>
+                <p class="muted small">STONE is sent to your primary receive address.</p>
+                <form id="gift-redeem-form" class="wallet-form">
+                  <input name="code" type="password" placeholder="STONE-GIFT-…" required autocomplete="off" class="mono gift-code-input" />
+                  <p id="gift-redeem-error" class="form-error"></p>
+                  <p id="gift-redeem-result" class="form-success"></p>
+                  <button type="submit" class="btn btn-primary">Redeem to my wallet</button>
+                </form>
+              </article>
+
+              <article class="info-card wallet-span-2 hidden" id="gift-created-panel">
+                <h2>Your gift codes</h2>
+                <table class="wallet-table">
+                  <thead><tr><th>Code</th><th>Amount</th><th>Status</th><th>Created</th><th>Redeemed by</th></tr></thead>
+                  <tbody id="gift-created-list"></tbody>
+                </table>
+              </article>
+
+              <article class="info-card wallet-span-2 hidden" id="gift-redeemed-panel">
+                <h2>Codes you redeemed</h2>
+                <table class="wallet-table">
+                  <thead><tr><th>Code</th><th>Amount</th><th>From</th><th>When</th><th>TxID</th></tr></thead>
+                  <tbody id="gift-redeemed-list"></tbody>
+                </table>
+              </article>
+            </div>
+          </div>
+
+          <div id="wallet-referrals-view" class="hidden">
+            <p class="muted small referral-intro">
+              Invite friends to Bloodstone Wallet and our Discord community. Stats update live as signups and Discord joins happen.
+            </p>
+            <div class="stats-grid wallet-stats referral-stats">
+              <article class="stat-card highlight">
+                <span class="label">Discord joined</span>
+                <strong id="referral-stat-joined">—</strong>
+              </article>
+              <article class="stat-card">
+                <span class="label">Wallet signups</span>
+                <strong id="referral-stat-signups">—</strong>
+              </article>
+              <article class="stat-card">
+                <span class="label">Discord linked</span>
+                <strong id="referral-stat-linked">—</strong>
+              </article>
+              <article class="stat-card">
+                <span class="label">Link clicks</span>
+                <strong id="referral-stat-clicks">—</strong>
+              </article>
+            </div>
+
+            <div class="info-grid referral-grid">
+              <article class="info-card wallet-span-2">
+                <h2>Your invite link</h2>
+                <p class="muted small">Share this link. New accounts created through it count toward your referrals.</p>
+                <code id="referral-link" class="mono referral-link-display">—</code>
+                <p class="muted small">Referral code: <span id="referral-code" class="mono">—</span></p>
+                <div class="referral-actions">
+                  <button type="button" id="referral-btn-copy" class="btn btn-ghost btn-sm">Copy link</button>
+                  <button type="button" id="referral-btn-discord" class="btn btn-ghost btn-sm hidden">Connect Discord</button>
+                  <button type="button" id="referral-btn-server" class="btn btn-ghost btn-sm hidden">Open Discord server</button>
+                </div>
+                <p id="referral-discord-status" class="muted small"></p>
+                <p id="referral-error" class="form-error"></p>
+              </article>
+
+              <article class="info-card wallet-span-2 hidden" id="referral-list-panel">
+                <h2>Your referrals</h2>
+                <table class="wallet-table">
+                  <thead><tr><th>User</th><th>Status</th><th>Signed up</th><th>Discord joined</th></tr></thead>
+                  <tbody id="referral-rows"></tbody>
+                </table>
+              </article>
+
+              <article class="info-card wallet-span-2">
+                <h2>Live activity</h2>
+                <ul id="referral-live-feed" class="referral-live-feed">
+                  <li class="muted">No activity yet.</li>
+                </ul>
+              </article>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-rpc" class="panel">
+        <article class="info-card rpc-card">
+          <h2>RPC Console</h2>
+          <p class="muted small">Send JSON-RPC commands to the configured node. Use a wallet name (e.g. <code class="mono">webuser4</code>) for wallet RPC calls.</p>
+          <form id="rpc-console-form" class="rpc-form">
+            <div class="form-row two-col">
+              <div>
+                <label for="rpc-method">Method</label>
+                <input id="rpc-method" type="text" placeholder="getblockchaininfo" required />
+              </div>
+              <div>
+                <label for="rpc-wallet">Wallet (optional)</label>
+                <input id="rpc-wallet" type="text" placeholder="webuser4" />
+              </div>
+            </div>
+            <div class="form-row">
+              <label for="rpc-params">Params (JSON array)</label>
+              <textarea id="rpc-params" rows="4" class="mono">[]</textarea>
+            </div>
+            <p id="rpc-error" class="form-error"></p>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Call RPC</button>
+              <button type="button" id="rpc-btn-clear" class="btn btn-ghost">Clear output</button>
+            </div>
+          </form>
+          <div id="rpc-history" class="rpc-history"></div>
+          <pre id="rpc-output" class="rpc-output mono"></pre>
+        </article>
+      </section>
+
+      <section id="panel-logs" class="panel">
+        <div class="log-toolbar">
+          <button id="btn-clear-logs" class="btn btn-ghost">Clear view</button>
+        </div>
+        <pre id="log-view" class="log-view"></pre>
+      </section>
+
+      <section id="panel-settings" class="panel">
+        <form id="settings-form" class="settings-form">
+          <div class="form-row">
+            <label for="dataDir">Data directory</label>
+            <div class="input-group">
+              <input id="dataDir" name="dataDir" type="text" readonly />
+              <button type="button" id="btn-pick-datadir" class="btn btn-ghost">Browse</button>
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="daemonPath">Node binary (bloodstoned.exe)</label>
+            <div class="input-group">
+              <input id="daemonPath" name="daemonPath" type="text" placeholder="Auto-detect from bin folder" />
+              <button type="button" id="btn-pick-daemon" class="btn btn-ghost">Browse</button>
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="walletWebUrl">Wallet web URL (login API)</label>
+            <input id="walletWebUrl" name="walletWebUrl" type="text" placeholder="https://bloodstonewallet.mytunnel.org/wallet" />
+            <p class="muted small">Used for sign-in unless a local <code class="mono">users.db</code> path is set below.</p>
+          </div>
+          <div class="form-row">
+            <label for="usersDbPath">users.db path (optional)</label>
+            <div class="input-group">
+              <input id="usersDbPath" name="usersDbPath" type="text" placeholder="Leave empty to use wallet web URL" />
+              <button type="button" id="btn-pick-users-db" class="btn btn-ghost">Browse</button>
+            </div>
+          </div>
+          <div class="form-row rpc-profile-row">
+            <span class="field-label">RPC access</span>
+            <p class="muted small">Credentials are stored locally in <code class="mono">bloodstone.conf</code> and are not shown in this app. <strong>Local node</strong> syncs the chain on this PC. <strong>Use VPS</strong> connects wallet RPC to the server (web-wallet accounts). Your choice is remembered and is not overridden by sign-in.</p>
+            <div class="rpc-profile-actions">
+              <button type="button" id="btn-rpc-local" class="btn btn-ghost">Local node</button>
+              <button type="button" id="btn-rpc-vps" class="btn btn-primary">Use VPS</button>
+            </div>
+            <p id="rpc-profile-status" class="muted small rpc-profile-status"></p>
+          </div>
+          <div class="form-row two-col">
+            <div>
+              <label for="rpcPort">RPC port</label>
+              <input id="rpcPort" name="rpcPort" type="number" min="1" max="65535" />
+            </div>
+            <div>
+              <label for="p2pPort">P2P port</label>
+              <input id="p2pPort" name="p2pPort" type="number" min="1" max="65535" />
+            </div>
+          </div>
+          <div class="form-row">
+            <label for="addnode">Seed node (addnode)</label>
+            <input id="addnode" name="addnode" type="text" />
+          </div>
+          <div class="form-row checkbox-row">
+            <label><input id="allowMiningWhenNotConnected" name="allowMiningWhenNotConnected" type="checkbox" /> Allow mining when not connected</label>
+            <label><input id="minimizeToTray" name="minimizeToTray" type="checkbox" /> Minimize to tray on close</label>
+          </div>
+          <div class="form-row wallet-import-row">
+            <span class="field-label">Import wallet from VPS</span>
+            <p class="muted small">Copy your web wallet to this PC. <strong>Start the local node first.</strong> Uses VPS RPC to export keys and imports into your local data folder.</p>
+            <p id="import-local-node-hint" class="muted small form-error">Start your local node before listing VPS wallets.</p>
+            <form id="wallet-import-form" class="wallet-form">
+              <div class="form-row two-col">
+                <div>
+                  <label for="import-wallet-name">Wallet name</label>
+                  <select id="import-wallet-name" name="walletName" required>
+                    <option value="">— select —</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="import-wallet-passphrase">Wallet passphrase</label>
+                  <input id="import-wallet-passphrase" type="password" placeholder="Encryption passphrase" required />
+                </div>
+              </div>
+              <div class="form-row two-col">
+                <div>
+                  <label for="import-web-username">Web username (optional)</label>
+                  <input id="import-web-username" type="text" placeholder="Same as web wallet login" autocomplete="username" />
+                </div>
+                <div>
+                  <label for="import-web-password">Web password (optional)</label>
+                  <input id="import-web-password" type="password" placeholder="For full dump export" autocomplete="current-password" />
+                </div>
+              </div>
+              <p class="muted small">Web login enables full <code class="mono">dumpwallet</code> export. Without it, keys are exported via RPC.</p>
+              <div class="form-actions">
+                <button type="button" id="btn-import-list-vps" class="btn btn-ghost btn-sm">List VPS wallets</button>
+                <button type="button" id="btn-import-list-user" class="btn btn-ghost btn-sm">List my wallets</button>
+                <button type="submit" class="btn btn-primary btn-sm">Import to local node</button>
+              </div>
+              <p id="import-error" class="form-error"></p>
+              <p id="import-status" class="form-success"></p>
+            </form>
+          </div>
+          <div class="form-row reset-chain-row">
+            <span class="field-label">Chain data</span>
+            <p class="muted small">If sync is stuck at height 0 or block 1 is marked invalid, reset local chain folders and resync. Wallets and <code class="mono">bloodstone.conf</code> are not deleted.</p>
+            <button type="button" id="btn-reset-chain-settings" class="btn btn-danger">Reset chain data</button>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save settings</button>
+            <button type="button" id="btn-open-datadir" class="btn btn-ghost">Open data directory</button>
+            <button type="button" id="btn-open-conf" class="btn btn-ghost">Open bloodstone.conf</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+  <script src="wallet.js"></script>
+  <script src="wallet-gift.js"></script>
+  <script src="wallet-referrals.js"></script>
+  <script src="rpc-console.js"></script>
+  <script src="wallet-import.js"></script>
+</body>
+</html>

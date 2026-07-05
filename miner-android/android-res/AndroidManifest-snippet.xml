@@ -1,0 +1,5 @@
+<!-- Merge into android/app/src/main/AndroidManifest.xml <application> tag -->
+<application
+    android:usesCleartextTraffic="true"
+    android:networkSecurityConfig="@xml/network_security_config"
+    ...>

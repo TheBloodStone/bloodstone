@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Faucet{% endblock %} · Bloodstone</title>
+  {% if coin_icon_url %}<link rel="icon" href="{{ coin_icon_url }}" type="image/png">
+  <link rel="apple-touch-icon" href="{{ coin_icon_url }}">{% endif %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/faucet.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="{{ public_root }}/">
+        {% include "_brand_icon.html" %}
+        <span class="brand-text">Bloodstone Faucet</span>
+      </a>
+      <nav class="nav-links">
+        <a href="{{ public_root }}/">Portal</a>
+        <a href="{{ url_for('index') }}">Claim</a>
+        <a href="{{ url_for('fund') }}">Fund</a>
+        <a href="{{ public_root }}/wallet/">Wallet</a>
+
+        <a href="{{ public_root }}/explorer/">Explorer</a>
+        <a href="{{ public_root }}/mining/">Mining</a>
+        <a href="{{ public_root }}/mining/admin">Admin</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <div class="flash-wrap">
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <a href="{{ public_root }}/faucet/">{{ public_root }}/faucet/</a>
+      · Fund the faucet from any <a href="{{ public_root }}/wallet/">web wallet</a> account
+    </div>
+  </footer>
+</body>
+</html>

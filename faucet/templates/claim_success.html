@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Claim sent{% endblock %}
+{% block content %}
+<section class="panel panel-success">
+  <div class="panel-head"><h2>Claim sent</h2></div>
+  <div class="panel-body stack">
+    <p><strong>{{ amount }} STONE</strong> sent to <code class="mono">{{ address }}</code></p>
+    <p class="muted">Transaction: <code class="mono wrap">{{ txid }}</code></p>
+    <p class="muted small">You can claim again in <strong>{{ next_claim_wait }}</strong> ({{ next_claim_at }}).</p>
+    <div class="btn-row">
+      <a class="btn" href="{{ explorer_tx }}" target="_blank" rel="noopener">View in explorer</a>
+      <a class="btn btn-ghost" href="{{ url_for('index') }}">Claim again later</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

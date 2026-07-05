@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% block title %}{{ pool.name }} · Bloodstone Mining{% endblock %}
+{% block content %}
+<section class="page-head">
+  <h1>{{ pool.name }}</h1>
+  <p class="muted">{{ pool.miner_hint }}</p>
+  {% if show_web_miner %}
+  <div class="pool-actions">
+    <a class="btn" href="#web-miner">Mine in your browser</a>
+    <a class="btn btn-ghost" href="#web-miner" data-set-miner-mode="pool">Browser · pool</a>
+    <a class="btn btn-ghost" href="#web-miner" data-set-miner-mode="solo">Browser · solo</a>
+  </div>
+  {% endif %}
+</section>
+
+{% with mining_focus=true %}{% include "_run_locally_callout.html" %}{% endwith %}
+
+<section class="panel">
+  <div class="panel-body">
+    {% if show_pool_modes %}
+    <h3>Mining mode</h3>
+    <p class="muted small">Pool mode submits easier shares for stats. Solo mode uses full network block difficulty — you only get work when a real block is found.</p>
+    <div class="mode-tabs" role="tablist">
+      <button type="button" class="mode-tab{% if default_mining_mode != 'solo' %} active{% endif %}" data-mode-tab="pool" aria-selected="{% if default_mining_mode != 'solo' %}true{% else %}false{% endif %}">Pool mining</button>
+      <button type="button" class="mode-tab{% if default_mining_mode == 'solo' %} active{% endif %}" data-mode-tab="solo" aria-selected="{% if default_mining_mode == 'solo' %}true{% else %}false{% endif %}">Solo mining</button>
+    </div>
+
+    <div class="mode-panel" data-mode-panel="pool"{% if default_mining_mode == 'solo' %} hidden{% endif %}>
+      <h3>Pool connection</h3>
+      <dl class="detail-dl">
+        <dt>URL (plain TCP)</dt>
+        <dd class="mono copy-row"><code>{{ pool.url }}</code><button type="button" class="btn btn-small" data-copy="{{ pool.url }}">Copy</button></dd>
+        {% if pool.url_tls %}
+        <dt>URL (TLS)</dt>
+        <dd class="mono copy-row"><code>{{ pool.url_tls }}</code><button type="button" class="btn btn-small" data-copy="{{ pool.url_tls }}">Copy</button></dd>
+        {% endif %}
+        <dt>Username</dt>
+        <dd class="mono">{{ pool.example_user }}
+          <span class="muted">(your {% if pool.key == 'rod_neoscrypt' %}ROD{% else %}STONE{% endif %} address)</span>
+        </dd>
+        <dt>Password</dt><dd><code>x</code> <span class="muted">(pool shares)</span></dd>
+        <dt>Share difficulty</dt><dd>{{ pool.share_difficulty }}</dd>
+      </dl>
+      <h3>Example</h3>
+      <pre class="code-block">{{ pool.example_cmd }}</pre>
+      <button type="button" class="btn btn-small" data-copy="{{ pool.example_cmd }}">Copy command</button>
+    </div>
+
+    <div class="mode-panel" data-mode-panel="solo"{% if default_mining_mode != 'solo' %} hidden{% endif %}>
+      <h3>Solo connection</h3>
+      <dl class="detail-dl">
+        <dt>URL (plain TCP)</dt>
+        <dd class="mono copy-row"><code>{{ pool.url }}</code><button type="button" class="btn btn-small" data-copy="{{ pool.url }}">Copy</button></dd>
+        {% if pool.url_tls %}
+        <dt>URL (TLS)</dt>
+        <dd class="mono copy-row"><code>{{ pool.url_tls }}</code><button type="button" class="btn btn-small" data-copy="{{ pool.url_tls }}">Copy</button></dd>
+        {% endif %}
+        <dt>Username</dt>
+        <dd class="mono">{{ pool.example_user }}
+          <span class="muted">(your {% if pool.key == 'rod_neoscrypt' %}ROD{% else %}STONE{% endif %} address)</span>
+        </dd>
+        <dt>Password</dt><dd><code>solo</code> <span class="muted">(full block difficulty)</span></dd>
+        <dt>Network difficulty</dt><dd>{{ network_difficulty }}</dd>
+      </dl>
+      <h3>Example</h3>
+      <pre class="code-block">{{ solo_example_cmd }}</pre>
+      <button type="button" class="btn btn-small" data-copy="{{ solo_example_cmd }}">Copy command</button>
+    </div>
+    {% else %}
+    <h3>Connection</h3>
+    <dl class="detail-dl">
+      <dt>URL (plain TCP)</dt>
+      <dd class="mono copy-row"><code>{{ pool.url }}</code><button type="button" class="btn btn-small" data-copy="{{ pool.url }}">Copy</button></dd>
+      {% if pool.url_tls %}
+      <dt>URL (TLS)</dt>
+      <dd class="mono copy-row"><code>{{ pool.url_tls }}</code><button type="button" class="btn btn-small" data-copy="{{ pool.url_tls }}">Copy</button></dd>
+      {% endif %}
+      <dt>Username</dt>
+      <dd class="mono">{{ pool.example_user }} <span class="muted">(your STONE address)</span></dd>
+      <dt>Password</dt><dd><code>x</code></dd>
+      <dt>Share difficulty</dt><dd>{{ pool.share_difficulty }}</dd>
+    </dl>
+    <h3>Example</h3>
+    <pre class="code-block">{{ pool.example_cmd }}</pre>
+    <button type="button" class="btn btn-small" data-copy="{{ pool.example_cmd }}">Copy command</button>
+    {% endif %}
+
+    <dl class="detail-dl setup-status">
+      <dt>Status</dt>
+      <dd>{% if pool.healthy %}<span class="badge badge-active">online</span>{% else %}<span class="badge badge-down">offline</span>{% endif %}</dd>
+      <dt>Workers</dt>
+      <dd>
+        <span class="pool-workers" data-pool-workers="{{ pool.key }}">{{ pool.workers }}</span>
+        {% if pool.browser_workers %}
+        <span class="muted">(<span class="pool-browser-workers" data-pool-browser="{{ pool.key }}">{{ pool.browser_workers }}</span> browser)</span>
+        {% endif %}
+      </dd>
+      {% if pool.algo == 'yespower' and pool.block_finder %}
+      <dt>Server pool miner</dt>
+      <dd>
+        <span class="badge {% if pool.block_finder.active %}badge-active{% else %}badge-down{% endif %}" data-pool-block-finder="{{ pool.key }}">{% if pool.block_finder.active %}cpuminer-opt pool{% else %}offline{% endif %}</span>
+        <span class="muted">— server CPU miner; shares count like browser miners</span>
+      </dd>
+      {% elif pool.algo == 'neoscrypt-xaya' and pool.pool_miner %}
+      <dt>Server pool miner</dt>
+      <dd>
+        <span class="badge {% if pool.pool_miner.active %}badge-active{% else %}badge-down{% endif %}" data-pool-pool-miner="{{ pool.key }}">{% if pool.pool_miner.active %}cpuminer-opt pool{% else %}offline{% endif %}</span>
+        <span class="muted">— server CPU miner; shares count like browser miners</span>
+      </dd>
+      {% endif %}
+    </dl>
+
+    {% if pool.pool_accounting and not pool.pool_accounting.get('error') %}
+    <h3>Proportional pool rewards</h3>
+    <p class="muted small">Pool mode miners earn a share of each {{ pool.name }} block found (~{{ pool.pool_accounting.block_reward_stone|int }} STONE minus {{ pool.pool_accounting.fee_pct }}% fee), weighted by accepted shares in the round. Balances are shared across all three pool algos (neoscrypt, yespower, sha256d).</p>
+    <dl class="detail-dl">
+      <dt>Balance multiplier</dt><dd>{{ '%.2f'|format(pool.pool_accounting.balance_multiplier|default(1.0)) }}× <span class="muted">(algo watchdog)</span></dd>
+      <dt>Round height</dt><dd>{% if pool.pool_accounting.open_round %}{{ pool.pool_accounting.open_round.job_height }}{% else %}—{% endif %}</dd>
+      <dt>Round shares</dt><dd>{{ pool.pool_accounting.open_round.total_weight|default(0)|round(2) if pool.pool_accounting.open_round else 0 }} weight ({{ pool.pool_accounting.total_shares }} total recorded)</dd>
+      <dt>Unique miners</dt><dd>{{ pool.pool_accounting.unique_miners }}</dd>
+      <dt>Pending balances</dt><dd>{{ '%.4f'|format(pool.pool_accounting.total_pending_stone) }} STONE credited</dd>
+    </dl>
+    {% if pool.pool_accounting.round_miners %}
+    <h4>Current round miners</h4>
+    <table class="data-table">
+      <thead><tr><th>Address</th><th>Hashrate</th><th>Shares</th><th>Weight</th><th>%</th><th>Type</th></tr></thead>
+      <tbody>
+        {% for m in pool.pool_accounting.round_miners %}
+        <tr>
+          <td class="mono">{{ m.address[:12] }}…</td>
+          <td>{{ m.hashrate|default('—') }}</td>
+          <td>{{ m.shares }}</td>
+          <td>{{ '%.2f'|format(m.weight) }}</td>
+          <td>{{ '%.2f'|format(m.pct) }}%</td>
+          <td>{% if m.browser %}browser{% else %}native{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+    {% if pool.pool_accounting.last_closed_round %}
+    <p class="muted small">Last block: height {{ pool.pool_accounting.last_closed_round.block_height or '—' }}, reward {{ pool.pool_accounting.last_closed_round.reward_stone or '—' }} STONE</p>
+    {% endif %}
+    {% endif %}
+
+    {% if pool.key in ['neoscrypt', 'yespower'] %}
+    <div class="info-box">
+      <strong>{{ pool.name }} stratum</strong> — external miners connect to
+      <span class="mono">{{ vps_ip }}</span> (port {{ pool.port }}), not <span class="mono">127.0.0.1</span>.
+      Browser miners use the website WebSocket; native miners and Awesome Miner use <span class="mono">{{ pool.url }}</span>.
+      SHA256d/ASIC also uses <span class="mono">{{ vps_ip }}</span>.
+    </div>
+    {% endif %}
+
+    <div class="info-box">
+      <strong>Awesome Miner (Windows)</strong>
+      <p class="muted small" style="margin:0.5rem 0 0.25rem;">Awesome Miner connects to the <em>pool stratum</em> on this VPS (not RPC). The pool submits work to the Bloodstone node for you.</p>
+      <ol class="muted small" style="margin:0.25rem 0 0 1.1rem;">
+        <li><strong>Options → Pools → New pool…</strong> — type <em>Custom pool</em> / generic Stratum.</li>
+        <li><strong>Server</strong> — <span class="mono">{{ pool.stratum_host or vps_ip }}</span>, port <span class="mono">{{ pool.port }}</span> (plain TCP, no SSL).</li>
+        <li><strong>Worker name</strong> — <span class="mono">YOURADDRESS.WORKER</span> (your {% if pool.key == 'rod_neoscrypt' %}ROD{% else %}STONE{% endif %} payout address, a dot, then a label per rig/device — e.g. <span class="mono">Sabc…xyz.rig1</span>). Payouts go to the address; workers are tracked separately.</li>
+        <li><strong>Password</strong> — <code>x</code> (pool) or <code>solo</code> (solo).</li>
+        {% if pool.algo in ['neoscrypt-xaya', 'yespower'] %}
+        {% if pool.algo == 'neoscrypt-xaya' %}
+        <li><strong>GPU:</strong> <em>nsgminer</em> / <em>sgminer</em> / <em>ccminer</em> — kernel <code>neoscrypt-xaya</code>, pool URL above (port {{ pool.port }}).</li>
+        <li><strong>CPU:</strong> <em>CpuMiner-Opt</em> — algorithm <code>neoscrypt-xaya</code> → assign the pool above.</li>
+        {% else %}
+        <li><strong>CPU:</strong> add miner → <em>CpuMiner-Opt</em> → algorithm <code>YespowerR16</code> → assign the pool above.</li>
+        {% endif %}
+        {% elif pool.algo == 'sha256d' %}
+        <li><strong>ASIC / Bitaxe:</strong> add ASIC or generic Stratum miner → assign this pool (Stratum V1, TLS off).</li>
+        {% endif %}
+      </ol>
+      <p class="muted small" style="margin:0.5rem 0 0;">Pool URL to paste: <span class="mono copy-row"><code>{{ pool.url }}</code><button type="button" class="btn btn-small" data-copy="{{ pool.url }}">Copy</button></span></p>
+    </div>
+
+    {% if pool.algo == 'sha256d' %}
+    <div class="info-box">
+      <strong>Bitaxe / ASIC — Stratum V1 (recommended, works now)</strong>
+      <ul class="muted small" style="margin:0.5rem 0 0 1rem;">
+        <li><strong>Protocol</strong> — Stratum V1 (<code>SV1</code> in Bitaxe settings). <strong>Not</strong> SV2 on port {{ pool.sv2_port }} unless you enable SV2 mode.</li>
+        <li><strong>Stratum host</strong> — <span class="mono">{{ vps_ip }}</span> (main VPS).</li>
+        <li><strong>Plain TCP (recommended)</strong> — <span class="mono">{{ pool.url }}</span>, <strong>TLS OFF</strong>, port <strong>{{ pool.port }}</strong> (SV1).</li>
+        {% if pool.url_tls %}
+        <li><strong>TLS</strong> — <span class="mono">{{ pool.url_tls }}</span>, TLS ON, port {{ pool.tls_port }}, certificate verification <strong>off</strong> (self-signed).</li>
+        {% endif %}
+        <li><strong>Worker</strong> — <span class="mono">YOURADDRESS.WORKER</span> (STONE address + dot + device name, e.g. <span class="mono">Sabc…xyz.bitaxe1</span>). <strong>Password</strong> — <code>x</code> (pool) or <code>solo</code> (solo).</li>
+        <li><strong>Extensions</strong> — version-rolling supported (<code>mining.configure</code>).</li>
+        <li><strong>Do not use TLS on port {{ pool.port }}</strong> — plain stratum only; TLS on that port causes <code>esp-tls: Failed to open new connection</code>.</li>
+      </ul>
+    </div>
+    {% if pool.sv2_enabled and pool.sv2_port %}
+    <div class="info-box">
+      <strong>Bitaxe / ASIC — Stratum V2 (beta)</strong>
+      <ul class="muted small" style="margin:0.5rem 0 0 1rem;">
+        <li><strong>Protocol</strong> — Stratum V2 (<code>SV2</code> in Bitaxe settings).</li>
+        <li><strong>Host</strong> — <span class="mono">{{ vps_ip }}</span>, port <span class="mono">{{ pool.sv2_port }}</span>, TLS OFF.</li>
+        <li><strong>Channel type</strong> — <code>standard</code> (or <code>extended</code> if your firmware supports it).</li>
+        <li><strong>Worker</strong> — your STONE payout address. <strong>Password</strong> — <code>x</code>.</li>
+        {% if pool.sv2_authority_pubkey %}
+        <li><strong>Authority pubkey</strong> — <span class="mono copy-row">{{ pool.sv2_authority_pubkey }}<button type="button" class="btn btn-small" data-copy="{{ pool.sv2_authority_pubkey }}">Copy</button></span></li>
+        {% endif %}
+        <li class="muted">SV2 requires the <span class="mono">bloodstone-stratum-sv2</span> pool service plus a Bloodstone auxpow template provider. Use SV1 above until SV2 jobs are live.</li>
+      </ul>
+    </div>
+    {% endif %}
+    <p class="muted small" style="margin-top:0.75rem;">
+      Website split: pages <span class="mono">/mining/</span>, API <span class="mono">/mining/api/</span>, browser miner WebSocket <span class="mono">/mining/ws/</span> — ASICs use stratum TCP above, not the web paths.
+    </p>
+    {% endif %}
+
+    {% if pool.algo == 'yespower' and not overview.yespower_active %}
+    <div class="warn-box">
+      Yespower activates at block <strong>{{ overview.yespower_fork_height }}</strong>
+      ({{ overview.blocks_until_yespower }} blocks remaining). Pool is up but blocks won't use yespower until the fork.
+    </div>
+    {% elif pool.algo == 'yespower' and overview.all_algos_active %}
+    <div class="info-box">
+      <strong>Yespower R16 is live</strong> on the relaunched chain — any block height can accept yespower PoW.
+    </div>
+    {% elif pool.algo == 'yespower' and overview.yespower_active %}
+    <div class="info-box">
+      <strong>Yespower R16 is live</strong> — any block height can accept yespower PoW
+      (same as neoscrypt and SHA256d).
+    </div>
+    {% endif %}
+
+    {% if pool.peers %}
+    <h3>Connected workers</h3>
+    <ul>
+      {% for peer in pool.peers %}
+      <li class="mono">{{ peer.peer_ip }}:{{ peer.peer_port }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</section>
+
+{% if pool.key == 'rod_neoscrypt' %}
+{% set show_rod_payout_panel = true %}
+{% set rod_payout_address = payout_address %}
+<section class="info-box" style="margin-bottom:1rem;">
+  <strong>ROD neoscrypt pool</strong> — enter your ROD core wallet in the payout field below. Found blocks pay <strong>ROD</strong> directly to that address.
+</section>
+{% endif %}
+
+{% if show_web_miner %}
+{% include "_web_miner_panel.html" %}
+{% endif %}
+
+<a class="btn btn-ghost" href="{{ url_for('index') }}">← Back to dashboard</a>
+{% endblock %}

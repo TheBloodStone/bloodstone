@@ -1,0 +1,19 @@
+[Unit]
+Description=Bloodstone BSM4 TLS handshake lab (openssl s_server)
+After=network.target
+Documentation=file:///root/bloodstone-docs/Bloodstone-Mesh-Virtual-LAN-White-Paper.docx
+
+[Service]
+Type=simple
+User=root
+Environment=BSM4_TLS_LAB_CERT_DIR=/etc/bloodstone/tls-lab
+Environment=BSM4_TLS_LAB_PORT=18443
+Environment=BSM4_TLS_LAB_SNI=bloodstone-tls-lab
+ExecStart=/usr/bin/openssl s_server -accept ${BSM4_TLS_LAB_PORT} -cert ${BSM4_TLS_LAB_CERT_DIR}/bloodstone-tls-lab.crt -key ${BSM4_TLS_LAB_CERT_DIR}/bloodstone-tls-lab.key -www -quiet
+Restart=always
+RestartSec=3
+StartLimitIntervalSec=120
+StartLimitBurst=8
+
+[Install]
+WantedBy=multi-user.target

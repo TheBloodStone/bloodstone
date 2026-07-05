@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}DEX{% endblock %} · Bloodstone</title>
+  {% if coin_icon_url %}<link rel="icon" href="{{ coin_icon_url }}" type="image/png">
+  <link rel="apple-touch-icon" href="{{ coin_icon_url }}">{% endif %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/dex.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="{{ public_root }}/">
+        {% include "_brand_icon.html" %}
+        <span class="brand-text">Bloodstone DEX</span>
+      </a>
+      <nav class="nav-links">
+        <a href="{{ public_root }}/">Portal</a>
+        <a href="{{ url_for('index') }}">Market</a>
+        <a href="{{ url_for('sell') }}">Sell</a>
+        <a href="{{ url_for('bid') }}">Bid</a>
+        <a href="{{ url_for('my_orders') }}">My orders</a>
+        <a href="{{ public_root }}/wallet/">Wallet</a>
+        <a href="{{ public_root }}/explorer/">Explorer</a>
+        <a href="{{ public_root }}/mining/">Mining</a>
+        <a href="{{ public_root }}/faucet/">Faucet</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <div class="flash-wrap">
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      Trustless atomic name trades on Bloodstone —
+      <a href="{{ public_root }}/dex/">{{ public_root }}/dex/</a>
+      {% if wallet_user %}
+      · logged in as <strong>{{ wallet_user.username }}</strong>
+      {% else %}
+      · <a href="{{ wallet_login_url }}">Log in</a> to trade
+      {% endif %}
+    </div>
+  </footer>
+</body>
+</html>

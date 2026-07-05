@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Claim STONE{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>STONE Faucet</h1>
+  <p class="hero-sub">Get free test STONE for wallets and mining setup. Anyone can also <a href="{{ url_for('fund') }}">fund the faucet</a> from their wallet.</p>
+</section>
+
+{% if not status.ok %}
+<section class="panel panel-warn">
+  <div class="panel-body">
+    <p><strong>Faucet offline:</strong> {{ status.error }}</p>
+    <p class="muted">The Bloodstone node must be running with the <code>faucet</code> wallet loaded.</p>
+  </div>
+</section>
+{% else %}
+{% if status.balance < claim_amount %}
+<section class="panel panel-warn">
+  <div class="panel-body">
+    <p><strong>Faucet needs funding.</strong> Balance is {{ "%.4f"|format(status.balance) }} STONE — send to the address below (must match exactly).</p>
+    <code class="address-box">{{ status.address }}</code>
+  </div>
+</section>
+{% endif %}
+
+<section class="stats-grid">
+  <div class="stat-card highlight">
+    <div class="stat-label">Claim amount</div>
+    <div class="stat-value">{{ claim_amount }} <span class="unit">STONE</span></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Faucet balance</div>
+    <div class="stat-value">{{ "%.4f"|format(status.balance) }} <span class="unit">STONE</span></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Cooldown</div>
+    <div class="stat-value">{{ cooldown_min_hours }}–{{ cooldown_max_hours }}h <span class="unit">random wait</span></div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Claim STONE</h2></div>
+  <div class="panel-body stack">
+    {% if wallet_user and wallet_primary_address %}
+    <p>Logged in as <strong>{{ wallet_user.username }}</strong>. STONE will be sent to your wallet’s primary address:</p>
+    <code class="address-box">{{ wallet_primary_address }}</code>
+    <form method="post" action="{{ url_for('claim') }}" class="stack-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <p class="muted small">After each claim, a random {{ cooldown_min_hours }}–{{ cooldown_max_hours }} hour wait applies per wallet address and per IP. Each IP can only claim from one wallet account.</p>
+      <button type="submit" class="btn">Claim {{ claim_amount }} STONE to my wallet</button>
+    </form>
+    {% elif wallet_user %}
+    <p class="muted">Your account has no wallet yet.</p>
+    <a class="btn" href="{{ public_root }}/wallet/setup-wallet">Set up wallet</a>
+    {% else %}
+    <p class="muted">Sign in to your web wallet — the faucet sends {{ claim_amount }} STONE to your primary receive address automatically.</p>
+    <a class="btn" href="{{ wallet_login_url }}">Log in to claim</a>
+    <p class="muted small">After each claim, a random {{ cooldown_min_hours }}–{{ cooldown_max_hours }} hour wait applies per address and per IP. Each IP can only claim from one wallet account.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Fund the faucet</h2></div>
+  <div class="panel-body stack">
+    <p class="muted">Send STONE from your web wallet to keep the faucet running. Any logged-in user can donate.</p>
+    <code class="address-box">{{ status.address }}</code>
+    <div class="btn-row">
+      <a class="btn" href="{{ status.donate_url }}">Donate from wallet</a>
+      <a class="btn btn-ghost" href="{{ status.donate_5_url }}">Send 5</a>
+      <a class="btn btn-ghost" href="{{ status.donate_10_url }}">Send 10</a>
+      <a class="btn btn-ghost" href="{{ status.donate_25_url }}">Send 25</a>
+    </div>
+    <a class="muted small" href="{{ url_for('fund') }}">More funding options →</a>
+  </div>
+</section>
+{% endif %}
+
+{% if recent_claims %}
+<section class="panel">
+  <div class="panel-head"><h2>Recent claims</h2></div>
+  <div class="panel-body table-wrap">
+    <table>
+      <thead><tr><th>Address</th><th>Amount</th><th>Time</th></tr></thead>
+      <tbody>
+        {% for row in recent_claims %}
+        <tr>
+          <td class="mono">{{ row.address[:12] }}…{{ row.address[-6:] }}</td>
+          <td>{{ row.amount }} STONE</td>
+          <td class="muted small">{{ row.created_at|faucet_time }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

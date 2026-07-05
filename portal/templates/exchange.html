@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Exchange listing · STONE · Bloodstone</title>
+  {% if coin_icon_url %}<link rel="icon" href="{{ coin_icon_url }}" type="image/png">
+  <link rel="apple-touch-icon" href="{{ coin_icon_url }}">{% endif %}
+  <link rel="canonical" href="{{ public_root }}/exchange/">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/portal.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="{{ public_root }}/">
+        {% include "_brand_icon.html" %}
+        <span class="brand-text">Bloodstone</span>
+      </a>
+      <nav class="nav-links">
+        <a href="{{ public_root }}/explorer/">Explorer</a>
+        <a href="{{ public_root }}/wallet/">Wallet</a>
+        <a href="{{ public_root }}/exchange/" class="nav-cta">Exchange pack</a>
+        <a href="{{ public_root }}/atomicdex/">GleecDEX</a>
+        <a href="{{ public_root }}/support/">Support</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <p class="hero-kicker">CEX / integration submission</p>
+      <h1>STONE exchange listing pack</h1>
+      <p class="hero-sub">
+        Machine-readable spec at
+        <a class="mono" href="{{ public_root }}/api/exchange">{{ public_root }}/api/exchange</a>
+        — updated {{ updated }}.
+      </p>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Coin</h2>
+      </div>
+      <div class="panel-body">
+        <dl class="detail-dl">
+          <dt>Name / ticker</dt><dd>{{ listing.coin.name }} ({{ listing.coin.ticker }})</dd>
+          <dt>Decimals</dt><dd>{{ listing.coin.decimals }}</dd>
+          <dt>Genesis hash</dt><dd class="mono small">{{ listing.coin.genesis_hash }}</dd>
+          <dt>Block reward</dt><dd>{{ listing.coin.block_reward_stone }} STONE</dd>
+          <dt>Block time</dt><dd>~{{ listing.coin.block_time_seconds }}s</dd>
+          <dt>Deposit confirmations</dt><dd>{{ listing.coin.confirmations_deposit }}</dd>
+          <dt>Addresses</dt><dd>{{ listing.coin.address_formats.legacy_p2pkh }} · {{ listing.coin.address_formats.bech32 }}</dd>
+          <dt>PoW algos</dt><dd>{{ listing.coin.algorithms | join(', ') }}</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Node &amp; seeds</h2>
+        <p class="panel-sub">Run your own node or peer to our seeds — RPC is not exposed publicly.</p>
+      </div>
+      <div class="panel-body">
+        <dl class="detail-dl">
+          <dt>Node version</dt><dd>v{{ listing.node.version }}</dd>
+          <dt>P2P</dt><dd class="mono">{{ vps_ip }}:{{ listing.node.p2p_port }}</dd>
+          <dt>Chain height</dt><dd>{{ listing.node.height or '—' }} {% if listing.node.synced %}<span class="badge badge-active">synced</span>{% endif %}</dd>
+          <dt>Seed nodes</dt>
+          <dd class="mono">{% for s in listing.node.seed_nodes %}{{ s }}{% if not loop.last %}<br>{% endif %}{% endfor %}</dd>
+          <dt>txindex</dt><dd>{{ 'enabled' if listing.node.txindex else 'off' }}</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>ElectrumX (SPV / hot wallet)</h2>
+      </div>
+      <div class="panel-body">
+        {% if listing.electrum.ready %}
+        <div class="info-box"><strong>ElectrumX is live</strong> — use for deposit monitoring without full node RPC.</div>
+        {% else %}
+        <div class="warn-box">ElectrumX is starting or unavailable — check again shortly.</div>
+        {% endif %}
+        <dl class="detail-dl">
+          <dt>SSL (recommended)</dt><dd class="mono">{{ listing.electrum.ssl_url }}</dd>
+          <dt>TCP</dt><dd class="mono">{{ listing.electrum.tcp_url }}</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Wallets &amp; explorer</h2>
+      </div>
+      <div class="panel-body link-list">
+        <ul>
+          <li><a href="{{ listing.infrastructure.explorer }}">Block explorer</a> — <code class="mono">{{ listing.infrastructure.explorer_api }}</code></li>
+          <li><a href="{{ listing.infrastructure.web_wallet }}">Web wallet</a> (multi-user custodial-style accounts)</li>
+          <li><a href="{{ listing.infrastructure.downloads }}">Downloads</a> — node core, Windows node GUI, wallet GUI</li>
+          {% if listing.infrastructure.downloads.wallet_gui_windows %}
+          <li><a href="{{ listing.infrastructure.downloads.wallet_gui_windows.url }}">Wallet &amp; Node GUI v{{ listing.software.wallet_gui_version }}</a> (Windows)</li>
+          {% endif %}
+          {% if listing.infrastructure.downloads.node_linux %}
+          <li><a href="{{ listing.infrastructure.downloads.node_linux.url }}">Linux node v{{ listing.software.node_core_version }}</a></li>
+          {% endif %}
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>JSON for submission forms</h2></div>
+      <div class="panel-body">
+        <pre class="code-block mono small" id="exchange-json">Loading…</pre>
+        <button type="button" class="btn btn-small" id="copy-exchange-json">Copy JSON</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    fetch("{{ public_root }}/api/exchange")
+      .then((r) => r.json())
+      .then((data) => {
+        document.getElementById("exchange-json").textContent = JSON.stringify(data, null, 2);
+      });
+    document.getElementById("copy-exchange-json")?.addEventListener("click", async () => {
+      const text = document.getElementById("exchange-json").textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch (_) {
+        window.prompt("Copy:", text);
+      }
+    });
+  </script>
+</body>
+</html>

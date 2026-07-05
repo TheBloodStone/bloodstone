@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bloodstone · STONE Network Portal</title>
+  {% if coin_icon_url %}<link rel="icon" href="{{ coin_icon_url }}" type="image/png">
+  <link rel="apple-touch-icon" href="{{ coin_icon_url }}">{% endif %}
+  <link rel="canonical" href="{{ public_root }}/">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/portal.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="{{ public_root }}/">
+        {% include "_brand_icon.html" %}
+        <span class="brand-text">Bloodstone</span>
+      </a>
+      <nav class="nav-links">
+        <a href="{{ public_root }}/explorer/">Explorer</a>
+        <a href="{{ public_root }}/wallet/">Wallet</a>
+        <a href="{{ public_root }}/faucet/" class="nav-cta">Faucet</a>
+        <a href="{{ public_root }}/mining/">Mining</a>
+        <a href="{{ public_root }}/exchange/">Exchange</a>
+        <a href="{{ public_root }}/atomicdex/">GleecDEX</a>
+        <a href="{{ public_root }}/support/">Support</a>
+        <a href="#windows-node-tutorial">Windows Node</a>
+        <a href="#rich-list">Rich List</a>
+        <a href="#mining-pool" class="nav-cta">Mining Pool</a>
+        <a href="{{ public_root }}/mining/mine" class="nav-cta">Mine in Browser</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <p class="hero-kicker">Bloodstone · STONE mainnet</p>
+      <h1>STONE Network Portal</h1>
+      <p class="hero-sub">
+        Official portal:
+        <a class="portal-url mono" href="{{ public_root }}/">{{ public_root }}/</a>
+      </p>
+    </section>
+
+    {% include "_run_locally_callout.html" %}
+
+    <section class="panel decentral-vps-panel" id="decentralized-vps">
+      <div class="panel-head">
+        <h2>Decentralized VPS — how the network shares the load</h2>
+        <p class="panel-sub">Phones, browsers, and PCs extend Bloodstone beyond a single server</p>
+      </div>
+      <div class="panel-body">
+        <div class="decentral-vps-intro">
+          <p>
+            Most Bloodstone services — browser mining, the pool WebSocket bridge, wallet RPC, explorer,
+            and stratum coordination — run on one VPS. That keeps things simple, but it also concentrates
+            work: every phone and browser can end up routing hashrate and API calls through the same machine.
+          </p>
+          <p>
+            The <strong>decentralized VPS</strong> is the opposite idea. Participating devices act as
+            <strong>extension nodes</strong> that shoulder part of the job — hashing, chain data, and peer
+            connectivity — while still earning through the same proportional mining pool. You are not renting
+            someone else’s server; you are helping the community run its own.
+          </p>
+        </div>
+
+        {% if fleet_stats and fleet_stats.active_devices %}
+        <div class="stats-grid decentral-vps-stats">
+          <div class="stat-card highlight">
+            <div class="stat-label">Active devices ({{ fleet_stats.window_sec // 60 }} min)</div>
+            <div class="stat-value">{{ fleet_stats.active_devices }}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Offload nodes (direct stratum)</div>
+            <div class="stat-value">{{ fleet_stats.offload_nodes }}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Android native TCP</div>
+            <div class="stat-value">{{ fleet_stats.android_native_tcp }}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Browser / PWA bridge</div>
+            <div class="stat-value">{{ fleet_stats.browser_bridge }}</div>
+          </div>
+        </div>
+        {% endif %}
+
+        <h3 class="decentral-vps-subhead">How it works</h3>
+        <div class="decentral-vps-grid">
+          <article class="decentral-vps-card">
+            <h4>1 · Device fleet — decentralized pool nodes</h4>
+            <p>
+              When you mine with the <strong>Android app</strong>, your phone opens a
+              <strong>native stratum TCP</strong> connection straight to the pool. That bypasses the VPS
+              WebSocket bridge used by browser miners. The pool registers your device in the
+              <em>device fleet</em> as an <strong>offload node</strong> — a small piece of distributed
+              mining infrastructure.
+            </p>
+            <p class="muted small">
+              Browser and iOS PWA miners remain <em>bridge clients</em> (WebSocket via the VPS). Every
+              Android native node reduces central bridge load.
+            </p>
+          </article>
+          <article class="decentral-vps-card">
+            <h4>2 · Chain mesh — shared chain storage</h4>
+            <p>
+              Blockchain data is split into <strong>256&nbsp;KiB chunks</strong>. Each device independently
+              backs up about <strong>10%</strong> of chunks — assigned by
+              <span class="mono">sha256(node_id:chunk_hash)</span>, not by a central coordinator.
+              The VPS publishes the chunk catalog (manifest); your node decides which slices are yours.
+              In <strong>mesh</strong> mode your device keeps a pruned node plus its assigned chunk replicas.
+            </p>
+            <p class="muted small">
+              Mesh participation supports <strong>offline-capable mining</strong>: sync job data when online,
+              then continue validating work when connectivity drops.
+            </p>
+          </article>
+          <article class="decentral-vps-card">
+            <h4>3 · Local node on your hardware</h4>
+            <p>Android and desktop installs can run <code class="mono">bloodstoned</code> locally in three modes:</p>
+            <ul class="decentral-vps-modes">
+              <li><strong>Pruned</strong> (~550&nbsp;MiB) — lightweight sync; default on phones</li>
+              <li><strong>Full</strong> — complete chain, P2P on port <code class="mono">17333</code>; your device becomes a real network peer</li>
+              <li><strong>Mesh</strong> — pruned node plus chain-mesh chunks; federation without a full-chain download</li>
+            </ul>
+            <p class="muted small">
+              On the same Wi‑Fi, devices can discover each other’s RPC and stratum endpoints (LAN registry)
+              and mine against a nearby peer instead of always reaching out to the VPS.
+            </p>
+          </article>
+        </div>
+
+        <h3 class="decentral-vps-subhead">Why it matters</h3>
+        <ul class="decentral-vps-why">
+          <li><strong>Resilience</strong> — the portal stays useful even when one server is under heavy load; native nodes and mesh peers spread work across the community.</li>
+          <li><strong>Scalability</strong> — more miners can join without every share and heartbeat crossing the same WebSocket bridge.</li>
+          <li><strong>Fair rewards</strong> — phone and browser miners already receive a share of ASIC pool subsidies; decentralizing hash delivery makes that sustainable as the fleet grows.</li>
+          <li><strong>Sovereignty</strong> — you verify blocks closer to your own device, hold mesh chunks locally, and can run a full peer instead of trusting a remote RPC for everything.</li>
+        </ul>
+
+        <div class="decentral-vps-actions">
+          {% if run_locally and run_locally.android_miner_apk %}
+          <a class="btn" href="{{ run_locally.android_miner_apk.url }}">Android node + miner v{{ run_locally.android_miner_version }}</a>
+          {% endif %}
+          <a class="btn btn-ghost" href="{{ public_root }}/mining/mine">Mine in browser</a>
+          <a class="btn btn-ghost" href="{{ public_root }}/mining/">Mining dashboard</a>
+          <a class="btn btn-ghost" href="#windows-node-tutorial">Desktop node tutorial</a>
+        </div>
+        <p class="muted small decentral-vps-footnote">
+          Browser mining is the fastest way to start; the Android app is the fullest decentralized VPS experience
+          (native stratum, local node, chain mesh). Desktop node GUIs spread wallet and P2P load the same way.
+        </p>
+      </div>
+    </section>
+
+    <section class="panel pool-unified-panel" id="mining-pool">
+      <div class="panel-head">
+        <h2>Unified proportional mining pool</h2>
+        <p class="panel-sub">Neoscrypt · Yespower R16 · SHA256d — one shared balance, three stratum ports</p>
+      </div>
+      <div class="panel-body">
+        <div class="pool-unified-intro">
+          <p>
+            Bloodstone rotates <strong>all three PoW algorithms every block</strong>. Pool mode miners on any algo
+            submit easier shares; when the pool finds a block (~{{ block_reward_stone|int }} STONE, minus {{ pool_fee_pct }}% fee),
+            rewards are split <strong>proportionally by share weight</strong> in that round. Earnings from all algos credit the
+            <strong>same pending balance</strong> for your STONE address.
+          </p>
+          <ul class="pool-unified-bullets">
+            <li><strong>Username</strong>: your STONE payout address · <strong>Password</strong>: <code>x</code> (pool) or <code>solo</code> (full difficulty)</li>
+            <li><strong>Ports</strong>: neoscrypt <code class="mono">3437</code> · yespower <code class="mono">3438</code> · SHA256d <code class="mono">3429</code></li>
+          </ul>
+          <div class="pool-unified-actions">
+            <a class="btn" href="{{ public_root }}/mining/">Full mining dashboard</a>
+            <a class="btn btn-ghost" href="{{ public_root }}/mining/mine">Browser miner</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel pool-dash-panel" id="pool-dashboard">
+      <div class="panel-head">
+        <h2>Pool shares dashboard</h2>
+        <p class="panel-sub">Live round weights, algo balance multipliers (watchdog), and pending STONE balances — refreshes every 30s</p>
+      </div>
+      <div class="panel-body">
+        {% if pool_dashboard.loading %}
+        <p class="muted small">Loading pool dashboard…</p>
+        {% elif pool_dashboard.error %}
+        <div class="warn-box">Pool data unavailable: {{ pool_dashboard.error }}</div>
+        {% else %}
+        {% if pool_dashboard.asic_mobile_subsidy %}
+        <section class="asic-subsidy-panel" id="asic-mobile-subsidy">
+          <h3 class="pool-dash-subhead">ASIC → phone &amp; browser pool share</h3>
+          <p class="muted small" id="asic-subsidy-note">{{ pool_dashboard.asic_mobile_subsidy.note }}</p>
+          <div class="stats-grid pool-dash-stats asic-subsidy-stats">
+            <div class="stat-card highlight">
+              <div class="stat-label">Total shared from ASIC blocks</div>
+              <div class="stat-value" id="asic-total-shared">{{ '%.4f'|format(pool_dashboard.asic_mobile_subsidy.total_shared_stone) }} STONE</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">To phone / Android miners</div>
+              <div class="stat-value" id="asic-mobile-shared">{{ '%.4f'|format(pool_dashboard.asic_mobile_subsidy.mobile_shared_stone) }} STONE</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Accepted mobile shares (24h)</div>
+              <div class="stat-value" id="asic-mobile-shares-24h">{{ pool_dashboard.asic_mobile_subsidy.mobile_shares_24h }}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">SHA256 blocks found</div>
+              <div class="stat-value" id="asic-sha256-blocks">{{ pool_dashboard.asic_mobile_subsidy.sha256_blocks_found }}</div>
+            </div>
+          </div>
+          {% if pool_dashboard.asic_mobile_subsidy.top_mobile_recipients %}
+          <div class="table-wrap">
+            <table class="data-table compact">
+              <thead><tr><th>Phone / browser miner</th><th>ASIC share received</th><th>Credits</th></tr></thead>
+              <tbody id="asic-mobile-top">
+                {% for row in pool_dashboard.asic_mobile_subsidy.top_mobile_recipients %}
+                <tr>
+                  <td class="mono">{{ row.address[:14] }}…</td>
+                  <td>{{ '%.4f'|format(row.stone) }} STONE</td>
+                  <td>{{ row.payouts }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+        </section>
+        {% endif %}
+
+        <div class="stats-grid pool-dash-stats">
+          <div class="stat-card highlight">
+            <div class="stat-label">Pending payouts</div>
+            <div class="stat-value" id="dash-pending">{{ '%.4f'|format(pool_dashboard.totals.pending_stone) }} STONE</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Paid out</div>
+            <div class="stat-value" id="dash-paid">{{ '%.4f'|format(pool_dashboard.totals.paid_stone) }} STONE</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Miners with balance</div>
+            <div class="stat-value" id="dash-miners">{{ pool_dashboard.totals.miners_with_balance }}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Block reward / fee</div>
+            <div class="stat-value" id="dash-reward">~{{ block_reward_stone|int }} STONE · {{ pool_fee_pct }}% fee</div>
+          </div>
+        </div>
+
+        <section class="pool-payout-log-panel" id="pool-payout-log">
+          <h3 class="pool-dash-subhead">On-chain payouts</h3>
+          <p class="muted small">
+            <strong>Pending</strong> is credited when the pool finds a block.
+            <strong>Paid out</strong> is sent from the pool wallet automatically every
+            {{ pool_payout_interval_min }} minutes (up to {{ "{:g}".format(pool_payout_chunk_max) }} STONE per miner per run, min fee 100 Bar/vB).
+            Server log: <code class="mono">{{ pool_payout_log_path }}</code>
+          </p>
+          <pre class="pool-payout-log mono small" id="pool-payout-log-lines">{% for line in pool_payout_log_lines %}{{ line }}
+{% endfor %}{% if not pool_payout_log_lines %}(no payout log entries yet){% endif %}</pre>
+        </section>
+
+        <div class="pool-lookup">
+          <label for="pool-address-lookup" class="muted small">Check your pending balance and next-block share %</label>
+          <div class="pool-lookup-row">
+            <input type="text" id="pool-address-lookup" class="mono" placeholder="Your STONE address" autocomplete="off">
+            <button type="button" class="btn btn-small" id="pool-address-btn">Look up</button>
+          </div>
+          <p class="muted small pool-lookup-result" id="pool-lookup-result" hidden></p>
+        </div>
+
+        {% if pool_dashboard.next_block %}
+        <section class="next-block-panel" id="next-block-shares">
+          <h3 class="pool-dash-subhead">Next block share %</h3>
+          <p class="muted small next-block-note" id="next-block-note">{{ pool_dashboard.next_block.note }}{% if pool_dashboard.finder_bonus_stone %} Block finder bonus: <strong>{{ pool_dashboard.finder_bonus_stone }} STONE</strong> (off the top of the block reward).{% endif %}{% if pool_dashboard.staking_block_pct %} Staking pool: <strong>{{ pool_dashboard.staking_contribution_stone }} STONE</strong> ({{ pool_dashboard.staking_block_pct }}% off the top).{% endif %}</p>
+          <p class="muted small next-block-reward">
+            If the pool finds a block: <strong>~{{ pool_dashboard.next_block.distributable_stone|int }} STONE</strong>
+            distributable ({{ pool_dashboard.next_block.block_reward_stone|int }} STONE reward minus off-top deductions and {{ pool_dashboard.next_block.fee_pct }}% pool fee on the remainder)
+          </p>
+          <div class="next-block-grid" id="next-block-grid">
+            {% for key, algo in pool_dashboard.next_block.per_algo.items() %}
+            <article class="next-block-card" data-next-block-algo="{{ key }}">
+              <div class="next-block-card-head">
+                <h4>{{ algo.label }}</h4>
+                <span class="muted small mono" data-field="nb-height">
+                  {% if algo.job_height %}round {{ algo.job_height }}{% else %}no open round{% endif %}
+                </span>
+              </div>
+              {% if algo.miners %}
+              <div class="table-wrap">
+                <table class="data-table next-block-table">
+                  <thead>
+                    <tr><th>Address</th><th>Worker</th><th>Hashrate</th><th>Weight</th><th>%</th><th>Est. STONE</th></tr>
+                  </thead>
+                  <tbody data-field="nb-miners">
+                    {% for m in algo.miners %}
+                    <tr>
+                      <td class="mono">{{ m.address[:12] }}…</td>
+                      <td class="mono small">{{ m.worker or '—' }}</td>
+                      <td>{{ m.hashrate }}</td>
+                      <td>{{ '%.2f'|format(m.weight) }}</td>
+                      <td><strong>{{ '%.2f'|format(m.pct) }}%</strong></td>
+                      <td>{{ '%.4f'|format(m.estimated_stone) }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {% else %}
+              <p class="muted small" data-field="nb-empty">No pool shares in the current open round yet.</p>
+              {% endif %}
+            </article>
+            {% endfor %}
+          </div>
+        </section>
+        {% endif %}
+
+        <div class="pool-algo-grid" id="pool-algo-grid">
+          {% for key, algo in pool_dashboard.per_algo.items() %}
+          <article class="pool-algo-card" data-algo-card="{{ key }}">
+            <h3>{{ algo.label }}</h3>
+            <dl>
+              <dt>Open round</dt>
+              <dd class="mono" data-field="round-height">{% if algo.open_round %}{{ algo.open_round.job_height }}{% else %}—{% endif %}</dd>
+              <dt>Round weight</dt>
+              <dd data-field="round-weight">{% if algo.open_round %}{{ '%.2f'|format(algo.open_round.total_weight or 0) }}{% else %}0{% endif %}</dd>
+              <dt>Miners (round)</dt>
+              <dd data-field="round-miners">{{ algo.round_miners|length }}</dd>
+              <dt>Total shares</dt>
+              <dd data-field="total-shares">{{ algo.total_shares }}</dd>
+              <dt>Balance mult</dt>
+              <dd data-field="balance-mult">{% if pool_dashboard.algo_balance and pool_dashboard.algo_balance.multipliers %}{{ '%.2f'|format(pool_dashboard.algo_balance.multipliers.get(key, 1.0)) }}×{% else %}1.00×{% endif %}</dd>
+            </dl>
+            {% if algo.round_miners %}
+            <table class="pool-mini-table">
+              <thead><tr><th>Address</th><th>Hashrate</th><th>Weight</th><th>%</th></tr></thead>
+              <tbody>
+                {% for m in algo.round_miners[:5] %}
+                <tr>
+                  <td class="mono">{{ m.address[:10] }}…</td>
+                  <td>{{ m.hashrate }}</td>
+                  <td>{{ '%.1f'|format(m.weight) }}</td>
+                  <td>{{ '%.1f'|format(m.pct) }}%</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% endif %}
+          </article>
+          {% endfor %}
+        </div>
+
+        {% if pool_dashboard.block_find_leaderboard %}
+        <h3 class="pool-dash-subhead">Most blocks found</h3>
+        <div class="table-wrap">
+          <table class="data-table" id="pool-block-leaderboard">
+            <thead><tr><th>Address</th><th>Total</th><th>SHA256d</th><th>Neoscrypt</th><th>Yespower</th></tr></thead>
+            <tbody>
+              {% for row in pool_dashboard.block_find_leaderboard[:12] %}
+              <tr>
+                <td class="mono">{{ row.address }}</td>
+                <td><strong>{{ row.total_blocks }}</strong></td>
+                <td>{{ row.sha256d or '—' }}</td>
+                <td>{{ row.neoscrypt or '—' }}</td>
+                <td>{{ row.yespower or '—' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+
+        {% if pool_dashboard.recent_block_finds %}
+        <h3 class="pool-dash-subhead">Recent block finds</h3>
+        <div class="table-wrap">
+          <table class="data-table" id="pool-recent-blocks">
+            <thead><tr><th>Algo</th><th>Height</th><th>Finder</th><th>Worker</th></tr></thead>
+            <tbody>
+              {% for row in pool_dashboard.recent_block_finds[:10] %}
+              <tr>
+                <td>{{ row.algo }}</td>
+                <td>{{ row.block_height }}</td>
+                <td class="mono">{{ row.finder_address }}</td>
+                <td class="mono small">{{ row.finder_worker or '—' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+
+        {% if pool_dashboard.top_pending %}
+        <h3 class="pool-dash-subhead">Top pending balances</h3>
+        <div class="table-wrap">
+          <table class="data-table" id="pool-top-pending">
+            <thead><tr><th>Address</th><th>Hashrate</th><th>Pending STONE</th><th>Paid STONE</th></tr></thead>
+            <tbody>
+              {% for row in pool_dashboard.top_pending %}
+              <tr>
+                <td class="mono">{{ row.address }}</td>
+                <td><strong>{{ row.hashrate }}</strong></td>
+                <td>{{ '%.6f'|format(row.pending_stone) }}</td>
+                <td>{{ '%.6f'|format(row.paid_stone) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+
+        {% if pool_dashboard.recent_shares %}
+        <h3 class="pool-dash-subhead">Recent accepted shares</h3>
+        <div class="table-wrap">
+          <table class="data-table" id="pool-recent-shares">
+            <thead><tr><th>Algo</th><th>Address</th><th>Height</th><th>Weight</th><th>Type</th></tr></thead>
+            <tbody>
+              {% for s in pool_dashboard.recent_shares[:15] %}
+              <tr>
+                <td>{{ s.algo }}</td>
+                <td class="mono">{{ s.address[:12] }}…</td>
+                <td>{{ s.job_height }}</td>
+                <td>{{ '%.2f'|format(s.weight) }}</td>
+                <td>{% if s.browser %}browser{% else %}native{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="hero-notices">
+      {% if not daemon_ok %}
+      <div class="warn-box">Node offline — start <code>bloodstoned</code> to enable live chain data.</div>
+      {% endif %}
+      <div class="warn-box upgrade-box">
+        <strong>Latest releases (3 Jul 2026)</strong>
+        <ul class="upgrade-steps">
+          {% if wallet_gui_installer %}
+          <li><strong>Wallet &amp; Node GUI v{{ wallet_gui_version }}</strong> — <a href="{{ wallet_gui_installer.url }}">installer</a>{% if wallet_gui_portable %}, <a href="{{ wallet_gui_portable.url }}">portable</a>{% endif %}. Web wallet sign-in, VPS auto-RPC, wallet picker, installer coin image admin. <strong>Auto-downloads</strong> <code>bloodstoned.exe</code> on first <strong>Start Node</strong> if missing.</li>
+          {% endif %}
+          {% if gui_win_installer %}
+          <li><strong>Node GUI v{{ node_gui_version }}</strong> — <a href="{{ gui_win_installer.url }}">installer</a>. Node-only dashboard; same automatic node binary download on first start.</li>
+          {% endif %}
+          <li><strong>Node core v{{ node_version }}</strong> — Linux tarball and Windows CLI zip (used by the auto-download feature).</li>
+          {% if run_locally and run_locally.android_miner_apk %}
+          <li><strong>Android node + miner v{{ run_locally.android_miner_version }}</strong> — <a href="{{ run_locally.android_miner_apk.url }}">APK</a>{% if run_locally.android_miner_src %}, <a href="{{ run_locally.android_miner_src.url }}">source</a>{% endif %}. Pruned <code>bloodstoned</code> on device, direct stratum TCP, chain-mesh backup.</li>
+          {% endif %}
+        </ul>
+      </div>
+      <div class="warn-box upgrade-box">
+        <strong>Mandatory node upgrade</strong> — Bloodstone relaunched 22 Jun 2026 with a new genesis. Neoscrypt, SHA256d, and Yespower are all valid from block {{ multi_algo_fork }}.
+        Older pre-relaunch node builds follow the wrong chain. Delete <code>blocks/</code> and <code>chainstate/</code> in your datadir before syncing.
+        <ul class="upgrade-steps">
+          <li>Linux: <a href="{{ public_root }}/downloads/bloodstone-node-{{ node_version }}-linux-x86_64.tar.gz">bloodstone-node-{{ node_version }}-linux-x86_64.tar.gz</a>
+            {% if node_download and node_download.sha256 %}<span class="muted small">SHA256: <code class="mono">{{ node_download.sha256 }}</code></span>{% endif %}
+          </li>
+          {% if node_win_download %}
+          <li>Windows (CLI): <a href="{{ node_win_download.url }}">bloodstone-node-{{ node_version }}-win64.zip</a>
+            {% if win_downloads_stale %}<span class="warn-inline">— outdated ({{ node_win_download.built_utc }}); use Linux build or wait for Windows refresh</span>{% endif %}
+          </li>
+          {% endif %}
+          {% if win_downloads_stale %}
+          <li class="warn-inline"><strong>Windows packages below predate the 22 Jun 2026 relaunch.</strong> They follow the old genesis and will not sync. Linux package built {{ node_download.built_utc }} is current (genesis <code class="mono small">df042250…</code>).</li>
+          {% endif %}
+          {% if wallet_gui_installer %}
+          <li><strong>Wallet &amp; Node GUI v{{ wallet_gui_version }}</strong> — <a href="{{ wallet_gui_installer.url }}">installer</a>{% if wallet_gui_portable %} · <a href="{{ wallet_gui_portable.url }}">portable</a>{% endif %}</li>
+          {% endif %}
+          {% if gui_win_installer %}
+          <li><strong>Windows Node GUI v{{ node_gui_version }}</strong> — <a href="{{ public_root }}/downloads/">download page</a> (split 24&nbsp;MB parts if large file fails)
+            {% if gui_win_installer.sha256 %}<span class="muted small">SHA256: <code class="mono">{{ gui_win_installer.sha256 }}</code></span>{% endif %}
+          </li>
+          {% endif %}
+          {% if gui_win_installer_zip %}
+          <li>Windows (GUI ZIP): <a href="{{ gui_win_installer_zip.url }}">bloodstone-node-gui-{{ node_gui_version }}-win64.zip</a>
+            {% if gui_win_installer_zip.sha256 %}<span class="muted small">SHA256: <code class="mono">{{ gui_win_installer_zip.sha256 }}</code></span>{% endif %}
+          </li>
+          {% endif %}
+          {% if gui_win_installer %}
+          <li>Windows (GUI installer, direct .exe): <a href="{{ gui_win_installer.url }}">bloodstone-node-gui-{{ node_gui_version }}-win64.exe</a>
+            — mirror: <a href="{{ download_mirror }}/downloads/bloodstone-node-gui-{{ node_gui_version }}-win64.exe">rodcoinwallet.duckdns.org</a>
+            {% if win_downloads_stale %}<span class="warn-inline">— outdated; bundle fresh <code>bloodstoned.exe</code> from a rebuilt win64.zip when available</span>{% endif %}
+          </li>
+          {% elif gui_win_src %}
+          <li>Windows (GUI): <a href="{{ gui_win_src.url }}">bloodstone-node-gui-{{ node_gui_version }}-win64-source.zip</a>
+            — <a href="#windows-node-tutorial">see tutorial below</a>
+            {% if gui_win_src.sha256 %}<span class="muted small">SHA256: <code class="mono">{{ gui_win_src.sha256 }}</code></span>{% endif %}
+          </li>
+          {% endif %}
+          <li>Stop your old node, replace <code>bloodstoned</code>, wipe old chain data, restart. Genesis: <code class="mono small">df042250…e9bf71d0</code></li>
+          <li>New installs auto-connect to seed <code>{{ vps_ip }}:17333</code></li>
+        </ul>
+      </div>
+    </section>
+
+    {% if contract %}
+    <section class="panel contract-panel">
+      <div class="panel-head">
+        <h2>{{ contract.label }}</h2>
+        <p class="panel-sub">{{ contract.chain }} · verified contract address</p>
+      </div>
+      <div class="panel-body contract-body">
+        <div class="contract-address-row">
+          <code class="mono contract-address" id="contract-address">{{ contract.address }}</code>
+          <button type="button" class="btn btn-small btn-ghost" id="copy-contract">Copy</button>
+        </div>
+        {% if contract.explorer_url %}
+        <a class="btn btn-small" href="{{ contract.explorer_url }}" target="_blank" rel="noopener">View on explorer</a>
+        {% endif %}
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="panel tutorial-panel" id="windows-node-tutorial">
+      <div class="panel-head">
+        <h2>Windows node tutorial</h2>
+        <p class="panel-sub">Run a Bloodstone full node on Windows 10/11 — GUI app or command line</p>
+      </div>
+      <div class="panel-body">
+        <div class="tutorial-intro">
+          <p>Download files from <a href="{{ public_root }}/downloads/">{{ public_root }}/downloads/</a>. You need <strong>node core v{{ node_version }}</strong> (Jun 2026 build). GUI apps <strong>v{{ wallet_gui_version }}</strong> / <strong>v{{ node_gui_version }}</strong> download <code>bloodstoned.exe</code> automatically the first time you click <strong>Start Node</strong> if it is not bundled.</p>
+        </div>
+
+        <div class="tutorial-files">
+          <h3>Available downloads</h3>
+          <ul class="tutorial-file-list">
+            <li>
+              <strong>GUI source (recommended)</strong> —
+              <a href="{{ public_root }}/downloads/bloodstone-node-gui-{{ node_gui_version }}-win64-source.zip">bloodstone-node-gui-{{ node_gui_version }}-win64-source.zip</a>
+              {% if gui_win_src and gui_win_src.sha256 %}
+              <span class="muted small">SHA256: <code class="mono">{{ gui_win_src.sha256 }}</code></span>
+              {% endif %}
+            </li>
+            {% if gui_win_installer_zip %}
+            <li>
+              <strong>GUI installer (ZIP)</strong> —
+              <a href="{{ gui_win_installer_zip.url }}">bloodstone-node-gui-{{ node_gui_version }}-win64.zip</a>
+              <span class="muted small">Extract the .exe and run it. Prefer this if the direct .exe download stops partway.</span>
+            </li>
+            {% endif %}
+            {% if gui_win_installer %}
+            <li>
+              <strong>GUI installer (.exe)</strong> —
+              <a href="{{ gui_win_installer.url }}">bloodstone-node-gui-{{ node_gui_version }}-win64.exe</a>
+              — mirror: <a href="{{ download_mirror }}/downloads/bloodstone-node-gui-{{ node_gui_version }}-win64.exe">rodcoinwallet.duckdns.org</a>
+              <span class="muted small">Pre-built; skip the build steps below.</span>
+            </li>
+            {% endif %}
+            {% if node_win_download %}
+            <li>
+              <strong>CLI node only</strong> —
+              <a href="{{ node_win_download.url }}">bloodstone-node-{{ node_version }}-win64.zip</a>
+              <span class="muted small"><code>bloodstoned.exe</code> + <code>bloodstone-cli.exe</code>, no GUI.</span>
+            </li>
+            {% else %}
+            <li class="muted"><strong>CLI node zip</strong> — published when the Windows cross-compile build completes on the server.</li>
+            {% endif %}
+          </ul>
+        </div>
+
+        <div class="tutorial-path">
+          <h3>Option A — Wallet &amp; Node GUI (recommended)</h3>
+          <p class="muted">Node + web wallet in one app. Sign in with your portal wallet username/password.</p>
+          {% if wallet_gui_installer %}
+          <ol class="tutorial-steps">
+            <li>Download <a href="{{ wallet_gui_installer.url }}">bloodstone-wallet-node-gui-{{ wallet_gui_version }}-win64.exe</a>{% if wallet_gui_portable %} or the <a href="{{ wallet_gui_portable.url }}">portable build</a>{% endif %}.</li>
+            <li>Launch the app → <strong>Wallet</strong> tab to sign in, or <strong>Node</strong> tab → <strong>Start Node</strong> (downloads <code class="mono">bloodstoned.exe</code> automatically if needed).</li>
+            <li>For VPS-only wallets (e.g. <code class="mono">mine</code>), the app switches to VPS RPC on sign-in. Use Settings → Import wallet to copy keys locally.</li>
+          </ol>
+          {% endif %}
+        </div>
+
+        <div class="tutorial-path">
+          <h3>Option B — Bloodstone Node GUI (node only)</h3>
+          <p class="muted">Graphical dashboard: start/stop the node, sync progress, peers, and logs.</p>
+
+          {% if gui_win_installer %}
+          <ol class="tutorial-steps">
+            <li>Download <a href="{{ gui_win_installer.url }}">bloodstone-node-gui-{{ node_gui_version }}-win64.exe</a> and run the installer.</li>
+            <li>Launch <strong>Bloodstone Node</strong> from the Start menu or desktop shortcut.</li>
+            <li>Click <strong>Start Node</strong>. If <code class="mono">bloodstoned.exe</code> is not installed yet, the app downloads <code class="mono">bloodstone-node-{{ node_version }}-win64.zip</code> from this portal and installs it under <code class="mono">%APPDATA%\Bloodstone\bin\</code>. Watch the <strong>Logs</strong> tab for progress.</li>
+            <li>Watch <strong>Sync progress</strong> on the Dashboard until it reaches 100%.</li>
+            <li>If Start fails, open <strong>Settings</strong> → browse to <code class="mono">bloodstoned.exe</code> (bundled under the install folder’s <code class="mono">resources\bin\</code>) and allow Windows Firewall for port <strong>17333</strong>.</li>
+            <li>Optional: change RPC password, data folder, or seed node in <strong>Settings</strong>.</li>
+          </ol>
+          {% else %}
+          <ol class="tutorial-steps">
+            <li>Install <a href="https://nodejs.org/" target="_blank" rel="noopener">Node.js 18 LTS</a> (64-bit) on your PC.</li>
+            <li>Download and extract <a href="{{ public_root }}/downloads/bloodstone-node-gui-{{ node_gui_version }}-win64-source.zip">bloodstone-node-gui-{{ node_gui_version }}-win64-source.zip</a> to a folder, e.g. <code class="mono">C:\Bloodstone\bloodstone-node-gui</code>.</li>
+            <li>
+              Add the node binaries to <code class="mono">bin\win64\</code> inside that folder:
+              <ul class="tutorial-sublist">
+                <li>If <a href="{{ public_root }}/downloads/bloodstone-node-{{ node_version }}-win64.zip">bloodstone-node-{{ node_version }}-win64.zip</a> is available, extract <code class="mono">bloodstoned.exe</code> and <code class="mono">bloodstone-cli.exe</code> into <code class="mono">bin\win64\</code>.</li>
+                <li>Or build them from source on another machine and copy the <code class="mono">.exe</code> files there.</li>
+              </ul>
+            </li>
+            <li>Open <strong>PowerShell</strong> in the extracted folder and run:
+              <pre class="tutorial-code">.\build-windows.ps1</pre>
+              This creates an installer under <code class="mono">dist\</code>.
+            </li>
+            <li>Run <code class="mono">dist\bloodstone-node-gui-{{ node_gui_version }}-win64.exe</code> (or the portable <code class="mono">*-portable.exe</code>) and click <strong>Start Node</strong>.</li>
+            <li>Allow Windows Firewall access for <strong>TCP port 17333</strong> when prompted (incoming peers).</li>
+          </ol>
+          {% endif %}
+        </div>
+
+        <div class="tutorial-path">
+          <h3>Option C — Command line only</h3>
+          <p class="muted">For advanced users who prefer a terminal over the GUI.</p>
+          <ol class="tutorial-steps">
+            <li>Download <a href="{{ public_root }}/downloads/bloodstone-node-{{ node_version }}-win64.zip">bloodstone-node-{{ node_version }}-win64.zip</a> when available, and extract to e.g. <code class="mono">C:\Bloodstone\node</code>.</li>
+            <li>Create the data folder: <code class="mono">%APPDATA%\Bloodstone\</code></li>
+            <li>Copy <code class="mono">bloodstone.conf.example</code> from the zip to <code class="mono">%APPDATA%\Bloodstone\bloodstone.conf</code> and set your own <code class="mono">rpcpassword</code>.</li>
+            <li>Ensure the config includes:
+              <pre class="tutorial-code">addnode={{ vps_ip }}:17333
+server=1
+txindex=1
+allowminingwhennotconnected=1</pre>
+            </li>
+            <li>Open <strong>Command Prompt</strong> in the extract folder and start the node:
+              <pre class="tutorial-code">bloodstoned.exe -conf=%APPDATA%\Bloodstone\bloodstone.conf</pre>
+            </li>
+            <li>Check sync in a second window:
+              <pre class="tutorial-code">bloodstone-cli.exe -conf=%APPDATA%\Bloodstone\bloodstone.conf getblockchaininfo</pre>
+            </li>
+          </ol>
+        </div>
+
+        <div class="tutorial-notes">
+          <h3>Ports &amp; verification</h3>
+          <dl class="tutorial-dl">
+            <dt>P2P (peers)</dt><dd class="mono">17333 — allow through firewall for inbound connections</dd>
+            <dt>RPC (local)</dt><dd class="mono">18332 — keep local; do not expose to the internet</dd>
+            <dt>Seed node</dt><dd class="mono">{{ vps_ip }}:17333</dd>
+            <dt>Data folder</dt><dd class="mono">%APPDATA%\Bloodstone\</dd>
+          </dl>
+          <p class="muted small">A healthy node shows increasing block height and at least one peer after a few minutes. Initial sync can take time depending on disk speed and bandwidth.</p>
+        </div>
+
+        <div class="tutorial-trouble">
+          <h3>Troubleshooting</h3>
+          <ul class="tutorial-bullets">
+            <li><strong>“Node binary not found”</strong> — Click <strong>Start Node</strong> again (auto-download). Or put <code class="mono">bloodstoned.exe</code> in <code class="mono">%APPDATA%\Bloodstone\bin\</code> or set the path in GUI Settings.</li>
+            <li><strong>0 peers</strong> — Confirm firewall allows port 17333; check <code class="mono">addnode={{ vps_ip }}:17333</code> in config.</li>
+            <li><strong>Stuck on old height</strong> — You are on an outdated build; upgrade to v{{ node_version }}.</li>
+            <li><strong>RPC errors in GUI</strong> — Wait until the node finishes starting; RPC credentials are stored in <code class="mono">bloodstone.conf</code> (managed by the GUI, not displayed).</li>
+          </ul>
+        </div>
+
+        <p class="tutorial-footer muted small">Need help? <a href="{{ public_root }}/support/">Open a support ticket</a>.</p>
+      </div>
+    </section>
+
+    <section class="panel rich-list-panel" id="rich-list">
+      <div class="panel-head">
+        <h2>STONE rich list</h2>
+        <p class="panel-sub">Top on-chain balances from the UTXO set · indexed through block <span id="rich-list-height">{% if rich_list.indexed_height %}{{ rich_list.indexed_height }}{% else %}—{% endif %}</span></p>
+      </div>
+      <div class="panel-body">
+        <p class="muted small rich-list-note" id="rich-list-note">
+          Confirmed on-chain wallet balances (UTXO scan). Does not include unpaid pool pending. Percentages are share of total indexed on-chain STONE.
+        </p>
+        <p class="muted small" id="rich-list-status"{% if not rich_list.loading and not rich_list.error %} hidden{% endif %}>
+          {% if rich_list.loading %}Building rich list from chain outputs — first load may take a few minutes…{% elif rich_list.error %}Rich list unavailable: {{ rich_list.error }}{% endif %}
+        </p>
+        <div class="stats-grid rich-list-stats">
+          <div class="stat-card highlight">
+            <div class="stat-label">On-chain STONE</div>
+            <div class="stat-value" id="rich-list-onchain">{% if rich_list.total_onchain_stone is not none %}{{ '%.2f'|format(rich_list.total_onchain_stone) }}{% else %}—{% endif %}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Addresses scanned</div>
+            <div class="stat-value" id="rich-list-scanned">{% if rich_list.holders_scanned %}{{ rich_list.holders_scanned }}{% else %}—{% endif %}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Holders with balance</div>
+            <div class="stat-value" id="rich-list-holders">{% if rich_list.holders_with_balance %}{{ rich_list.holders_with_balance }}{% else %}—{% endif %}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Nominal minted (~{{ block_reward_stone|int }}/block)</div>
+            <div class="stat-value" id="rich-list-supply">{% if rich_list.estimated_supply_stone %}{{ '%.0f'|format(rich_list.estimated_supply_stone) }}{% else %}—{% endif %}</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table rich-list-table" id="rich-list-table">
+            <thead>
+              <tr><th>#</th><th>Address</th><th>Balance</th><th>% supply</th><th></th></tr>
+            </thead>
+            <tbody id="rich-list-body">
+              {% for row in rich_list.entries or [] %}
+              <tr>
+                <td>{{ row.rank }}</td>
+                <td class="mono"><a href="{{ public_root }}/explorer/address/{{ row.address }}">{{ row.address }}</a>{% if row.is_pool %} <span class="badge badge-active">pool</span>{% endif %}</td>
+                <td><strong>{{ '%.4f'|format(row.balance_stone) }}</strong> STONE</td>
+                <td>{{ '%.3f'|format(row.pct_supply) }}%</td>
+                <td><a class="btn btn-small btn-ghost" href="{{ public_root }}/wallet/">Wallet</a></td>
+              </tr>
+              {% else %}
+              <tr id="rich-list-empty"><td colspan="5" class="muted">No balances indexed yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="stats-grid">
+      <div class="stat-card highlight">
+        <div class="stat-label">Block height</div>
+        <div class="stat-value" id="stat-height">{% if stats.ok %}{{ stats.height }}{% else %}—{% endif %}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Block reward</div>
+        <div class="stat-value">{% if stats.ok %}{{ '%.0f'|format(stats.reward) }} STONE{% else %}—{% endif %}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active PoW</div>
+        <div class="stat-value">{% if stats.ok and stats.get('multi_algo') %}All 3 algos{% elif stats.ok and stats.get('sha256d_only') %}SHA256d{% elif stats.ok and stats.yespower_active %}Yespower R16{% elif stats.ok %}Neoscrypt{% else %}—{% endif %}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Node</div>
+        <div class="stat-value {% if daemon_ok %}live-stat{% endif %}">{% if daemon_ok %}Online{% else %}Offline{% endif %}</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Applications</h2></div>
+      <div class="panel-body apps-grid">
+        {% for svc in services %}
+        <article class="app-card {% if svc.highlight %}app-highlight{% endif %}">
+          <div class="app-icon">{{ svc.icon }}</div>
+          <h3>{{ svc.title }}</h3>
+          <p>{{ svc.desc }}</p>
+          <span class="badge badge-active">{{ svc.badge }}</span>
+          <div class="app-links">
+            <a class="btn" href="{{ svc.url }}">Open</a>
+          </div>
+          <p class="muted small mono">{{ svc.url }}</p>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Stratum endpoints</h2>
+        <p class="panel-sub">Proportional pool — password <code>x</code> on any port; balances are shared across algos</p>
+      </div>
+      <div class="panel-body pools-grid">
+        {% for pool in pools %}
+        <article class="pool-card {% if pool.listening %}healthy{% else %}down{% endif %}">
+          <div class="pool-head">
+            <h3>{{ pool.name }}</h3>
+            <span class="status-dot" title="{% if pool.listening %}Listening{% else %}Down{% endif %}"></span>
+          </div>
+          <dl>
+            <dt>Algorithm</dt><dd class="mono">{{ pool.algo }}</dd>
+            <dt>Port</dt><dd class="mono">{{ pool.port }}</dd>
+            <dt>Share diff</dt><dd class="mono">{{ pool.share_diff }}</dd>
+            <dt>Pool URL</dt>
+            <dd class="mono copy-target">{{ pool.stratum_url }}</dd>
+            <dt>Worker</dt><dd class="mono">YOUR_STONE_ADDRESS</dd>
+            <dt>Password</dt><dd class="mono">x <span class="muted">(pool)</span> · solo <span class="muted">(full diff)</span></dd>
+          </dl>
+          <p class="muted small">{{ pool.hint }}</p>
+          <a class="btn btn-small btn-ghost" href="{{ public_root }}/mining/pool/{{ pool.algo }}">Setup guide</a>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><h2>Quick links</h2></div>
+      <div class="panel-body link-list">
+        <a href="{{ public_root }}/explorer/">{{ public_root }}/explorer/</a>
+        <a href="{{ public_root }}/wallet/">{{ public_root }}/wallet/</a>
+        <a href="{{ public_root }}/faucet/">{{ public_root }}/faucet/</a>
+        <a href="{{ public_root }}/mining/">{{ public_root }}/mining/</a>
+        <a href="{{ public_root }}/mining/mine">{{ public_root }}/mining/mine</a>
+        <a href="{{ public_root }}/atomicdex/">{{ public_root }}/atomicdex/</a>
+        <a href="{{ public_root }}/support/">{{ public_root }}/support/</a>
+        <a href="{{ public_root }}/downloads/">{{ public_root }}/downloads/</a>
+        <a href="#windows-node-tutorial">Windows node tutorial</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <span>Bloodstone VPS · {{ vps_ip }}</span>
+      <span>Updated {{ updated }}</span>
+    </div>
+  </footer>
+
+  <script>
+    function shortAddr(addr) {
+      if (!addr || addr.length < 14) return addr || "—";
+      return addr.slice(0, 10) + "…";
+    }
+
+    function fmtStone(n) {
+      return Number(n || 0).toFixed(4) + " STONE";
+    }
+
+    async function refreshStats() {
+      try {
+        const r = await fetch("/api/status");
+        const d = await r.json();
+        if (d.chain && d.chain.ok) {
+          const el = document.getElementById("stat-height");
+          if (el) el.textContent = d.chain.height;
+        }
+      } catch (_) {}
+    }
+
+    async function refreshPoolDashboard() {
+      const lookup = document.getElementById("pool-address-lookup");
+      const addr = lookup && lookup.value.trim();
+      const url = addr ? "/api/pool/dashboard?address=" + encodeURIComponent(addr) : "/api/pool/dashboard";
+      try {
+        const r = await fetch(url);
+        const d = await r.json();
+        if (d.error) return;
+        const pending = document.getElementById("dash-pending");
+        const paid = document.getElementById("dash-paid");
+        const miners = document.getElementById("dash-miners");
+        if (pending && d.totals) pending.textContent = fmtStone(d.totals.pending_stone);
+        if (paid && d.totals) paid.textContent = fmtStone(d.totals.paid_stone);
+        if (miners && d.totals) miners.textContent = String(d.totals.miners_with_balance);
+
+        if (d.algo_balance && d.algo_balance.multipliers) {
+          Object.entries(d.algo_balance.multipliers).forEach(([key, mult]) => {
+            const card = document.querySelector('[data-algo-card="' + key + '"]');
+            if (!card) return;
+            const bm = card.querySelector('[data-field="balance-mult"]');
+            if (bm) bm.textContent = Number(mult || 1).toFixed(2) + "×";
+          });
+        }
+
+        if (d.per_algo) {
+          Object.entries(d.per_algo).forEach(([key, algo]) => {
+            const card = document.querySelector('[data-algo-card="' + key + '"]');
+            if (!card) return;
+            const rh = card.querySelector('[data-field="round-height"]');
+            const rw = card.querySelector('[data-field="round-weight"]');
+            const rm = card.querySelector('[data-field="round-miners"]');
+            const ts = card.querySelector('[data-field="total-shares"]');
+            const open = algo.open_round;
+            if (rh) rh.textContent = open ? open.job_height : "—";
+            if (rw) rw.textContent = open ? Number(open.total_weight || 0).toFixed(2) : "0";
+            if (rm) rm.textContent = String((algo.round_miners || []).length);
+            if (ts) ts.textContent = String(algo.total_shares || 0);
+          });
+        }
+
+        const blockLb = document.getElementById("pool-block-leaderboard");
+        if (blockLb && d.block_find_leaderboard) {
+          blockLb.querySelector("tbody").innerHTML = d.block_find_leaderboard.slice(0, 12).map(function (row) {
+            return "<tr><td class=\"mono\">" + row.address + "</td><td><strong>" +
+              row.total_blocks + "</strong></td><td>" + (row.sha256d || "—") +
+              "</td><td>" + (row.neoscrypt || "—") + "</td><td>" + (row.yespower || "—") + "</td></tr>";
+          }).join("");
+        }
+
+        const recentBlocks = document.getElementById("pool-recent-blocks");
+        if (recentBlocks && d.recent_block_finds) {
+          recentBlocks.querySelector("tbody").innerHTML = d.recent_block_finds.slice(0, 10).map(function (row) {
+            return "<tr><td>" + row.algo + "</td><td>" + row.block_height +
+              "</td><td class=\"mono\">" + row.finder_address +
+              "</td><td class=\"mono small\">" + (row.finder_worker || "—") + "</td></tr>";
+          }).join("");
+        }
+
+        const top = document.getElementById("pool-top-pending");
+        if (top && d.top_pending) {
+          top.querySelector("tbody").innerHTML = d.top_pending.map(function (row) {
+            return "<tr><td class=\"mono\">" + row.address + "</td><td><strong>" +
+              (row.hashrate || "—") + "</strong></td><td>" +
+              Number(row.pending_stone).toFixed(6) + "</td><td>" +
+              Number(row.paid_stone).toFixed(6) + "</td></tr>";
+          }).join("");
+        }
+
+        const recent = document.getElementById("pool-recent-shares");
+        if (recent && d.recent_shares) {
+          recent.querySelector("tbody").innerHTML = d.recent_shares.slice(0, 15).map(function (s) {
+            return "<tr><td>" + s.algo + "</td><td class=\"mono\">" + shortAddr(s.address) +
+              "</td><td>" + s.job_height + "</td><td>" + Number(s.weight).toFixed(2) +
+              "</td><td>" + (s.browser ? "browser" : "native") + "</td></tr>";
+          }).join("");
+        }
+
+        if (d.next_block && d.next_block.per_algo) {
+          Object.entries(d.next_block.per_algo).forEach(function ([key, algo]) {
+            const card = document.querySelector('[data-next-block-algo="' + key + '"]');
+            if (!card) return;
+            const height = card.querySelector('[data-field="nb-height"]');
+            const tbody = card.querySelector('[data-field="nb-miners"]');
+            const empty = card.querySelector('[data-field="nb-empty"]');
+            if (height) {
+              height.textContent = algo.job_height ? "round " + algo.job_height : "no open round";
+            }
+            const miners = algo.miners || [];
+            if (tbody) {
+              tbody.innerHTML = miners.map(function (m) {
+                return "<tr><td class=\"mono\">" + shortAddr(m.address) +
+                  "</td><td class=\"mono small\">" + (m.worker || "—") +
+                  "</td><td>" + (m.hashrate || "—") +
+                  "</td><td>" + Number(m.weight).toFixed(2) +
+                  "</td><td><strong>" + Number(m.pct).toFixed(2) + "%</strong></td><td>" +
+                  Number(m.estimated_stone).toFixed(4) + "</td></tr>";
+              }).join("");
+            }
+            if (empty) empty.hidden = miners.length > 0;
+          });
+        }
+
+        if (addr && d.miner_balance) {
+          const result = document.getElementById("pool-lookup-result");
+          if (result) {
+            result.hidden = false;
+            var shareBits = "";
+            if (d.miner_next_block && d.miner_next_block.per_algo) {
+              var shareRows = Object.entries(d.miner_next_block.per_algo)
+                .filter(function (pair) { return Number(pair[1].pct) > 0; })
+                .map(function (pair) {
+                  return pair[0] + " " + Number(pair[1].pct).toFixed(2) + "% (~" +
+                    Number(pair[1].estimated_stone).toFixed(4) + " STONE)";
+                });
+              if (shareRows.length) {
+                shareBits = " · Next block: " + shareRows.join(", ");
+              } else {
+                shareBits = " · Next block: no shares in open rounds yet";
+              }
+            }
+            result.textContent = "Pending: " + fmtStone(d.miner_balance.pending_stone) +
+              " · Paid: " + fmtStone(d.miner_balance.paid_stone) + shareBits;
+          }
+        }
+
+        if (d.asic_mobile_subsidy) {
+          const s = d.asic_mobile_subsidy;
+          const note = document.getElementById("asic-subsidy-note");
+          if (note && s.note) note.textContent = s.note;
+          const total = document.getElementById("asic-total-shared");
+          if (total) total.textContent = fmtStone(s.total_shared_stone);
+          const mobile = document.getElementById("asic-mobile-shared");
+          if (mobile) mobile.textContent = fmtStone(s.mobile_shared_stone);
+          const shares24 = document.getElementById("asic-mobile-shares-24h");
+          if (shares24) shares24.textContent = String(s.mobile_shares_24h ?? 0);
+          const blocks = document.getElementById("asic-sha256-blocks");
+          if (blocks) blocks.textContent = String(s.sha256_blocks_found ?? 0);
+          const top = document.getElementById("asic-mobile-top");
+          if (top && s.top_mobile_recipients) {
+            top.innerHTML = s.top_mobile_recipients.map(function (row) {
+              return "<tr><td class=\"mono\">" + shortAddr(row.address) +
+                "</td><td>" + Number(row.stone).toFixed(4) + " STONE</td><td>" +
+                row.payouts + "</td></tr>";
+            }).join("");
+          }
+        }
+      } catch (_) {}
+    }
+
+    async function refreshPayoutLog() {
+      const pre = document.getElementById("pool-payout-log-lines");
+      if (!pre) return;
+      try {
+        const r = await fetch("/api/pool/payout-log");
+        const d = await r.json();
+        if (!d.lines || !d.lines.length) {
+          pre.textContent = "(no payout log entries yet)";
+          return;
+        }
+        pre.textContent = d.lines.join("\n") + "\n";
+      } catch (_) {}
+    }
+
+    function fmtPct(n) {
+      return Number(n || 0).toFixed(3) + "%";
+    }
+
+    async function refreshRichList() {
+      const tbody = document.getElementById("rich-list-body");
+      if (!tbody) return;
+      try {
+        const r = await fetch("/api/rich-list");
+        const d = await r.json();
+        const status = document.getElementById("rich-list-status");
+        if (status) {
+          if (d.loading) {
+            status.hidden = false;
+            status.textContent = "Building rich list from chain outputs — first load may take a few minutes…";
+          } else if (d.error) {
+            status.hidden = false;
+            status.textContent = "Rich list unavailable: " + d.error;
+          } else {
+            status.hidden = true;
+          }
+        }
+        const height = document.getElementById("rich-list-height");
+        if (height && d.indexed_height != null) height.textContent = String(d.indexed_height);
+        const onchain = document.getElementById("rich-list-onchain");
+        if (onchain && d.total_onchain_stone != null) onchain.textContent = Number(d.total_onchain_stone).toFixed(2);
+        const scanned = document.getElementById("rich-list-scanned");
+        if (scanned && d.holders_scanned != null) scanned.textContent = String(d.holders_scanned);
+        const holders = document.getElementById("rich-list-holders");
+        if (holders && d.holders_with_balance != null) holders.textContent = String(d.holders_with_balance);
+        const supply = document.getElementById("rich-list-supply");
+        if (supply && d.estimated_supply_stone != null) supply.textContent = Math.round(d.estimated_supply_stone).toLocaleString();
+        const entries = d.entries || [];
+        if (!entries.length) return;
+        const explorerBase = "{{ public_root }}/explorer/address/";
+        const walletUrl = "{{ public_root }}/wallet/";
+        tbody.innerHTML = entries.map(function (row) {
+          const poolBadge = row.is_pool ? ' <span class="badge badge-active">pool</span>' : "";
+          return "<tr><td>" + row.rank +
+            "</td><td class=\"mono\"><a href=\"" + explorerBase + encodeURIComponent(row.address) + "\">" +
+            row.address + "</a>" + poolBadge +
+            "</td><td><strong>" + Number(row.balance_stone).toFixed(4) + "</strong> STONE</td><td>" +
+            fmtPct(row.pct_supply) + "</td><td><a class=\"btn btn-small btn-ghost\" href=\"" +
+            walletUrl + "\">Wallet</a></td></tr>";
+        }).join("");
+      } catch (_) {}
+    }
+
+    setInterval(refreshStats, 30000);
+    setInterval(refreshPoolDashboard, 30000);
+    setInterval(refreshPayoutLog, 30000);
+    setInterval(refreshRichList, 120000);
+    refreshRichList();
+
+    (function () {
+      const btn = document.getElementById("pool-address-btn");
+      const input = document.getElementById("pool-address-lookup");
+      if (btn) btn.addEventListener("click", refreshPoolDashboard);
+      if (input) input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") refreshPoolDashboard();
+      });
+    })();
+
+    (function () {
+      const btn = document.getElementById("copy-contract");
+      const addr = document.getElementById("contract-address");
+      if (!btn || !addr) return;
+      btn.addEventListener("click", async function () {
+        const text = addr.textContent.trim();
+        try {
+          await navigator.clipboard.writeText(text);
+          const prev = btn.textContent;
+          btn.textContent = "Copied";
+          setTimeout(function () { btn.textContent = prev; }, 1500);
+        } catch (_) {
+          btn.textContent = "Failed";
+          setTimeout(function () { btn.textContent = "Copy"; }, 1500);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

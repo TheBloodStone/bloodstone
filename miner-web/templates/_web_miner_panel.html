@@ -1,0 +1,296 @@
+<section class="panel web-miner-panel" id="web-miner">
+  <div class="panel-head">
+    <h2>{% if panel_title %}{{ panel_title }}{% elif android_miner_shell %}Bloodstone Fleet Miner{% else %}Browser CPU Miner{% endif %}</h2>
+    {% if default_algo %}
+    <p class="muted small">Default algorithm: <strong>{{ default_algo }}</strong> — you can switch below before starting.</p>
+    {% endif %}
+  </div>
+  <div class="panel-body">
+    {% if overview.all_algos_active %}
+    <div class="info-box">
+      <strong>Triple-algo chain is live</strong> — neoscrypt, yespower, and SHA256d can mine any block.
+      Browser mining supports Neoscrypt and Yespower R16.
+      Choose <em>Pool</em> for easier shares or <em>Solo</em> for full block difficulty.
+    </div>
+    {% elif default_algo == 'yespower' and overview.yespower_active %}
+    <div class="info-box">
+      <strong>Yespower proportional pool</strong> — use <em>Pool</em> mode to earn a share of each block found.
+      Accepted pool shares are credited toward the current round; when any miner (browser or server CPU) finds a block,
+      rewards are split by share weight (~100 STONE per block minus 1% pool fee).
+      Use <em>Solo</em> only if you want full block difficulty paid directly to your address.
+    </div>
+    {% elif default_algo == 'neoscrypt' %}
+    <div class="info-box">
+      <strong>Neoscrypt proportional pool</strong> — use <em>Pool</em> mode to earn a share of each block found.
+      Accepted pool shares are credited toward the current round; when any miner (browser or server CPU) finds a block,
+      rewards are split by share weight (~100 STONE per block minus 1% pool fee).
+      Use <em>Solo</em> only if you want full block difficulty paid directly to your address.
+    </div>
+    {% endif %}
+
+    <div class="info-box device-fleet-panel" id="device-fleet-panel"{% if not android_miner_shell %} hidden{% endif %}>
+      <strong id="fleet-role">{% if android_miner_shell %}Local VPS chain node{% else %}Decentralized VPS pool{% endif %}</strong>
+      <p class="muted small" style="margin:0.35rem 0 0">
+        <span id="fleet-status">Idle</span> ·
+        <span id="fleet-transport">—</span> ·
+        Device <span class="mono" id="fleet-device-id">—</span>
+      </p>
+      <p class="muted small" style="margin:0.35rem 0 0" id="fleet-pool-line">
+        Fleet: <span id="fleet-pool-size">—</span>
+      </p>
+      <p class="muted small" style="margin:0.35rem 0 0" id="local-vps-line" hidden>
+        Local VPS node: <span id="local-vps-chunks">—</span> chain chunks cached ·
+        <span id="local-vps-offline">—</span>
+      </p>
+      <label class="field" id="local-node-mode-wrap"{% if not android_miner_shell %} hidden{% endif %} style="margin-top:0.65rem">
+        <span>Local node mode (Android)</span>
+        <select id="local-node-mode-select">
+          {% if android_miner_shell %}<option value="lan-client">LAN client — mine from household full node (no chain download)</option>{% endif %}
+          <option value="pruned">Pruned (~550 MiB) — host lightweight node</option>
+          <option value="full">Full chain — host for household (needs ~2 GB free)</option>
+          <option value="mesh">{% if android_miner_shell %}Mesh federation — pruned tip + block backups{% else %}Time Capsule — pruned tip + archived history{% endif %}</option>
+        </select>
+        <span class="muted small mode-hint" id="local-node-mode-hint"></span>
+      </label>
+      {% if android_miner_shell %}
+      <div class="btn-row node-only-actions" id="node-only-actions" style="margin-top:0.5rem">
+        <button type="button" class="btn btn-small" id="btn-activate-node">Start full node</button>
+        <button type="button" class="btn btn-small btn-ghost" id="btn-stop-node" disabled>Stop node</button>
+      </div>
+      <p class="muted small" id="node-only-status" style="margin:0.35rem 0 0">
+        Run bloodstoned on this phone without mining — validates the chain and serves LAN RPC/stratum for household rigs.
+      </p>
+      {% else %}
+      <div class="local-node-sync-panel" id="local-node-sync-wrap" hidden>
+        <div class="local-node-sync-head">
+          <span id="local-node-sync-label">Downloading chain blocks…</span>
+          <span class="mono" id="local-node-sync-pct">0%</span>
+        </div>
+        <div class="progress-bar" id="local-node-sync-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="progress-bar-fill" id="local-node-sync-fill"></div>
+        </div>
+        <p class="muted small" id="local-node-sync-detail"></p>
+      </div>
+      {% endif %}
+      <p class="muted small" style="margin:0.35rem 0 0" id="local-node-line" hidden>
+        Local node (no wallet): <span class="mono" id="local-node-rpc">—</span> ·
+        <span id="local-node-mode">—</span>
+        <span class="muted small" id="local-node-detail"> — pruned <code>bloodstoned</code> on this device; LAN miners use its RPC/stratum.</span>
+      </p>
+      {% if android_miner_shell %}
+      <div class="info-box mine-targets-panel" id="mine-targets-panel" style="margin-top:0.65rem">
+        <strong>Mine to — host &amp; port</strong>
+        <p class="muted small" style="margin:0.35rem 0 0">Copy into Bitaxe, cpuminer, or Awesome Miner. Worker = your STONE address + <code>.rig1</code> · password <code>x</code>.</p>
+        <dl class="setup-field-dl meta-dl compact">
+          <dt>VPS pool · neoscrypt</dt>
+          <dd class="copy-row"><code class="mono" id="mine-target-vps-neo">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-mine-target-vps-neo" data-lan-copy="">Copy</button></dd>
+          <dt>VPS pool · yespower</dt>
+          <dd class="copy-row"><code class="mono" id="mine-target-vps-yp">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-mine-target-vps-yp" data-lan-copy="">Copy</button></dd>
+          <dt>This phone (LAN) · neoscrypt</dt>
+          <dd class="copy-row"><code class="mono" id="mine-target-lan-neo">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-mine-target-lan-neo" data-lan-copy="">Copy</button></dd>
+          <dt>This phone (LAN) · yespower</dt>
+          <dd class="copy-row"><code class="mono" id="mine-target-lan-yp">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-mine-target-lan-yp" data-lan-copy="">Copy</button></dd>
+        </dl>
+      </div>
+      {% endif %}
+      <div class="info-box device-lan-mining-panel" id="device-lan-mining-panel"{% if android_miner_shell %}{% else %} hidden{% endif %} style="margin-top:0.65rem">
+        <strong id="device-node-panel-title">Android node — mine to this phone</strong>
+        <span class="muted small lan-port-badge" id="device-lan-port-status">—</span>
+        <p class="muted small" id="device-node-panel-subtitle" style="margin:0.35rem 0 0">
+          RPC and stratum endpoints for miners on your Wi‑Fi.
+        </p>
+        <dl class="setup-field-dl meta-dl compact android-node-endpoints-dl">
+          <dt id="device-node-host-label">Phone LAN IP</dt>
+          <dd class="copy-row"><code class="mono" id="device-lan-ip">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-lan-ip" data-lan-copy="">Copy</button></dd>
+          <dt>Node mode</dt>
+          <dd><code class="mono" id="device-node-mode">—</code></dd>
+          <dt>RPC URL</dt>
+          <dd class="copy-row"><code class="mono" id="device-node-rpc-url">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-node-rpc-url" data-lan-copy="">Copy</button></dd>
+          <dt>RPC port</dt>
+          <dd class="copy-row"><code class="mono" id="device-node-rpc-port">18340</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-node-rpc-port" data-lan-copy="">Copy</button></dd>
+          <dt>RPC user</dt>
+          <dd class="copy-row"><code class="mono" id="device-node-rpc-user">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-node-rpc-user" data-lan-copy="">Copy</button></dd>
+          <dt>RPC password</dt>
+          <dd class="copy-row"><code class="mono" id="device-node-rpc-password">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-node-rpc-password" data-lan-copy="">Copy</button></dd>
+          <dt>Stratum (neo)</dt>
+          <dd class="copy-row"><code class="mono" id="device-lan-neoscrypt-endpoint">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-neoscrypt" data-lan-copy="">Copy</button></dd>
+          <dt>Stratum (yespower)</dt>
+          <dd class="copy-row"><code class="mono" id="device-lan-yespower-endpoint">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-yespower" data-lan-copy="">Copy</button></dd>
+          <dt>Chain P2P</dt>
+          <dd class="copy-row"><code class="mono" id="device-node-p2p-port">17333</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-node-p2p-port" data-lan-copy="">Copy</button></dd>
+        </dl>
+        <p class="muted small" id="device-lan-mining-hint" style="margin:0.35rem 0 0">
+          Tap <strong>Start full node</strong> above to open RPC and stratum ports without mining on this phone.
+        </p>
+      </div>
+      {% if android_miner_shell %}
+      <div class="info-box mining-setup-panel" id="mining-setup-panel" style="margin-top:0.65rem">
+        <strong>Miner setup — stratum host &amp; port</strong>
+        <p class="muted small setup-note">Full pool and LAN fields for external miners.</p>
+        <details class="setup-details" id="pool-setup-details" open>
+          <summary>Pool on VPS (Internet)</summary>
+          <div class="setup-algo-block" data-setup-algo="neoscrypt">
+            <h4>Neoscrypt-Xaya</h4>
+            <dl class="setup-field-dl meta-dl compact">
+              <dt>Stratum host</dt><dd><code class="mono" id="pool-host-neoscrypt">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-pool-host-neoscrypt" data-setup-copy="pool-host-neoscrypt">Copy</button></dd>
+              <dt>Port</dt><dd><code class="mono" id="pool-port-neoscrypt">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-pool-port-neoscrypt" data-setup-copy="pool-port-neoscrypt">Copy</button></dd>
+              <dt>Worker</dt><dd><code class="mono" id="pool-worker-neoscrypt">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-pool-worker-neoscrypt" data-setup-copy="pool-worker-neoscrypt">Copy</button></dd>
+            </dl>
+          </div>
+          <div class="setup-algo-block" data-setup-algo="yespower">
+            <h4>Yespower R16</h4>
+            <dl class="setup-field-dl meta-dl compact">
+              <dt>Stratum host</dt><dd><code class="mono" id="pool-host-yespower">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-pool-host-yespower" data-setup-copy="pool-host-yespower">Copy</button></dd>
+              <dt>Port</dt><dd><code class="mono" id="pool-port-yespower">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-pool-port-yespower" data-setup-copy="pool-port-yespower">Copy</button></dd>
+              <dt>Worker</dt><dd><code class="mono" id="pool-worker-yespower">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-pool-worker-yespower" data-setup-copy="pool-worker-yespower">Copy</button></dd>
+            </dl>
+          </div>
+          <div class="setup-algo-block" data-setup-algo="sha256d">
+            <h4>SHA256d / Bitaxe</h4>
+            <dl class="setup-field-dl meta-dl compact">
+              <dt>Stratum host</dt><dd><code class="mono" id="pool-host-sha256d">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-pool-host-sha256d" data-setup-copy="pool-host-sha256d">Copy</button></dd>
+              <dt>Port</dt><dd><code class="mono" id="pool-port-sha256d">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-pool-port-sha256d" data-setup-copy="pool-port-sha256d">Copy</button></dd>
+            </dl>
+          </div>
+        </details>
+        <details class="setup-details" id="lan-setup-details" open>
+          <summary>LAN via this phone (local node)</summary>
+          <p class="muted small setup-note" id="lan-setup-status">Connect to Wi‑Fi and tap Start full node.</p>
+          <dl class="setup-field-dl meta-dl compact">
+            <dt>Neoscrypt host</dt><dd><code class="mono" id="lan-host-neoscrypt">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-lan-host-neoscrypt" data-setup-copy="lan-host-neoscrypt">Copy</button></dd>
+            <dt>Neoscrypt port</dt><dd><code class="mono" id="lan-port-neoscrypt">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-lan-port-neoscrypt" data-setup-copy="lan-port-neoscrypt">Copy</button></dd>
+            <dt>Yespower host</dt><dd><code class="mono" id="lan-host-yespower">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-lan-host-yespower" data-setup-copy="lan-host-yespower">Copy</button></dd>
+            <dt>Yespower port</dt><dd><code class="mono" id="lan-port-yespower">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-lan-port-yespower" data-setup-copy="lan-port-yespower">Copy</button></dd>
+            <dt>RPC URL</dt><dd><code class="mono" id="lan-rpc-url">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-lan-rpc-url" data-setup-copy="lan-rpc-url">Copy</button></dd>
+            <dt>Worker</dt><dd><code class="mono" id="lan-worker">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-lan-worker" data-setup-copy="lan-worker">Copy</button></dd>
+          </dl>
+        </details>
+      </div>
+      {% endif %}
+    </div>
+
+    {% set show_rod_payout_panel = default_reward_target == 'rod' %}
+    {% set rod_payout_address = payout_address %}
+    {% include "_rod_payout_wallet.html" %}
+
+    <div class="miner-controls">
+      <label class="field" id="miner-reward-wrap">
+        <span>Reward coin</span>
+        <select id="miner-reward">
+          <option value="stone" {% if default_reward_target != 'rod' %}selected{% endif %}>STONE (Bloodstone pool)</option>
+          <option value="rod" {% if default_reward_target == 'rod' %}selected{% endif %}>ROD (SpaceXpanse mainnet)</option>
+        </select>
+        <span class="muted small mode-hint" id="miner-reward-hint"></span>
+      </label>
+      <label class="field" id="miner-address-wrap">
+        <span id="miner-address-label">{% if default_reward_target == 'rod' %}ROD wallet (stratum username){% else %}STONE payout address{% endif %}</span>
+        <input id="miner-address" type="text" class="mono" value="{{ payout_address }}" placeholder="{% if default_reward_target == 'rod' %}X… or R… (ROD core wallet){% else %}S… or stone1… (required){% endif %}" required autocomplete="off" spellcheck="false">
+        <span class="muted small mode-hint" id="miner-address-hint">{% if default_reward_target == 'rod' %}Same as the ROD payout wallet above — blocks pay ROD here.{% endif %}</span>
+      </label>
+      <label class="field" id="miner-worker-wrap">
+        <span>Worker name</span>
+        <input id="miner-worker" type="text" class="mono" value="web" placeholder="rig1, phone, bitaxe-01…" autocomplete="off" spellcheck="false" maxlength="32">
+        <span class="muted small mode-hint">Pool stratum user is <span class="mono">YOURADDRESS.WORKER</span> — each worker earns its own share weight (payouts still go to your address).</span>
+      </label>
+      <label class="field">
+        <span>Mining mode</span>
+        <select id="miner-mode">
+          <option value="pool" {% if default_mining_mode != 'solo' %}selected{% endif %}>Pool (share difficulty)</option>
+          <option value="solo" {% if default_mining_mode == 'solo' %}selected{% endif %}>Solo (full block difficulty)</option>
+        </select>
+        <span class="muted small mode-hint" id="miner-mode-hint"></span>
+      </label>
+      <label class="field">
+        <span>Algorithm</span>
+        <select id="miner-algo">
+          <option value="neoscrypt-xaya" {% if (default_algo or 'neoscrypt-xaya') in ('neoscrypt-xaya', 'neoscrypt') %}selected{% endif %}>Neoscrypt-Xaya</option>
+          <option value="yespower" {% if default_algo == 'yespower' %}selected{% endif %} {% if not overview.yespower_active %}disabled{% endif %}>Yespower R16{% if not overview.yespower_active %} (not active yet){% endif %}</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>CPU threads</span>
+        <input id="miner-threads" type="number" min="1" max="64" value="{% if default_algo == 'yespower' %}1{% else %}2{% endif %}">
+        <span class="muted small mode-hint" id="miner-threads-hint"></span>
+      </label>
+      <div class="btn-row">
+        <button id="btn-start" class="btn">Start mining</button>
+        <button id="btn-stop" class="btn btn-ghost" disabled>Stop</button>
+      </div>
+      <p class="android-power-banner muted small" id="android-power-banner" hidden>
+        <span id="android-power-banner-text"></span>
+        <button type="button" class="android-power-bypass-btn" id="android-power-bypass-btn" hidden>Bypass power check</button>
+      </p>
+      <label class="android-power-bypass-wrap" id="android-power-bypass-wrap" hidden>
+        <input type="checkbox" id="android-power-bypass">
+        <span>Allow mining on battery (bypass power sensor)</span>
+      </label>
+      <div class="background-mining-banner" id="background-mining-banner" hidden>
+        <span data-banner-text>Background mining active</span>
+      </div>
+      <p class="muted small">Uses Web Workers + WebAssembly. Pool mode uses <strong>easier browser share difficulty</strong> than native CPU miners (fair weight per share). On phones, mining continues in the background while this tab stays open — add to Home Screen for best results.</p>
+      <p class="asic-share-public muted small" id="asic-share-public" hidden>
+        <strong>ASIC → phone share (public):</strong>
+        <span id="asic-share-total">—</span> from SHA256 blocks ·
+        <span id="asic-share-mobile">—</span> to phone/Android miners with accepted pool shares (YES)
+      </p>
+      <section class="panel android-options-panel" id="android-options-panel" hidden>
+        <div class="panel-head">
+          <h3>Options</h3>
+        </div>
+        <div class="panel-body">
+          <label class="android-option-row">
+            <input type="checkbox" id="android-auto-update" checked>
+            <span>Check for app updates on startup</span>
+          </label>
+          <p class="muted small" id="android-app-version-line">Installed version: —</p>
+          <p class="muted small android-update-status" id="android-update-status" hidden></p>
+          <button type="button" class="btn btn-small btn-ghost" id="android-check-update-btn">Check for updates now</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="stats-grid miner-stats-grid">
+      <div class="stat-card"><div class="stat-label">Status</div><div class="stat-value" id="stat-status">Stopped</div></div>
+      <div class="stat-card highlight">
+        <div class="stat-label">Hashrate</div>
+        <div class="stat-value" id="stat-hashrate">0 H/s</div>
+        <div class="stat-sub" id="stat-pool-pending">—</div>
+      </div>
+      <div class="stat-card"><div class="stat-label" id="stat-shares-label">Pool shares (ok / rej)</div><div class="stat-value" id="stat-shares">0 / 0</div></div>
+      <div class="stat-card"><div class="stat-label">Blocks found</div><div class="stat-value" id="stat-blocks">0</div></div>
+      <div class="stat-card"><div class="stat-label">Current job</div><div class="stat-value small mono" id="stat-job">—</div></div>
+    </div>
+
+    <section class="panel node-network-panel" id="node-network-panel" hidden>
+      <div class="panel-head">
+        <h3>Network traffic &amp; node work</h3>
+        <p class="muted small" id="nn-mode-line">Full node contribution on this device</p>
+      </div>
+      <div class="panel-body">
+        <div class="stats-grid miner-stats-grid">
+          <div class="stat-card"><div class="stat-label">Total downloaded</div><div class="stat-value small" id="nn-total-rx">—</div></div>
+          <div class="stat-card"><div class="stat-label">Total uploaded</div><div class="stat-value small" id="nn-total-tx">—</div></div>
+          <div class="stat-card"><div class="stat-label">Blocks synced</div><div class="stat-value" id="nn-blocks-synced">0</div></div>
+          <div class="stat-card"><div class="stat-label">Node uptime</div><div class="stat-value small" id="nn-uptime">0 s</div></div>
+          <div class="stat-card"><div class="stat-label">LAN RPC served</div><div class="stat-value" id="nn-rpc-served">0</div></div>
+          <div class="stat-card"><div class="stat-label">Stratum peers</div><div class="stat-value" id="nn-stratum-peers">0</div></div>
+        </div>
+        <div class="node-chart-grid">
+          <div class="node-chart-card">
+            <div class="stat-label">Traffic over time</div>
+            <canvas id="nn-traffic-chart" class="node-chart" width="480" height="160" role="img" aria-label="Network traffic chart"></canvas>
+            <p class="muted small">Session: <span id="nn-session-rx">—</span> down · <span id="nn-session-tx">—</span> up · LAN <span id="nn-lan-rx">—</span>/<span id="nn-lan-tx">—</span> · upstream <span id="nn-upstream-rx">—</span>/<span id="nn-upstream-tx">—</span></p>
+          </div>
+          <div class="node-chart-card">
+            <div class="stat-label">Work for the network</div>
+            <canvas id="nn-work-chart" class="node-chart" width="480" height="160" role="img" aria-label="Node work chart"></canvas>
+            <p class="muted small"><span id="nn-sync-sessions">0</span> background sync runs · counts persist across app restarts</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="miner-log" id="miner-log"></div>
+  </div>
+</section>
+<script type="module" src="{{ url_for('static', filename='js/web-miner.js') }}?v=20260704-mine-targets"></script>

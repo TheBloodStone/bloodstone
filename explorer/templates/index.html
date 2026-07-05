@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Bloodstone Explorer{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1>Bloodstone Blockchain</h1>
+  <p class="hero-sub">Triple-algo PoW · Names · Merge-mining</p>
+</section>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Block Height</div>
+    <div class="stat-value">{{ info.blocks }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Mempool</div>
+    <div class="stat-value">{{ mempool_count }}</div>
+  </div>
+  {% if mining.difficulty.get('sha256d') is not none %}
+  <div class="stat-card">
+    <div class="stat-label">SHA256d Diff</div>
+    <div class="stat-value mono">{{ "%.2f"|format(mining.difficulty.get('sha256d', 0)) }}</div>
+  </div>
+  {% endif %}
+  {% if mining.difficulty.get('neoscrypt') is not none %}
+  <div class="stat-card">
+    <div class="stat-label">Neoscrypt Diff</div>
+    <div class="stat-value mono">{{ "%.6f"|format(mining.difficulty.get('neoscrypt', 0)) }}</div>
+  </div>
+  {% endif %}
+  {% if mining.difficulty.get('yespower') is not none %}
+  <div class="stat-card">
+    <div class="stat-label">Yespower Diff</div>
+    <div class="stat-value mono">{{ "%.6f"|format(mining.difficulty.get('yespower', 0)) }}</div>
+  </div>
+  {% endif %}
+  <div class="stat-card wide">
+    <div class="stat-label">Best Block</div>
+    <div class="stat-value mono small"><a href="{{ url_for('block_page', query=info.bestblockhash) }}">{{ info.bestblockhash }}</a></div>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Latest Blocks</h2>
+    <span class="muted">Showing {{ blocks|length }} of {{ tip + 1 }} blocks</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Height</th>
+          <th>Hash</th>
+          <th>Age</th>
+          <th>Txs</th>
+          <th>Algo</th>
+          <th>Size</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in blocks %}
+        <tr>
+          <td><a href="{{ url_for('block_page', query=b.height) }}">{{ b.height }}</a></td>
+          <td class="mono"><a href="{{ url_for('block_page', query=b.hash) }}">{{ short_hash(b.hash) }}</a></td>
+          <td>{{ b.time_fmt }}</td>
+          <td>{{ b.nTx }}</td>
+          <td>
+            {% if b.powdata %}
+            <span class="badge badge-{{ b.powdata.algo|default('unknown') }}">{{ b.powdata.algo }}</span>
+            {% if b.powdata.merge_parent %}
+            <span class="badge badge-rod" title="AuxPoW merge-mined on {{ b.powdata.merge_parent }} (chain {{ b.powdata.merge_chain_id }})">{{ b.powdata.merge_ticker }}</span>
+            {% elif b.powdata.mergemined %}
+            <span class="badge badge-merge">merge</span>
+            {% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ b.size }} B</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

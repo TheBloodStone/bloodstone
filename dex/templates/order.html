@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Order #{{ order.id }}{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>{{ order.name }}</h1>
+  <p class="hero-sub">
+    <span class="badge badge-type">{{ order.type_label }}</span>
+    <span class="badge badge-{{ order.status }}">{{ order.status }}</span>
+    {% if not order.utxo_valid and order.status == 'open' %}
+    <span class="badge badge-cancelled">stale UTXO</span>
+    {% endif %}
+  </p>
+</section>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Price</div>
+    <div class="stat-value">{{ "%.4g"|format(order.price) }} <span class="muted small">STONE</span></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Posted</div>
+    <div class="stat-value small">{{ order.created_fmt }}</div>
+  </div>
+  {% if order.fill_txid %}
+  <div class="stat-card">
+    <div class="stat-label">Fill tx</div>
+    <div class="stat-value small mono wrap">
+      <a href="{{ public_root }}/explorer/tx/{{ order.fill_txid }}">{{ order.fill_txid[:18] }}…</a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<section class="panel">
+  <div class="panel-head"><h2>Details</h2></div>
+  <div class="panel-body small">
+    {% if order.title %}<p><strong>Note:</strong> {{ order.title }}</p>{% endif %}
+    <p><strong>Seller:</strong> {{ order.seller_username or '—' }}</p>
+    <p><strong>Buyer:</strong> {{ order.buyer_username or '—' }}</p>
+    <p><strong>Name value:</strong></p>
+    <pre class="mono info-box">{{ order.value }}</pre>
+  </div>
+</section>
+
+{% if order.status == 'open' %}
+<section class="panel">
+  <div class="panel-head"><h2>Actions</h2></div>
+  <div class="panel-body btn-row">
+    {% if order.order_type in ('name_sale', 'ask') and wallet_user and wallet_user.username != order.seller_username %}
+    <form method="post" action="{{ url_for('buy_order', order_id=order.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn" type="submit" {% if not order.utxo_valid %}disabled{% endif %}>Buy now</button>
+    </form>
+    {% elif order.order_type == 'bid' and wallet_user %}
+    <form method="post" action="{{ url_for('accept_order', order_id=order.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn" type="submit" {% if not order.utxo_valid %}disabled{% endif %}>Accept bid</button>
+    </form>
+    {% elif not wallet_user %}
+    <a class="btn" href="{{ wallet_login_url }}">Log in to trade</a>
+    {% endif %}
+
+    {% if wallet_user and (wallet_user.username == order.seller_username or wallet_user.username == order.buyer_username) %}
+    <form method="post" action="{{ url_for('cancel_order', order_id=order.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-danger" type="submit">Cancel listing</button>
+    </form>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+<p><a href="{{ url_for('index') }}">← Back to market</a></p>
+{% endblock %}

@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Pool Miners · Bloodstone Explorer{% endblock %}
+
+{% block content %}
+<div id="pool-miners-page">
+<section class="page-head">
+  <h1>Pool miners</h1>
+  <p class="muted">Hashrate from live Bitaxe API when reachable, otherwise estimated from accepted shares in the last {{ (hashrate_window_sec // 60) }} minutes.</p>
+  <p class="muted small" id="miners-refresh-status"></p>
+</section>
+
+<section class="panel" id="bitaxe-panel"{% if not bitaxe or not bitaxe.devices %} hidden{% endif %}>
+  <div class="panel-head">
+    <h2>Bitaxe (live)</h2>
+    <p class="muted small" id="bitaxe-note">{{ bitaxe.note if bitaxe else '' }}</p>
+  </div>
+  <div class="table-wrap">
+    <table id="bitaxe-devices">
+      <thead>
+        <tr>
+          <th>Device</th>
+          <th>Status</th>
+          <th>Hashrate</th>
+          <th>Address</th>
+          <th>Worker</th>
+          <th>ASIC</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in (bitaxe.devices if bitaxe else []) %}
+        <tr>
+          <td>{{ d.name or 'Bitaxe' }}</td>
+          <td>{% if d.online %}<span class="badge badge-active">online</span>{% else %}<span class="badge badge-down">{{ d.error or 'offline' }}</span>{% endif %}</td>
+          <td><strong>{{ d.hashrate or '—' }}</strong></td>
+          <td class="mono">{% if d.address %}<a href="{{ url_for('address_page', address=d.address) }}">{{ d.address }}</a>{% else %}—{% endif %}</td>
+          <td class="mono small">{{ d.worker or '—' }}</td>
+          <td>{{ d.asic_model or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel" id="block-find-panel"{% if not block_find_leaderboard %} hidden{% endif %}>
+  <div class="panel-head">
+    <h2>Most blocks found</h2>
+    <p class="muted small">Pool blocks credited to the submitting worker's payout address. Block finder receives a {{ finder_bonus_stone|default(5) }} STONE bonus off the top of each block reward. A staking pool slice ({{ staking_block_pct|default(1) }}% of gross reward) is also taken off the top before the pool fee and miner split. Tracking starts when this feature was deployed.</p>
+  </div>
+  <div class="table-wrap">
+    <table id="block-find-leaderboard">
+      <thead>
+        <tr>
+          <th>Address</th>
+          <th>Total</th>
+          <th>SHA256d</th>
+          <th>Neoscrypt</th>
+          <th>Yespower</th>
+          <th>Last found</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in (block_find_leaderboard or []) %}
+        <tr>
+          <td class="mono"><a href="{{ url_for('address_page', address=row.address) }}">{{ row.address }}</a></td>
+          <td><strong>{{ row.total_blocks }}</strong></td>
+          <td>{{ row.sha256d or '—' }}</td>
+          <td>{{ row['neoscrypt-xaya'] or row.get('neoscrypt') or '—' }}</td>
+          <td>{{ row.yespower or '—' }}</td>
+          <td class="muted small">{{ fmt_time(row.last_found_at) if row.last_found_at else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel" id="recent-finds-panel"{% if not recent_block_finds %} hidden{% endif %}>
+  <div class="panel-head"><h2>Recent block finds</h2></div>
+  <div class="table-wrap">
+    <table id="recent-block-finds">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Algo</th>
+          <th>Height</th>
+          <th>Finder</th>
+          <th>Worker</th>
+          <th>Reward</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in (recent_block_finds or []) %}
+        <tr>
+          <td class="muted small">{{ fmt_time(row.found_at) }}</td>
+          <td>{{ row.algo }}</td>
+          <td>{{ row.block_height }}</td>
+          <td class="mono"><a href="{{ url_for('address_page', address=row.finder_address) }}">{{ row.finder_address }}</a></td>
+          <td class="mono small">{{ row.finder_worker or '—' }}</td>
+          <td>{{ fmt_amount(row.reward_stone) }} STONE</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel" id="pool-miners-panel">
+  <div class="panel-head"><h2>Active miners</h2></div>
+  <p class="muted" id="pool-miners-empty"{% if pool_miners %} hidden{% endif %}>No recent pool mining activity recorded.</p>
+  <div class="table-wrap">
+    <table id="pool-miners">
+      <thead>
+        <tr>
+          <th>Address</th>
+          <th>Total hashrate</th>
+          <th>SHA256d</th>
+          <th>Neoscrypt</th>
+          <th>Yespower</th>
+          <th>Pending STONE</th>
+          <th>Paid STONE</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in (pool_miners or []) %}
+        <tr>
+          <td class="mono"><a href="{{ url_for('address_page', address=m.address) }}">{{ m.address }}</a></td>
+          <td><strong>{{ m.hashrate }}</strong></td>
+          <td>{{ m.hashrate_per_algo.sha256d.formatted if m.hashrate_per_algo.get('sha256d') else '—' }}</td>
+          <td>{% set ns_hr = m.hashrate_per_algo.get('neoscrypt-xaya') or m.hashrate_per_algo.get('neoscrypt') %}{{ ns_hr.formatted if ns_hr else '—' }}</td>
+          <td>{{ m.hashrate_per_algo.yespower.formatted if m.hashrate_per_algo.get('yespower') else '—' }}</td>
+          <td>{{ fmt_amount(m.pending_stone) }}</td>
+          <td>{{ fmt_amount(m.paid_stone) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel" id="top-pending-panel"{% if not top_pending %} hidden{% endif %}>
+  <div class="panel-head"><h2>Top pending balances</h2></div>
+  <div class="table-wrap">
+    <table id="top-pending">
+      <thead>
+        <tr>
+          <th>Address</th>
+          <th>Hashrate</th>
+          <th>Pending STONE</th>
+          <th>Paid STONE</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in (top_pending or []) %}
+        <tr>
+          <td class="mono"><a href="{{ url_for('address_page', address=row.address) }}">{{ row.address }}</a></td>
+          <td><strong>{{ row.hashrate }}</strong></td>
+          <td>{{ fmt_amount(row.pending_stone) }}</td>
+          <td>{{ fmt_amount(row.paid_stone) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+</div>
+{% endblock %}

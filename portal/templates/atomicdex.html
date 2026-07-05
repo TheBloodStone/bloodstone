@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GleecDEX · STONE swaps · Bloodstone Portal</title>
+  {% if coin_icon_url %}<link rel="icon" href="{{ coin_icon_url }}" type="image/png">
+  <link rel="apple-touch-icon" href="{{ coin_icon_url }}">{% endif %}
+  <link rel="canonical" href="{{ public_root }}/atomicdex/">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/portal.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="{{ public_root }}/">
+        {% include "_brand_icon.html" %}
+        <span class="brand-text">Bloodstone</span>
+      </a>
+      <nav class="nav-links">
+        <a href="{{ public_root }}/explorer/">Explorer</a>
+        <a href="{{ public_root }}/wallet/">Wallet</a>
+        <a href="{{ public_root }}/atomicdex/" class="nav-cta">GleecDEX</a>
+        <a href="{{ public_root }}/faucet/">Faucet</a>
+        <a href="{{ public_root }}/mining/">Mining</a>
+        <a href="{{ public_root }}/support/">Support</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <p class="hero-kicker">Decentralized swaps · Gleec ecosystem (ex-Komodo)</p>
+      <h1>Trade STONE on GleecDEX</h1>
+      <p class="hero-sub">
+        <a href="https://gleec.com/">Gleec</a> acquired the Komodo cross-chain stack in Dec 2025.
+        Native swaps use <strong>GleecDEX</strong> (Komodo atomic-swap tech since 2021; formerly AtomicDEX / Komodo Wallet).
+        The legacy name-based DEX on this VPS is disabled — GleecDEX is the supported path.
+      </p>
+      <div class="warn-box">
+        <strong>Listing status: {{ listing_status }}</strong> —
+        ElectrumX: <code class="mono">ssl://bloodstonewallet.mytunnel.org:50002</code>
+        (<a href="{{ public_root }}/exchange/">exchange listing pack</a>).
+        Submit coin files to <a href="https://github.com/KomodoPlatform/coins">KomodoPlatform/coins</a>
+        (forked from <a href="https://github.com/GLEECBTC/coins">GLEECBTC/coins</a>) and contact
+        <a href="https://gleec.com/">Gleec</a> for GleecDEX listing review.
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>1 · Install GleecDEX</h2>
+        <p class="panel-sub">Non-custodial cross-chain DEX — runs on your device, not this VPS</p>
+      </div>
+      <div class="panel-body link-list">
+        <a href="https://gleec.com/">GleecDEX apps (iOS, Android, Mac, Windows)</a>
+        <a href="https://github.com/KomodoPlatform/komodo-wallet-desktop/releases">Komodo Wallet desktop (legacy builds)</a>
+        <a href="https://github.com/KomodoPlatform/komodo-wallet-mobile/releases">Komodo Wallet mobile (legacy builds)</a>
+        <a href="https://app.atomicdex.io/">AtomicDEX web (legacy)</a>
+        <a href="https://developers.komodoplatform.com/basic-docs/atomicdex/atomicdex-tutorials/listing-a-coin-on-atomicdex.html">Coin listing guide (Komodo docs)</a>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>2 · Connect to the Bloodstone network</h2>
+        <p class="panel-sub">Use these parameters when importing or troubleshooting STONE</p>
+      </div>
+      <div class="panel-body">
+        <dl class="param-grid">
+          <dt>Ticker</dt><dd class="mono">STONE</dd>
+          <dt>P2P seed</dt><dd class="mono copy-target">{{ vps_ip }}:17333</dd>
+          <dt>RPC port</dt><dd class="mono">18332</dd>
+          <dt>Address prefix</dt><dd class="mono">S… (pubtype 63)</dd>
+          <dt>Bech32</dt><dd class="mono">stone1…</dd>
+          <dt>Genesis</dt><dd class="mono small">df04225074039e630dad825b24818a695462bd19cd585131a0568f50e9bf71d0</dd>
+          <dt>Block time</dt><dd>~30 seconds</dd>
+          <dt>Explorer</dt><dd><a href="{{ public_root }}/explorer/">{{ public_root }}/explorer/</a></dd>
+          <dt>Full node</dt><dd><a href="{{ public_root }}/downloads/">Download bloodstoned v{{ node_version }}</a></dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>3 · Swap STONE (after listing)</h2>
+      </div>
+      <div class="panel-body">
+        <ol class="tutorial-steps">
+          <li>Update GleecDEX (or legacy Komodo Wallet) to the latest release — coin list updates ship with app updates.</li>
+          <li>Open <strong>DEX</strong> and search for <strong>STONE</strong> or <strong>STONE-segwit</strong>.</li>
+          <li>Deposit STONE to the wallet's STONE address (from the <a href="{{ public_root }}/wallet/">web wallet</a> or your own node).</li>
+          <li>Choose a counterparty coin (e.g. BTC, KMD, LTC) and create an atomic swap order.</li>
+          <li>Wait for confirmations (~6 blocks). Bloodstone uses Electrum servers once listed — no account on this portal is required.</li>
+        </ol>
+        <p class="muted small">
+          Until listing completes, you can still send/receive STONE via the
+          <a href="{{ public_root }}/wallet/">web wallet</a> or a synced full node.
+        </p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>4 · For operators — listing checklist</h2>
+      </div>
+      <div class="panel-body">
+        <ul class="tutorial-steps">
+          <li>Verify node + ElectrumX from <a href="{{ public_root }}/api/exchange">/api/exchange</a></li>
+          <li>ElectrumX: <code class="mono">ssl://bloodstonewallet.mytunnel.org:50002</code> — see <a href="{{ public_root }}/exchange/">/exchange/</a></li>
+          <li>Prepare PR for <a href="https://github.com/KomodoPlatform/coins">KomodoPlatform/coins</a> / <a href="https://github.com/GLEECBTC/coins">GLEECBTC/coins</a></li>
+          <li>Contact <a href="https://gleec.com/">Gleec</a> for GleecDEX listing (Komodo was acquired Dec 2025)</li>
+        </ul>
+        <p class="tutorial-footer muted small">
+          Questions? <a href="{{ public_root }}/support/">Open a support ticket</a>.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <span>Bloodstone VPS · {{ vps_ip }}</span>
+      <span>Updated {{ updated }}</span>
+    </div>
+  </footer>
+</body>
+</html>

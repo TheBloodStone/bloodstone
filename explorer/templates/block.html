@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Block {{ block.height }} · Bloodstone{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>Block <span class="accent">{{ block.height }}</span></h1>
+  <p class="mono hash-full"><a href="{{ url_for('block_page', query=block.hash) }}">{{ block.hash }}</a></p>
+</section>
+
+<div class="detail-grid">
+  <div class="detail-card">
+    <h3>Overview</h3>
+    <dl>
+      <dt>Confirmations</dt><dd>{{ block.confirmations }}</dd>
+      <dt>Timestamp</dt><dd>{{ fmt_time(block.time) }}</dd>
+      <dt>Transactions</dt><dd>{{ block.nTx }}</dd>
+      <dt>Size</dt><dd>{{ block.size }} bytes (weight {{ block.weight }})</dd>
+      <dt>Difficulty</dt><dd>{{ block.difficulty }}</dd>
+      <dt>Nonce</dt><dd class="mono">{{ block.nonce }}</dd>
+      <dt>Previous</dt>
+      <dd class="mono">{% if block.previousblockhash %}<a href="{{ url_for('block_page', query=block.previousblockhash) }}">{{ short_hash(block.previousblockhash) }}</a>{% else %}—{% endif %}</dd>
+      <dt>Next</dt>
+      <dd class="mono">{% if block.nextblockhash %}<a href="{{ url_for('block_page', query=block.nextblockhash) }}">{{ short_hash(block.nextblockhash) }}</a>{% else %}—{% endif %}</dd>
+    </dl>
+  </div>
+
+  {% if block.powdata %}
+  <div class="detail-card">
+    <h3>Proof of Work</h3>
+    <dl>
+      <dt>Algorithm</dt><dd><span class="badge badge-{{ block.powdata.algo }}">{{ block.powdata.algo }}</span></dd>
+      <dt>Merge-mined</dt>
+      <dd>
+        {% if block.powdata.merge_parent %}
+        Yes — {{ block.powdata.merge_parent }} (chain {{ block.powdata.merge_chain_id }})
+        {% else %}
+        {{ "Yes" if block.powdata.mergemined else "No" }}
+        {% endif %}
+      </dd>
+      <dt>Bits</dt><dd class="mono">{{ block.powdata.bits }}</dd>
+      <dt>Difficulty</dt><dd>{{ "%.8f"|format(block.powdata.difficulty) }}</dd>
+    </dl>
+    {% if block.powdata.auxpow %}
+    <details class="auxpow-details">
+      <summary>AuxPoW (parent chain)</summary>
+      <dl>
+        <dt>Parent hash</dt>
+        <dd class="mono small">{{ block.powdata.auxpow.parentblock.hash|default('—') }}</dd>
+        <dt>Chain ID</dt>
+        <dd>{{ block.powdata.auxpow.chainid|default(block.powdata.merge_chain_id|default('—')) }}</dd>
+        <dt>Parent chain</dt>
+        <dd>{{ block.powdata.merge_parent|default('—') }}</dd>
+      </dl>
+    </details>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="detail-card">
+    <h3>Game RNG</h3>
+    <dl>
+      <dt>rngseed</dt><dd class="mono small">{{ block.rngseed|default('—') }}</dd>
+    </dl>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel-head"><h2>Transactions ({{ block.tx|length }})</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>TxID</th>
+          <th>Outputs</th>
+          <th>Total Out</th>
+          <th>Size</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for tx in block.tx %}
+        {% set total_out = tx.vout | sum(attribute='value') %}
+        <tr>
+          <td class="mono"><a href="{{ url_for('tx_page', txid=tx.txid) }}">{{ short_hash(tx.txid) }}</a></td>
+          <td>{{ tx.vout|length }}</td>
+          <td>{{ fmt_amount(total_out) }} STONE</td>
+          <td>{{ tx.size }} B</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

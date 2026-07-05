@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Mesh Storage Anchors · Bloodstone{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>Chain Mesh Storage Anchors</h1>
+  <p class="muted">
+    On-chain BSM1 commitments — Merkle roots for files stored in the decentralized mesh (IPFS-style sharding, blockchain verification).
+  </p>
+</section>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Indexed anchors</div>
+    <div class="stat-value">{{ total }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Last scanned height</div>
+    <div class="stat-value mono">{{ meta.last_scanned_height or '—' }}</div>
+  </div>
+  <div class="stat-card wide">
+    <div class="stat-label">Mesh catalog API</div>
+    <div class="stat-value mono small"><a href="{{ mining_url }}api/chain-mesh/assets" target="_blank" rel="noopener">{{ mining_url }}api/chain-mesh/assets</a></div>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>BSM1 Anchors</h2>
+    <span class="muted">Newest first · protocol magic <code>BSM1</code></span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Height</th>
+          <th>Transaction</th>
+          <th>Asset</th>
+          <th>Merkle root</th>
+          <th>Conf</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in anchors %}
+        <tr>
+          <td>
+            {% if a.block_height %}
+            <a href="{{ url_for('block_page', query=a.block_height) }}">{{ a.block_height }}</a>
+            {% else %}<span class="badge badge-pending">mempool</span>{% endif %}
+          </td>
+          <td class="mono"><a href="{{ url_for('tx_page', txid=a.txid) }}">{{ short_hash(a.txid) }}</a></td>
+          <td>
+            {% if a.asset_key %}
+            <strong>{{ a.display_name or a.asset_key }}</strong><br>
+            <span class="muted mono small">{{ a.asset_key }}</span>
+            {% if a.asset_key.startswith('downloads/') %}
+            <br><a href="{{ public_root }}/{{ a.asset_key }}" target="_blank" rel="noopener">Download</a>
+            · <a href="{{ mining_url }}api/chain-mesh/asset/{{ a.asset_key }}" target="_blank" rel="noopener">manifest</a>
+            {% endif %}
+            {% else %}
+            <span class="muted">unknown asset</span>
+            {% endif %}
+          </td>
+          <td class="mono small">{{ short_hash(a.merkle_root, 12, 10) }}</td>
+          <td>{% if a.confirmations is not none %}{{ a.confirmations }}{% else %}—{% endif %}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="muted">No BSM1 anchors indexed yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Track ticket{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-head"><h2>Track your ticket</h2></div>
+  <div class="panel-body">
+    <form class="stack-form" method="post" action="{{ url_for('lookup') }}">
+      <label class="field">
+        <span>Ticket ID</span>
+        <input type="text" name="public_id" value="{{ public_id or '' }}" required placeholder="BS-A1B2C3D4" class="mono">
+      </label>
+      <label class="field">
+        <span>Access token</span>
+        <input type="text" name="token" required placeholder="From your confirmation link" class="mono">
+      </label>
+      <button class="btn" type="submit">Open ticket</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

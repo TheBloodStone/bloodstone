@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Marketplace{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Name Marketplace</h1>
+  <p class="hero-sub">
+    Trade Bloodstone names for STONE using atomic transactions — either party can walk away
+    without loss until the deal is confirmed on-chain.
+  </p>
+</section>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-label">Open listings</div>
+    <div class="stat-value">{{ open_count }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Trade types</div>
+    <div class="stat-value small">Transfer · Ask · Bid</div>
+  </div>
+</div>
+
+<div class="btn-row" style="margin-bottom:1rem;">
+  <a class="btn" href="{{ url_for('sell') }}">List a name</a>
+  <a class="btn btn-ghost" href="{{ url_for('bid') }}">Post a bid</a>
+</div>
+
+<section class="panel">
+  <div class="panel-head"><h2>Open orders</h2></div>
+  <div class="panel-body table-wrap">
+    {% if orders %}
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Price</th>
+          <th>Seller / Buyer</th>
+          <th>Posted</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orders %}
+        <tr>
+          <td class="mono">{{ o.name }}</td>
+          <td><span class="badge badge-type">{{ o.type_label }}</span></td>
+          <td>{{ "%.4g"|format(o.price) }} STONE</td>
+          <td class="small muted">
+            {% if o.seller_username %}{{ o.seller_username }}{% else %}—{% endif %}
+            /
+            {% if o.buyer_username %}{{ o.buyer_username }}{% else %}—{% endif %}
+          </td>
+          <td class="small muted">{{ o.created_fmt }}</td>
+          <td><a href="{{ url_for('order_detail', order_id=o.id) }}">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No open orders yet. Be the first to <a href="{{ url_for('sell') }}">list a name</a>.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>How it works</h2></div>
+  <div class="panel-body info-box small">
+    <p><strong>Name transfer</strong> — sell an entire name; buyer pays STONE and receives the name in one atomic tx.</p>
+    <p><strong>Ask</strong> — seller pre-signs an offer; any buyer can fund and complete it offline.</p>
+    <p><strong>Bid</strong> — buyer pre-funds an offer; the name owner accepts by signing once.</p>
+  </div>
+</section>
+{% endblock %}

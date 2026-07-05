@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Bid{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Post a bid</h1>
+  <p class="hero-sub">
+    Offer STONE to update a name to your proposed value. The owner accepts by signing once.
+  </p>
+</section>
+
+<section class="panel">
+  <div class="panel-body">
+    <form class="stack-form" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <label>
+        Name
+        <input name="name" placeholder="p/seller" required>
+      </label>
+
+      <label>
+        Your price (STONE)
+        <input name="price" type="text" inputmode="decimal" placeholder="5" required>
+      </label>
+
+      <label>
+        Proposed name value (JSON)
+        <textarea name="value" placeholder='{"buy":"from dex"}' required>{}</textarea>
+      </label>
+
+      <label>
+        Note (optional)
+        <input name="title" maxlength="120">
+      </label>
+
+      <div class="btn-row">
+        <button class="btn" type="submit">Post bid</button>
+        <a class="btn btn-ghost" href="{{ url_for('index') }}">Cancel</a>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

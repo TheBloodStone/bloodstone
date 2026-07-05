@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Name {{ name }} · Bloodstone{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>Name</h1>
+  <p class="mono hash-full">{{ name }}</p>
+</section>
+
+<div class="detail-grid">
+  <div class="detail-card">
+    <h3>Registration</h3>
+    <dl>
+      <dt>Value</dt>
+      <dd class="mono wrap">{{ record.value|default('') }}</dd>
+      <dt>Address</dt>
+      <dd class="mono">{% if record.address %}<a href="{{ url_for('address_page', address=record.address) }}">{{ record.address }}</a>{% else %}—{% endif %}</dd>
+      <dt>TxID</dt>
+      <dd class="mono">{% if record.txid %}<a href="{{ url_for('tx_page', txid=record.txid) }}">{{ record.txid }}</a>{% else %}—{% endif %}</dd>
+      <dt>Height</dt>
+      <dd>{% if record.height %}<a href="{{ url_for('block_page', query=record.height) }}">{{ record.height }}</a>{% else %}—{% endif %}</dd>
+      <dt>Expires in</dt>
+      <dd>{{ record.expires_in|default('—') }} blocks</dd>
+    </dl>
+  </div>
+</div>
+{% endblock %}

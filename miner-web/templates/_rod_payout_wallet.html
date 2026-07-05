@@ -1,0 +1,29 @@
+<section class="panel rod-payout-panel" id="rod-payout-wallet-panel"{% if not show_rod_payout_panel %} hidden{% endif %}>
+  <div class="panel-head">
+    <h2>ROD payout wallet</h2>
+    <p class="muted small panel-sub">
+      Enter your <strong>SpaceXpanse ROD core wallet</strong> address. Browser and stratum miners pay ROD
+      <strong>directly to this address</strong> — there is no separate withdrawal button once blocks are found.
+    </p>
+  </div>
+  <div class="panel-body rod-wallet-form">
+    <label for="rod-payout-wallet" class="muted small">ROD wallet address (payout / withdrawal destination)</label>
+    <input
+      type="text"
+      id="rod-payout-wallet"
+      class="mono"
+      placeholder="X… or R… from ROD-Qt / spacexpanse-cli getnewaddress"
+      autocomplete="off"
+      value="{{ rod_payout_address or '' }}"
+    >
+    <p class="muted small rod-wallet-hint">
+      Get an address from
+      <a href="https://github.com/SpaceXpanse/rod-core-wallet/releases" target="_blank" rel="noopener">ROD core wallet</a>
+      on your PC, or run <code class="mono">spacexpanse-cli getnewaddress</code> on your own ROD node.
+      {% if rod_node_synced is defined and not rod_node_synced %}
+      <span class="warn-inline">Pool ROD node is still syncing — mining may not start until sync completes.</span>
+      {% endif %}
+    </p>
+    <p class="muted small rod-wallet-result" id="rod-payout-wallet-status" hidden></p>
+  </div>
+</section>

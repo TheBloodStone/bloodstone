@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Global miner map</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  >
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+      background: #0d0f14;
+      color: #e8ecf4;
+      font: 15px/1.45 system-ui, sans-serif;
+    }
+    #miner-map {
+      width: 100%;
+      height: 100%;
+    }
+    #map-chrome {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 800;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.65rem 0.9rem;
+      background: linear-gradient(180deg, rgba(13, 15, 20, 0.94), rgba(13, 15, 20, 0.55) 75%, transparent);
+      pointer-events: none;
+    }
+    #map-chrome > * { pointer-events: auto; }
+    #map-chrome h1 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+    #map-meta {
+      color: #aeb6c8;
+      font-size: 0.82rem;
+      white-space: nowrap;
+    }
+    #map-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      flex-shrink: 0;
+    }
+    #map-actions a {
+      color: #9ecfff;
+      text-decoration: none;
+      font-size: 0.85rem;
+      padding: 0.35rem 0.65rem;
+      border: 1px solid #2a3344;
+      border-radius: 6px;
+      background: rgba(18, 21, 28, 0.88);
+    }
+    #map-actions a:hover {
+      border-color: #3d4d66;
+      background: rgba(24, 29, 38, 0.95);
+    }
+    #map-status {
+      position: fixed;
+      left: 0.75rem;
+      bottom: 0.75rem;
+      z-index: 800;
+      padding: 0.35rem 0.6rem;
+      border-radius: 6px;
+      background: rgba(13, 15, 20, 0.88);
+      color: #8b95a8;
+      font-size: 0.8rem;
+      border: 1px solid #1e2430;
+      pointer-events: none;
+    }
+    .leaflet-popup-content-wrapper {
+      background: #161a22;
+      color: #e8ecf4;
+      border-radius: 6px;
+    }
+    .leaflet-popup-tip { background: #161a22; }
+    .map-popup-ip {
+      font-family: ui-monospace, monospace;
+      font-size: 0.88rem;
+      margin: 0 0 0.35rem;
+      color: #ff6b6b;
+    }
+    .map-popup-place {
+      margin: 0 0 0.5rem;
+      color: #aeb6c8;
+      font-size: 0.82rem;
+    }
+    .map-popup-list {
+      margin: 0;
+      padding-left: 1rem;
+      font-size: 0.8rem;
+      color: #c5ccd8;
+    }
+    @media (max-width: 640px) {
+      #map-chrome {
+        flex-wrap: wrap;
+        padding-bottom: 0.35rem;
+      }
+      #map-meta {
+        width: 100%;
+        order: 3;
+      }
+    }
+  </style>
+</head>
+<body data-url-prefix="{{ url_prefix }}">
+  <div id="map-chrome">
+    <div>
+      <h1>Global miner map</h1>
+      <div id="map-meta">Loading…</div>
+    </div>
+    <div id="map-actions">
+      <a href="{{ url_prefix }}/miners">Miner list</a>
+      <a href="{{ url_prefix }}/">Mining dashboard</a>
+    </div>
+  </div>
+  <div id="miner-map" aria-label="Miner IP locations world map"></div>
+  <div id="map-status">Loading map…</div>
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script type="module">
+    const prefix = document.body.dataset.urlPrefix || "";
+    const apiBase = prefix || "";
+
+    function esc(s) {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    const map = L.map("miner-map", {
+      worldCopyJump: true,
+      zoomControl: true,
+    }).setView([20, 0], 2);
+
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CARTO',
+      subdomains: "abcd",
+      maxZoom: 19,
+    }).addTo(map);
+
+    const markerLayer = L.layerGroup().addTo(map);
+    let mapReady = false;
+
+    function popupHtml(marker) {
+      const miners = (marker.miners || [])
+        .slice(0, 12)
+        .map((m) => `<li>${esc(m.worker)} · ${esc(m.pool_name || m.pool || "pool")}</li>`)
+        .join("");
+      const lan = (marker.lan_nodes || [])
+        .slice(0, 6)
+        .map((n) => `<li>LAN ${esc(n.device_id || "node")} · ${esc(n.model || n.mode || "android")}</li>`)
+        .join("");
+      const extra =
+        (marker.miners?.length || 0) > 12
+          ? `<li>+${marker.miners.length - 12} more miners</li>`
+          : "";
+      return (
+        `<p class="map-popup-ip">${esc(marker.ip)}</p>` +
+        `<p class="map-popup-place">${esc(marker.label || "")}</p>` +
+        `<ul class="map-popup-list">${miners}${lan}${extra}</ul>`
+      );
+    }
+
+    function renderMap(data) {
+      markerLayer.clearLayers();
+      const markers = data?.markers || [];
+      const bounds = [];
+      for (const row of markers) {
+        const lat = Number(row.lat);
+        const lon = Number(row.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        const point = L.circleMarker([lat, lon], {
+          radius: 10,
+          fillColor: "#e53935",
+          color: "#b71c1c",
+          weight: 2,
+          opacity: 1,
+          fillOpacity: 0.92,
+        });
+        point.bindPopup(popupHtml(row));
+        point.addTo(markerLayer);
+        bounds.push([lat, lon]);
+      }
+
+      const status = document.getElementById("map-status");
+      const meta = document.getElementById("map-meta");
+      const at = data?.at ? new Date(data.at * 1000).toLocaleTimeString() : "—";
+      const minerCount = Number(data?.miner_count ?? 0);
+
+      if (meta) {
+        meta.textContent =
+          `${minerCount} connected miner${minerCount === 1 ? "" : "s"} · ` +
+          `${markers.length} mapped location${markers.length === 1 ? "" : "s"} · updated ${at}`;
+      }
+
+      if (!markers.length) {
+        if (status) {
+          status.textContent = data?.ip_count
+            ? "No public IPs geolocated yet (private or unknown addresses)."
+            : "No miner IPs to plot.";
+        }
+        if (!mapReady) {
+          map.setView([20, 0], 2);
+          mapReady = true;
+        }
+        return;
+      }
+
+      if (status) {
+        const skipped = Number(data.skipped_unknown || 0) + Number(data.skipped_private || 0);
+        status.textContent =
+          `${markers.length} red marker${markers.length === 1 ? "" : "s"} on map` +
+          (skipped ? ` · ${skipped} IP(s) skipped` : "");
+      }
+
+      if (!mapReady) {
+        if (bounds.length === 1) {
+          map.setView(bounds[0], 5);
+        } else if (bounds.length > 1) {
+          map.fitBounds(bounds, { padding: [72, 72], maxZoom: 8 });
+        }
+        mapReady = true;
+      }
+    }
+
+    async function refreshMap() {
+      try {
+        const res = await fetch(`${apiBase}/api/miners/geo-map`, { cache: "no-store" });
+        const data = await res.json();
+        if (data?.ok) renderMap(data);
+      } catch (_) {
+        const status = document.getElementById("map-status");
+        if (status) status.textContent = "Map unavailable.";
+      }
+    }
+
+    void refreshMap();
+    setInterval(refreshMap, 30000);
+    window.addEventListener("resize", () => map.invalidateSize());
+    requestAnimationFrame(() => map.invalidateSize());
+  </script>
+</body>
+</html>

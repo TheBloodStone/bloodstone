@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}My orders{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>My orders</h1>
+  <p class="hero-sub">Listings and bids for <strong>{{ wallet_user.username }}</strong>.</p>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Your names</h2></div>
+  <div class="panel-body">
+    {% if names %}
+    <ul class="small">
+      {% for n in names %}
+      <li class="mono">{{ n.name }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">No names in your wallet yet. Register names via the node or explorer.</p>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Order history</h2></div>
+  <div class="panel-body table-wrap">
+    {% if orders %}
+    <table>
+      <thead>
+        <tr><th>Name</th><th>Type</th><th>Price</th><th>Status</th><th>When</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for o in orders %}
+        <tr>
+          <td class="mono">{{ o.name }}</td>
+          <td>{{ o.type_label }}</td>
+          <td>{{ "%.4g"|format(o.price) }}</td>
+          <td><span class="badge badge-{{ o.status }}">{{ o.status }}</span></td>
+          <td class="small muted">{{ o.created_fmt }}</td>
+          <td><a href="{{ url_for('order_detail', order_id=o.id) }}">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No orders yet.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% block title %}Network Data Portal · Bloodstone{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Network Data Portal</h1>
+  <p class="hero-sub">
+    Upload, send, and receive files on the Bloodstone chain mesh — content-addressed 256&nbsp;KiB chunks,
+    peer replication, and optional BSM1 on-chain anchors. No single server holds the whole file.
+  </p>
+  <div class="btn-row">
+    <a class="btn btn-small" href="{{ url_for('index') }}#chain-mesh-panel">Mining dashboard Time Capsule</a>
+    <a class="btn btn-small" href="{{ url_for('mesh_search_page') }}">Open full-screen mesh search</a>
+    <a class="btn btn-ghost btn-small" href="https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Economic-Model-White-Paper.docx">Economic white paper</a>
+    <a class="btn btn-ghost btn-small" href="https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Chain-Mesh-Storage-White-Paper.docx">Storage white paper</a>
+    <a class="btn btn-ghost btn-small" href="https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Decentralized-Network-White-Paper.docx">Network white paper</a>
+    <a class="btn btn-ghost btn-small" href="https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Infrastructure-Independence-White-Paper.docx">Infrastructure independence</a>
+    <a class="btn btn-ghost btn-small" href="https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Live-Patchable-Node-White-Paper.docx">Live-patchable node white paper</a>
+    <a class="btn btn-ghost btn-small" href="https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Time-Capsule-White-Paper.docx">Time Capsule white paper</a>
+    <a class="btn btn-ghost btn-small" href="https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Mesh-File-Upload-White-Paper.docx">File upload white paper</a>
+    <a class="btn btn-ghost btn-small" href="https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Mesh-Virtual-LAN-White-Paper.docx">Virtual LAN white paper</a>
+  </div>
+</section>
+
+<div class="stats-grid" id="nd-stats-grid">
+  <div class="stat-card highlight">
+    <div class="stat-label">Network nodes</div>
+    <div class="stat-value" id="nd-network-total">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Mesh storage peers</div>
+    <div class="stat-value" id="nd-mesh-peers">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Published assets</div>
+    <div class="stat-value" id="nd-asset-count">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Coordinator chunks</div>
+    <div class="stat-value" id="nd-coordinator-chunks">—</div>
+  </div>
+</div>
+
+<section class="panel network-data-panel" id="nd-upload-panel">
+  <div class="panel-head">
+    <h2>Submit files to the blockchain</h2>
+    <p class="muted small panel-sub">
+      Upload your file here. An administrator reviews every submission before it is registered on the chain mesh
+      (manifest + optional BSM1 anchor). Keys must start with <span class="mono">assets/</span> — not <span class="mono">downloads/</span>.
+    </p>
+  </div>
+  <div class="panel-body mesh-asset-upload-wrap">
+    <form id="mesh-asset-submit-form" class="mesh-asset-upload-form">
+      <label class="mesh-upload-field">
+        <span class="muted small">File</span>
+        <input type="file" id="mesh-asset-submit-file" required>
+      </label>
+      <label class="mesh-upload-field">
+        <span class="muted small">Asset key</span>
+        <input type="text" id="mesh-asset-submit-key" class="mono" list="mesh-writable-keys-list" placeholder="assets/my-file.zip" autocomplete="off">
+        <datalist id="mesh-writable-keys-list"></datalist>
+        <span class="muted small">Pick an existing key to replace that file, or type a new <span class="mono">assets/…</span> key.</span>
+      </label>
+      <label class="mesh-upload-field">
+        <span class="muted small">Display name</span>
+        <input type="text" id="mesh-asset-submit-name" placeholder="My file" autocomplete="off">
+      </label>
+      <label class="mesh-upload-field mesh-upload-field-inline">
+        <span class="muted small">Version</span>
+        <input type="text" id="mesh-asset-submit-version" class="mono" placeholder="1.0" autocomplete="off">
+      </label>
+      <label class="mesh-upload-field">
+        <span class="muted small">Your STONE address (optional)</span>
+        <input type="text" id="mesh-asset-submit-address" class="mono" placeholder="stone1…" autocomplete="off">
+      </label>
+      <label class="mesh-upload-field">
+        <span class="muted small">Note for reviewer (optional)</span>
+        <input type="text" id="mesh-asset-submit-note" placeholder="What is this file for?" autocomplete="off">
+      </label>
+      <label class="mesh-upload-check">
+        <input type="checkbox" id="mesh-asset-submit-anchor" checked>
+        <span>Request BSM1 on-chain anchor after approval</span>
+      </label>
+      <div class="mesh-upload-actions">
+        <button type="submit" class="btn btn-small" id="mesh-asset-submit-btn">Submit for admin review</button>
+        <span class="muted small" id="mesh-asset-submit-progress"></span>
+      </div>
+      <p class="muted small mesh-upload-status" id="mesh-asset-submit-status"></p>
+    </form>
+    <p class="muted small">
+      Admins publish <span class="mono">downloads/</span> releases immediately from the
+      <a href="{{ url_for('admin') }}">Service admin</a> panel. Everyone can <strong>download</strong> approved assets
+      and contribute <strong>chunk replicas</strong> as storage peers.
+    </p>
+  </div>
+</section>
+
+<section class="panel network-data-panel" id="nd-backup-panel">
+  <div class="panel-head">
+    <h2>Back up mesh data files</h2>
+    <p class="muted small panel-sub">
+      Save Time Capsule chunk archives to your computer, export chunks your device is holding, or restore from a backup file.
+    </p>
+  </div>
+  <div class="panel-body">
+    <div class="nd-flow-grid">
+      <article class="nd-flow-card">
+        <h3>Download full capsule</h3>
+        <p class="muted small">
+          Zip of <span class="mono">manifest.json</span> plus every coordinator chunk (<span class="mono">chunks/&lt;hash&gt;.bin</span>).
+          Use for cold storage or to seed another node.
+        </p>
+        <button type="button" class="btn btn-small" id="mesh-backup-capsule-btn">Download Time Capsule zip</button>
+      </article>
+      <article class="nd-flow-card">
+        <h3>Export this device</h3>
+        <p class="muted small">
+          JSON file with chunks your browser or phone is storing (~10% assignment). Share with the network after restore.
+        </p>
+        <button type="button" class="btn btn-small btn-ghost" id="mesh-backup-export-btn">Export my mesh backup</button>
+      </article>
+      <article class="nd-flow-card">
+        <h3>Restore from backup</h3>
+        <p class="muted small">
+          Import a <span class="mono">.zip</span> capsule archive or <span class="mono">.json</span> device export. Chunks reload locally and upload to the coordinator.
+        </p>
+        <label class="btn btn-small btn-ghost" style="cursor:pointer">
+          Import mesh backup…
+          <input type="file" id="mesh-backup-import-file" accept=".zip,.json,application/json,application/zip" hidden>
+        </label>
+      </article>
+    </div>
+    <p class="muted small mesh-upload-status" id="mesh-backup-status"></p>
+    <p class="muted small">
+      CLI (VPS): <span class="mono">python3 /root/chain-mesh-export-backup.py</span> ·
+      <span class="mono">python3 /root/chain-mesh-import-backup.py file.zip</span>
+    </p>
+  </div>
+</section>
+
+<section class="panel network-data-panel highlight-panel" id="nd-packet-lan-panel">
+  <div class="panel-head">
+    <h2>Virtual LAN (BSM3 packets)</h2>
+    <p class="muted small panel-sub">
+      Send small internet-style packets (≤ 1.4&nbsp;KiB) over the Bloodstone mesh. Miners relay and attest each packet using hash-power from accepted shares — like a LAN link rendered in the browser. Mine while sending for faster relay credit.
+    </p>
+  </div>
+  <div class="panel-body">
+    <div class="mesh-packet-lan-grid">
+      <div class="mesh-packet-controls">
+        <label class="mesh-upload-field">
+          <span class="muted small">Your address / device id</span>
+          <input type="text" id="mesh-packet-sender" class="mono" placeholder="stone1… or device id" autocomplete="off">
+        </label>
+        <label class="mesh-upload-field">
+          <span class="muted small">Peer address / device id</span>
+          <input type="text" id="mesh-packet-recipient" class="mono" placeholder="stone1… or device id" autocomplete="off">
+        </label>
+        <label class="mesh-upload-field">
+          <span class="muted small">Channel id</span>
+          <input type="text" id="mesh-packet-channel" class="mono" placeholder="open channel first" readonly>
+        </label>
+        <div class="btn-row">
+          <button type="button" class="btn btn-small" id="mesh-packet-open-btn">Open channel</button>
+          <button type="button" class="btn btn-small btn-ghost" id="mesh-packet-listen-btn">Listen for packets</button>
+        </div>
+        <label class="mesh-upload-field">
+          <span class="muted small">Message</span>
+          <textarea id="mesh-packet-message" rows="3" placeholder="Type a packet payload…" class="mono"></textarea>
+        </label>
+        <div class="btn-row">
+          <button type="button" class="btn btn-small" id="mesh-packet-send-btn">Send packet</button>
+        </div>
+        <p class="muted small mesh-upload-status" id="mesh-packet-status"></p>
+      </div>
+      <div class="mesh-packet-terminal-wrap">
+        <div class="mesh-packet-terminal-head muted small">Received / sent packets</div>
+        <div id="mesh-packet-log" class="mesh-packet-log"></div>
+      </div>
+    </div>
+    <p class="muted small">
+      API: <span class="mono">POST /api/chain-mesh/packet/channel</span> ·
+      <span class="mono">POST /api/chain-mesh/packet/send</span> ·
+      <span class="mono">GET /api/chain-mesh/packet/stream/&lt;recipient&gt;</span> (SSE) ·
+      <span class="mono">GET /api/chain-mesh/packet/inbox/&lt;recipient&gt;</span> ·
+      <span class="mono">GET /api/chain-mesh/packet/peers-for/&lt;recipient&gt;</span> (LAN) ·
+      <span class="mono">GET http://&lt;lan-ip&gt;:18341/packet/inbox/&lt;recipient&gt;</span> ·
+      <span class="mono">POST /api/chain-mesh/packet/attest</span> (miners, after share accept)
+    </p>
+  </div>
+</section>
+
+<section class="panel network-data-panel highlight-panel" id="nd-ip-tunnel-panel">
+  <div class="panel-head">
+    <h2>Internet tunnel (BSM4 IPv4)</h2>
+    <p class="muted small panel-sub">
+      Encapsulate raw IPv4 datagrams inside BSM3 packets and reach the real internet through the
+      <span class="mono">mesh-gateway</span> egress node. Browsers build ICMP ping frames in userspace;
+      the coordinator forwards them and injects replies back into your tunnel inbox.
+      <strong>HTTPS proxy (443):</strong> synthetic HTTP GET; gateway terminates TLS and returns decoded HTTP.
+      <strong>TLS passthrough (443+):</strong> relay raw TLS records; gateway keeps TCP sessions for multi-round
+      handshakes. Use <span class="mono">Full TLS handshake</span> with the local lab (<span class="mono">127.0.0.1:18443</span>)
+      to receive ServerHello + certificate flights over the mesh.
+    </p>
+  </div>
+  <div class="panel-body">
+    <p class="muted small" id="mesh-ip-gateway-status">Loading gateway status…</p>
+    <div class="info-box share-internet-panel" id="share-internet-panel" style="margin-bottom:0.75rem">
+      <strong>Free internet over the mesh</strong>
+      <p class="muted small" style="margin:0.35rem 0 0">
+        One device with real internet registers as the household gateway; all LAN miners route BSM4 packets through it.
+      </p>
+      <label class="android-option-row" style="margin-top:0.5rem;display:flex;align-items:center;gap:0.5rem">
+        <input type="checkbox" id="share-internet-toggle">
+        <span>Share this browser's internet with LAN miners</span>
+      </label>
+      <p class="muted small" id="share-internet-status" style="margin:0.35rem 0 0">Not sharing</p>
+      <p class="muted small" id="share-internet-elected" style="margin:0.25rem 0 0">Resolving gateway…</p>
+    </div>
+    <div class="mesh-packet-lan-grid">
+      <div class="mesh-packet-controls">
+        <label class="mesh-upload-field">
+          <span class="muted small">Your address / device id</span>
+          <input type="text" id="mesh-ip-sender" class="mono" placeholder="stone1… or device id" autocomplete="off">
+        </label>
+        <label class="mesh-upload-field">
+          <span class="muted small">Virtual IP (mesh subnet)</span>
+          <input type="text" id="mesh-ip-virtual" class="mono" value="10.73.0.42" autocomplete="off">
+        </label>
+        <label class="mesh-upload-field">
+          <span class="muted small">Ping target (internet)</span>
+          <input type="text" id="mesh-ip-ping-target" class="mono" value="8.8.8.8" autocomplete="off">
+        </label>
+        <label class="mesh-upload-field">
+          <span class="muted small">HTTP(S) Host header</span>
+          <input type="text" id="mesh-ip-http-host" class="mono" value="bloodstone-tls-lab" autocomplete="off">
+        </label>
+        <label class="mesh-upload-field">
+          <span class="muted small">HTTP dst IPv4 (TCP header)</span>
+          <input type="text" id="mesh-ip-http-dst" class="mono" value="127.0.0.1" autocomplete="off">
+        </label>
+        <label class="mesh-upload-field">
+          <span class="muted small">HTTP path</span>
+          <input type="text" id="mesh-ip-http-path" class="mono" value="/" autocomplete="off">
+        </label>
+        <label class="mesh-upload-field">
+          <span class="muted small">TLS lab port (multi-round handshake)</span>
+          <input type="text" id="mesh-ip-http-port" class="mono" value="18443" autocomplete="off">
+        </label>
+        <label class="mesh-upload-field">
+          <span class="muted small">Tunnel channel id</span>
+          <input type="text" id="mesh-ip-channel" class="mono" placeholder="open tunnel first" readonly>
+        </label>
+        <div class="btn-row">
+          <button type="button" class="btn btn-small" id="mesh-ip-open-btn">Open tunnel → mesh-gateway</button>
+          <button type="button" class="btn btn-small" id="mesh-ip-ping-btn">Ping over mesh</button>
+          <button type="button" class="btn btn-small btn-ghost" id="mesh-ip-http-btn">HTTP GET (80)</button>
+          <button type="button" class="btn btn-small btn-ghost" id="mesh-ip-https-btn">HTTPS GET (443)</button>
+          <button type="button" class="btn btn-small btn-ghost" id="mesh-ip-tls-btn">TLS ClientHello (443)</button>
+          <button type="button" class="btn btn-small" id="mesh-ip-handshake-btn">Full TLS handshake</button>
+          <button type="button" class="btn btn-small btn-ghost" id="mesh-ip-handshake-lab-btn">Lab preset</button>
+          <button type="button" class="btn btn-small btn-ghost" id="mesh-ip-handshake-prod-btn">Production preset</button>
+          <button type="button" class="btn btn-small btn-ghost" id="mesh-ip-listen-btn">Listen for IP replies</button>
+        </div>
+        <p class="muted small">TLS lab: <span class="mono">bloodstone-tls-lab</span> → <span class="mono">127.0.0.1:18443</span> · Production: <span class="mono">bloodstonewallet.mytunnel.org</span> → <span class="mono">64.188.22.190:443</span> (SNI in Host field; dst IPv4 in TCP header)</p>
+        <p class="muted small mesh-upload-status" id="mesh-ip-status"></p>
+      </div>
+      <div class="mesh-packet-terminal-wrap">
+        <div class="mesh-packet-terminal-head muted small">IPv4 frames (decoded)</div>
+        <div id="mesh-ip-log" class="mesh-packet-log"></div>
+      </div>
+    </div>
+    <p class="muted small">
+      API: <span class="mono">GET /api/chain-mesh/tunnel/ip/protocol</span> ·
+      <span class="mono">POST /api/chain-mesh/tunnel/ip/channel</span> ·
+      <span class="mono">POST /api/chain-mesh/tunnel/ip/send</span> ·
+      <span class="mono">GET /api/chain-mesh/tunnel/ip/inbox/&lt;recipient&gt;</span> ·
+      <span class="mono">GET /api/chain-mesh/tunnel/ip/gateway/status</span> ·
+      <span class="mono">POST /api/chain-mesh/tunnel/ip/gateway/egress</span>
+    </p>
+  </div>
+</section>
+
+<section class="panel network-data-panel" id="nd-send-panel">
+  <div class="panel-head">
+    <h2>Send data on the network</h2>
+    <p class="muted small panel-sub">
+      Send to a STONE address (BSM2 transfer) or update an existing mesh file by key. Writable keys are listed below and in the asset key picker above.
+    </p>
+  </div>
+  <div class="panel-body">
+    <form id="mesh-send-to-key-form" class="mesh-asset-upload-form nd-send-form">
+      <label class="mesh-upload-field">
+        <span class="muted small">File</span>
+        <input type="file" id="mesh-send-file" required>
+      </label>
+      <label class="mesh-upload-field">
+        <span class="muted small">Mesh asset key (overwrite)</span>
+        <input type="text" id="mesh-send-key" class="mono" list="mesh-writable-keys-list" placeholder="assets/… or downloads/…" autocomplete="off" required>
+      </label>
+      <label class="mesh-upload-field">
+        <span class="muted small">Recipient STONE address (optional — BSM2 transfer)</span>
+        <input type="text" id="mesh-send-recipient" class="mono" placeholder="stone1…" autocomplete="off">
+      </label>
+      <label class="mesh-upload-field">
+        <span class="muted small">Your STONE address (optional)</span>
+        <input type="text" id="mesh-send-sender" class="mono" placeholder="stone1…" autocomplete="off">
+      </label>
+      <div class="mesh-upload-actions">
+        <button type="submit" class="btn btn-small" id="mesh-send-btn">Send / update on mesh</button>
+        <span class="muted small" id="mesh-send-progress"></span>
+      </div>
+      <p class="muted small mesh-upload-status" id="mesh-send-status"></p>
+    </form>
+    <details class="nd-writable-keys-details muted small">
+      <summary>Writable mesh keys (<span id="mesh-writable-keys-count">…</span>)</summary>
+      <ul id="mesh-writable-keys-list-ui" class="nd-writable-keys-list"></ul>
+    </details>
+    <div class="nd-flow-grid">
+      <article class="nd-flow-card">
+        <h3>Chunk replicas</h3>
+        <p class="muted small">After upload, announce held hashes so other nodes can find you.</p>
+        <pre class="nd-code">POST /api/chain-mesh/peer
+{
+  "device_id": "…",
+  "chunk_hashes": ["abc…", "def…"],
+  "peer_kind": "browser",
+  "lan_ip": "192.168.1.42",
+  "chunk_port": 18341
+}</pre>
+      </article>
+      <article class="nd-flow-card">
+        <h3>LAN chunk server</h3>
+        <p class="muted small">Android mesh peers serve chunks on Wi‑Fi port <span class="mono">18341</span> for household recovery.</p>
+        <pre class="nd-code">GET /api/chain-mesh/peers-for/&lt;chunk_hash&gt;
+→ { "endpoints": [{ "lan_ip", "chunk_port" }] }</pre>
+      </article>
+      <article class="nd-flow-card">
+        <h3>Offline share queue</h3>
+        <p class="muted small">Phones without VPS connectivity buffer accepted shares until the pool is reachable.</p>
+        <pre class="nd-code">POST /api/chain-mesh/pending-shares
+GET  /api/chain-mesh/pending-shares?device_id=…</pre>
+      </article>
+      <article class="nd-flow-card">
+        <h3>Local node registration</h3>
+        <p class="muted small">Pruned/full Android nodes advertise RPC and stratum on the LAN.</p>
+        <pre class="nd-code">POST /api/local-node/lan-register
+GET  /api/local-node/nearby</pre>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="panel network-data-panel" id="nd-library-panel">
+  <div class="panel-head">
+    <h2>Published files on the blockchain</h2>
+    <p class="muted small panel-sub">
+      Browse mesh assets anchored on Bloodstone. View metadata and previews, edit labels, download verified copies, or replace a file with a new revision (same asset key).
+    </p>
+  </div>
+  <div class="panel-body">
+    <label class="field">
+      <span class="muted small">Quick receive by asset key</span>
+      <div class="copy-row">
+        <input type="text" id="nd-receive-key" class="mono" placeholder="assets/… or downloads/…" autocomplete="off">
+        <button type="button" class="btn btn-small" id="nd-receive-btn">Download &amp; verify</button>
+      </div>
+    </label>
+    <label class="field mesh-library-search-wrap">
+      <span class="muted small">Filter library</span>
+      <input type="search" id="mesh-library-search" class="mono" placeholder="Search name or key…" autocomplete="off">
+    </label>
+    <p class="muted small" id="nd-receive-status"></p>
+    <div class="table-wrap">
+      <table id="nd-asset-catalog">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Key</th>
+            <th>Version</th>
+            <th>Size</th>
+            <th>Chunks</th>
+            <th>Anchor</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="7" class="muted">Loading mesh catalog…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <details class="nd-api-details muted small">
+      <summary>HTTP API reference</summary>
+      <ul class="nd-api-list">
+        <li><span class="mono">GET /api/chain-mesh/assets</span> — published catalog</li>
+        <li><span class="mono">GET /api/chain-mesh/writable-keys</span> — keys you can overwrite by publishing a new revision</li>
+        <li><span class="mono">POST /api/chain-mesh/transfer</span> — BSM2 send; pass <span class="mono">asset_key</span> to also update mesh storage</li>
+        <li><span class="mono">GET /api/chain-mesh/search?q=…&amp;prefix=downloads/</span> — search mesh files</li>
+        <li><span class="mono">GET /api/chain-mesh/asset/&lt;key&gt;</span> — manifest + chunk list</li>
+        <li><span class="mono">GET /api/chain-mesh/asset/&lt;key&gt;/download</span> — verified file download</li>
+        <li><span class="mono">GET /api/chain-mesh/asset/&lt;key&gt;/preview</span> — text/image preview</li>
+        <li><span class="mono">POST /api/chain-mesh/submit-asset</span> — queue user upload for admin review</li>
+        <li><span class="mono">PATCH /api/chain-mesh/asset/&lt;key&gt;</span> — edit metadata (admin only)</li>
+        <li><span class="mono">GET /api/chain-mesh/chunk/&lt;hash&gt;</span> — single chunk (base64)</li>
+        <li><span class="mono">GET /api/chain-mesh/manifest</span> — block archive manifest</li>
+        <li><span class="mono">GET /api/chain-mesh/backup/manifest</span> — capsule backup metadata</li>
+        <li><span class="mono">GET /api/chain-mesh/backup/download</span> — full capsule zip</li>
+        <li><span class="mono">POST /api/chain-mesh/backup/import</span> — restore chunks from backup</li>
+        <li><span class="mono">GET /api/chain-mesh/status</span> — peer + coverage stats</li>
+        <li><span class="mono">GET /api/network/nodes</span> — connected node counts</li>
+      </ul>
+    </details>
+  </div>
+</section>
+{% endblock %}
+{% block extra_scripts %}
+<script type="module">
+  import { initNetworkDataPortal } from "{{ url_for('static', filename='js/network-data-portal.js') }}?v=20260704-mesh-keys";
+  import { initMeshBackupUi } from "{{ url_for('static', filename='js/mesh-backup.js') }}?v=20260704-mesh-backup";
+  import { initMeshPacketLan } from "{{ url_for('static', filename='js/mesh-packet-ui.js') }}?v=20260704-bsm3b";
+  import { initMeshIpTunnel } from "{{ url_for('static', filename='js/mesh-ip-tunnel-ui.js') }}?v=20260704-bsm4e";
+  import { initShareInternetPanel } from "{{ url_for('static', filename='js/mesh-share-internet.js') }}?v=20260705-inet";
+  import { resolveDeviceId } from "{{ url_for('static', filename='js/chain-mesh.js') }}?v=20260705-inet";
+  initNetworkDataPortal();
+  initMeshBackupUi();
+  initMeshPacketLan();
+  initMeshIpTunnel();
+  initShareInternetPanel({ resolveDeviceId, peerKind: "pc" });
+</script>
+{% endblock %}

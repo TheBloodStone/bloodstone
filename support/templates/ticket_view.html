@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ ticket.public_id }}{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-head ticket-head">
+    <div>
+      <h2 class="mono">{{ ticket.public_id }}</h2>
+      <p class="muted">{{ ticket.subject }}</p>
+    </div>
+    <span class="badge badge-{{ ticket.status }}">{{ ticket.status }}</span>
+  </div>
+  <div class="panel-body">
+    <dl class="detail-dl">
+      <dt>Category</dt><dd>{{ ticket.category }}</dd>
+      <dt>Updated</dt><dd>{{ ticket.updated_at }}</dd>
+    </dl>
+    <div class="thread">
+      {% for msg in messages %}
+      <article class="msg {% if msg.author == 'Support' %}msg-staff{% endif %}">
+        <div class="msg-meta">{{ msg.author }} · {{ msg.created_at }}</div>
+        <div class="msg-body">{{ msg.body }}</div>
+      </article>
+      {% endfor %}
+    </div>
+    {% if ticket.status != 'closed' %}
+    <form class="stack-form" method="post" action="{{ url_for('user_reply', public_id=ticket.public_id) }}">
+      <input type="hidden" name="token" value="{{ token }}">
+      <label class="field">
+        <span>Your reply</span>
+        <textarea name="body" rows="4" required></textarea>
+      </label>
+      <button class="btn" type="submit">Send reply</button>
+    </form>
+    {% else %}
+    <p class="muted">This ticket is closed. Open a new ticket if you need more help.</p>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

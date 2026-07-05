@@ -1,0 +1,598 @@
+{% extends "base.html" %}
+{% block title %}Mining Dashboard · Bloodstone{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Mining Dashboard</h1>
+  <p class="hero-sub">Triple-algo mining on Bloodstone mainnet — pool or solo. Prefer a <a href="#run-locally">local miner</a> when you can; <a href="{{ url_for('mine') }}">browser mining</a> is a fallback.</p>
+</section>
+
+<section class="subsidy-fork-banner" id="subsidy-fork-banner" aria-label="Subsidy schedule fork announcement">
+  <div class="subsidy-fork-banner-inner">
+    <strong class="subsidy-fork-banner-title">Subsidy schedule fork — Bloodstone Core 0.7.0</strong>
+    <p class="subsidy-fork-banner-text" id="subsidy-fork-banner-text">
+      Loading live block reward and halving era…
+    </p>
+    <p class="subsidy-fork-banner-links muted small">
+      <a href="https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Subsidy-Fork-Release-Notes.docx" id="subsidy-fork-release-notes-link">Release notes (.docx)</a>
+      ·
+      <a href="https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Economic-Model-White-Paper.docx">Economic white paper §1.2</a>
+      ·
+      <a href="https://bloodstonewallet.mytunnel.org/mining/api/pool/subsidy-schedule" id="subsidy-fork-api-link">Live schedule API</a>
+    </p>
+  </div>
+</section>
+
+{% with mining_focus=true %}{% include "_run_locally_callout.html" %}{% endwith %}
+
+<div class="stats-grid">
+  <div class="stat-card highlight">
+    <div class="stat-label">Block Height</div>
+    <div class="stat-value" id="chain-block-height">{{ overview.height }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Payout address</div>
+    <div class="stat-value mono small">{{ overview.payout_address or '—' }}</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Triple-algo</div>
+    <div class="stat-value">
+      {% if overview.all_algos_active %}
+      <span class="badge badge-active">all 3 every block</span>
+      {% elif overview.yespower_active %}
+      <span class="badge badge-active">yespower</span>
+      {% else %}
+      {{ overview.blocks_until_yespower }} blocks
+      {% endif %}
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Mempool</div>
+    <div class="stat-value">{{ overview.mining.pooledtx }}</div>
+  </div>
+</div>
+
+<section class="panel" id="chain-mesh-panel">
+  <div class="panel-head">
+    <h2>Time Capsule</h2>
+    <p class="muted small panel-sub" style="margin:0.35rem 0 0">
+      Full chain history archived to the mesh — new nodes sync a pruned tip (~550&nbsp;MiB) instead of downloading everything.
+      <a href="{{ url_for('network_data') }}">Network Data Portal</a> for file uploads.
+    </p>
+  </div>
+  <p class="muted small panel-sub">
+    Block files split into 256&nbsp;KiB chunks. Each device backs up ~10% via
+    <span class="mono">sha256(node_id:chunk_hash)</span>. History lives in the capsule; your node keeps only recent blocks.
+  </p>
+  <dl class="meta-dl compact">
+    <dt>Capsule height</dt><dd id="chain-mesh-height">—</dd>
+    <dt>Archive</dt><dd id="time-capsule-archive">—</dd>
+    <dt>Chunks</dt><dd id="chain-mesh-chunks">—</dd>
+    <dt>Node mode</dt><dd id="time-capsule-node-mode">—</dd>
+    <dt>Storage peers</dt><dd id="chain-mesh-peers">—</dd>
+    <dt>Local VPS nodes</dt><dd id="chain-mesh-local-nodes">—</dd>
+    <dt>Offline-ready</dt><dd id="chain-mesh-offline-ready">—</dd>
+  </dl>
+  <div class="btn-row" style="margin:0.5rem 0 0.75rem">
+    <a class="btn btn-small btn-ghost" href="{{ url_for('network_data') }}#nd-backup-panel">Back up mesh data</a>
+    <a class="btn btn-small btn-ghost" href="{{ url_for('mesh_search_page') }}">Open full-screen mesh search</a>
+  </div>
+  <div class="mesh-asset-library-wrap" id="mesh-asset-library-wrap">
+    <h3 class="mesh-upload-title">Published on blockchain</h3>
+    <p class="muted small">Browse and download files published to the mesh. Submit new files on the <a href="{{ url_for('network_data') }}">Network Data Portal</a> (admin review required).</p>
+    <label class="mesh-upload-field">
+      <span class="muted small">Filter</span>
+      <input type="search" id="mesh-library-search" class="mono" placeholder="Search name or key…" autocomplete="off">
+    </label>
+    <p class="muted small" id="mesh-library-status"></p>
+    <div class="table-wrap">
+      <table id="mesh-asset-library">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Key</th>
+            <th>Version</th>
+            <th>Size</th>
+            <th>Chunks</th>
+            <th>Anchor</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="7" class="muted">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="panel" id="network-nodes-panel">
+  <div class="panel-head"><h2>Network nodes</h2></div>
+  <p class="muted small panel-sub" id="network-nodes-summary">
+    Connected peers across Bloodstone P2P, mesh storage, local VPS nodes, and fleet offload miners.
+  </p>
+  <div class="stats-grid">
+    <div class="stat-card highlight">
+      <div class="stat-label">Total connected</div>
+      <div class="stat-value" id="network-nodes-total">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Chain P2P</div>
+      <div class="stat-value" id="network-nodes-chain">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Mesh storage</div>
+      <div class="stat-value" id="network-nodes-mesh">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Local VPS</div>
+      <div class="stat-value" id="network-nodes-local">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Fleet offload</div>
+      <div class="stat-value" id="network-nodes-fleet">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">LAN registered</div>
+      <div class="stat-value" id="network-nodes-lan">—</div>
+    </div>
+  </div>
+  <p class="muted small" id="network-nodes-breakdown" style="margin-top:0.5rem">Loading network peers…</p>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Network Difficulty</h2></div>
+  <div class="diff-grid">
+    {% if overview.mining.difficulty.get('sha256d') is not none %}
+    <div><span class="muted">SHA256d</span><strong>{{ "%.2f"|format(overview.mining.difficulty.get('sha256d', 0)) }}</strong></div>
+    {% endif %}
+    {% if overview.mining.difficulty.get('neoscrypt') is not none %}
+    <div><span class="muted">Neoscrypt-Xaya</span><strong>{{ "%.8f"|format(overview.mining.difficulty.get('neoscrypt', 0)) }}</strong></div>
+    {% endif %}
+    {% if overview.mining.difficulty.get('yespower') is not none %}
+    <div><span class="muted">Yespower</span><strong>{{ "%.6f"|format(overview.mining.difficulty.get('yespower', 0)) }}</strong></div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel asic-subsidy-panel" id="asic-mobile-subsidy"{% if not pool_dashboard.asic_mobile_subsidy %} hidden{% endif %}>
+  <div class="panel-head">
+    <h2>ASIC → phone &amp; browser share</h2>
+    <p class="muted small panel-sub">{{ pool_dashboard.asic_mobile_subsidy.note if pool_dashboard.asic_mobile_subsidy else '' }}</p>
+  </div>
+  <div class="panel-body stats-grid">
+    <div class="stat-card highlight">
+      <div class="stat-label">Total shared from ASIC blocks</div>
+      <div class="stat-value" id="asic-total-shared">{% if pool_dashboard.asic_mobile_subsidy %}{{ '%.4f'|format(pool_dashboard.asic_mobile_subsidy.total_shared_stone) }} STONE{% else %}—{% endif %}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">To phone / Android miners</div>
+      <div class="stat-value" id="asic-mobile-shared">{% if pool_dashboard.asic_mobile_subsidy %}{{ '%.4f'|format(pool_dashboard.asic_mobile_subsidy.mobile_shared_stone) }} STONE{% else %}—{% endif %}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Accepted mobile shares (24h)</div>
+      <div class="stat-value" id="asic-mobile-shares-24h">{{ pool_dashboard.asic_mobile_subsidy.mobile_shares_24h if pool_dashboard.asic_mobile_subsidy else '—' }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Active mobile miners (24h)</div>
+      <div class="stat-value" id="asic-mobile-miners-24h">{{ pool_dashboard.asic_mobile_subsidy.mobile_miners_24h if pool_dashboard.asic_mobile_subsidy else '—' }}</div>
+    </div>
+  </div>
+</section>
+
+<section class="panel rod-earn-panel" id="rod-earn">
+  <div class="panel-head">
+    <h2>SpaceXpanse ROD wallet</h2>
+    <p class="muted small panel-sub" id="rod-earn-note">{{ pool_dashboard.rod_earn.user_wallet_note if pool_dashboard.rod_earn else 'Link your SpaceXpanse ROD wallet to your STONE mining address.' }}</p>
+  </div>
+  <div class="panel-body">
+    <div class="rod-wallet-form">
+      <label for="rod-stone-address" class="muted small">Your STONE mining address (stratum user)</label>
+      <input type="text" id="rod-stone-address" class="mono" placeholder="SZ… or stone1…" autocomplete="off"
+             value="{{ request.args.get('address', '') }}">
+
+      <label for="rod-wallet-address" class="muted small">Your ROD core wallet address</label>
+      <input type="text" id="rod-wallet-address" class="mono" placeholder="X… or R… from ROD-Qt / spacexpanse-cli getnewaddress" autocomplete="off">
+      <p class="muted small rod-wallet-hint">
+        Use a real address from
+        <a href="https://github.com/SpaceXpanse/rod-core-wallet/releases" target="_blank" rel="noopener">SpaceXpanse ROD core wallet</a>
+        on your PC, or from <code>spacexpanse-cli getnewaddress</code> on your own ROD VPS RPC node.
+      </p>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-small" id="rod-wallet-save">Save ROD wallet</button>
+        <button type="button" class="btn btn-small btn-ghost" id="rod-wallet-clear">Clear</button>
+      </div>
+      <p class="muted small rod-wallet-result" id="rod-wallet-result" hidden></p>
+    </div>
+
+    <div class="stats-grid rod-earn-stats">
+      <div class="stat-card">
+        <div class="stat-label">ROD node synced</div>
+        <div class="stat-value" id="rod-node-synced">{{ 'yes' if pool_dashboard.rod_earn and pool_dashboard.rod_earn.rod_node_synced else 'syncing' }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Registered ROD wallets</div>
+        <div class="stat-value" id="rod-wallet-count">{{ pool_dashboard.rod_earn.registered_wallets if pool_dashboard.rod_earn else '—' }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Your ROD link</div>
+        <div class="stat-value small mono" id="rod-wallet-linked">
+          {% if pool_dashboard.miner_rod_wallet and pool_dashboard.miner_rod_wallet.registered %}
+          {{ pool_dashboard.miner_rod_wallet.rod_address[:14] }}…
+          {% else %}not set{% endif %}
+        </div>
+      </div>
+    </div>
+    <p class="muted small" id="rod-node-note">{{ pool_dashboard.rod_earn.rod_node_note if pool_dashboard.rod_earn else 'Loading ROD node status…' }}</p>
+
+    <div class="dual-chain-stats" id="dual-chain-stats">
+      <h3 class="dual-chain-title">Dual mining shares (24h)</h3>
+      <p class="muted small dual-chain-hint" id="dual-chain-hint">
+        Enter your STONE payout address above to see your per-chain counts. Pool totals update live.
+      </p>
+      <div class="dual-chain-grid">
+        <div class="dual-chain-card" data-chain="stone">
+          <div class="dual-chain-label">STONE chain</div>
+          <div class="dual-chain-row"><span>Shares submitted</span><strong id="dual-stone-submitted">—</strong></div>
+          <div class="dual-chain-row"><span>Shares accepted</span><strong id="dual-stone-accepted">—</strong></div>
+          <div class="dual-chain-row"><span>Blocks accepted</span><strong id="dual-stone-blocks">—</strong></div>
+          <div class="dual-chain-row"><span>ROD jobs ready</span><strong id="dual-stone-jobs">—</strong></div>
+        </div>
+        <div class="dual-chain-card" data-chain="rod">
+          <div class="dual-chain-label">ROD chain</div>
+          <div class="dual-chain-row"><span>Shares submitted</span><strong id="dual-rod-submitted">—</strong></div>
+          <div class="dual-chain-row"><span>Shares accepted</span><strong id="dual-rod-accepted">—</strong></div>
+          <div class="dual-chain-row"><span>Blocks accepted</span><strong id="dual-rod-blocks">—</strong></div>
+          <div class="dual-chain-row"><span>STONE jobs ready</span><strong id="dual-rod-jobs">—</strong></div>
+        </div>
+      </div>
+      <table class="dual-pool-table small" id="dual-pool-breakdown" hidden>
+        <thead><tr><th>Pool</th><th>STONE accepted</th><th>ROD accepted</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <ul class="rod-algo-list muted small">
+      {% for algo, row in (pool_dashboard.rod_earn.per_algo.items() if pool_dashboard.rod_earn else []) %}
+      <li><strong>{{ algo }}</strong> — {{ 'dual-submit' if row.rod_dual_submit else 'not on ROD' }}: {{ row.note }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+
+<section class="panel next-block-panel" id="next-block-shares">
+  <div class="panel-head">
+    <h2>Pool shares &amp; balances</h2>
+    <p class="muted small panel-sub" id="next-block-note">{{ pool_dashboard.next_block.note if pool_dashboard.next_block else 'Loading pool share data…' }}{% if pool_dashboard.finder_bonus_stone %} Block finder bonus: <strong>{{ pool_dashboard.finder_bonus_stone }} STONE</strong> (off the top).{% endif %}{% if pool_dashboard.staking_block_pct %} Staking pool: <strong>{{ pool_dashboard.staking_contribution_stone }} STONE</strong> ({{ pool_dashboard.staking_block_pct }}% off the top).{% endif %}</p>
+  </div>
+  <div class="panel-body">
+    <div class="pool-lookup">
+      <label for="pool-address-lookup" class="muted small">Your STONE payout address</label>
+      <div class="pool-lookup-row">
+        <input type="text" id="pool-address-lookup" class="mono"
+               placeholder="SZ… or stone1…" autocomplete="off"
+               value="{{ request.args.get('address', '') }}">
+        <button type="button" class="btn btn-small" id="pool-address-btn">Look up</button>
+      </div>
+      <p class="muted small pool-lookup-result" id="pool-lookup-result" hidden></p>
+    </div>
+    <p class="muted small next-block-reward">
+      Distributable if the pool finds a block:
+      <strong id="next-block-distributable">{% if pool_dashboard.next_block %}~{{ pool_dashboard.next_block.distributable_stone|int }} STONE{% else %}—{% endif %}</strong>
+      {% if pool_dashboard.next_block %}({{ pool_dashboard.next_block.block_reward_stone|int }} STONE minus off-top deductions and {{ pool_dashboard.next_block.fee_pct }}% pool fee on the remainder){% endif %}
+    </p>
+    <div class="next-block-you" id="next-block-you">
+      <span class="muted small">Your earnings</span>
+      <strong data-field="nb-your-shares">
+        {% if pool_dashboard.miner_balance and pool_dashboard.miner_next_block %}
+          {% set bal = pool_dashboard.miner_balance %}
+          {% set shares = pool_dashboard.miner_next_block.per_algo.items()|list %}
+          {% set active = shares|selectattr('1.pct', 'gt', 0)|list %}
+          Pending {{ '%.4f'|format(bal.pending_stone) }} STONE
+          {% if active %}
+            · This round:
+            {% for key, row in active %}
+            {{ key }} {{ '%.2f'|format(row.pct) }}% (~{{ '%.4f'|format(row.estimated_stone) }} STONE){% if not loop.last %} · {% endif %}
+            {% endfor %}
+          {% elif bal.pending_stone <= 0 %}
+            · no shares in open rounds yet
+          {% endif %}
+        {% else %}
+        enter your address above to see pending balance and round share %
+        {% endif %}
+      </strong>
+    </div>
+    <div class="next-block-grid" id="next-block-grid">
+      {% for key, algo in (pool_dashboard.next_block.per_algo.items() if pool_dashboard.next_block else []) %}
+      <article class="next-block-card" data-next-block-algo="{{ key }}">
+        <div class="next-block-card-head">
+          <h3>{{ algo.label }}</h3>
+          <span class="muted small mono" data-field="nb-height">
+            {% if algo.job_height %}round {{ algo.job_height }}{% else %}no open round{% endif %}
+          </span>
+        </div>
+        <p class="muted small">Miners in this algo's open round{% if key == 'sha256d' %} (if SHA256 finds the block){% elif key == 'yespower' %} (if yespower finds the block){% else %} (if neoscrypt finds the block){% endif %}:</p>
+        <div class="table-wrap" data-field="nb-table"{% if not algo.miners %} hidden{% endif %}>
+          <table>
+            <thead>
+              <tr><th>Address</th><th>Worker</th><th>Hashrate</th><th>Weight</th><th>%</th><th>Est. STONE</th></tr>
+            </thead>
+            <tbody data-field="nb-miners">
+              {% for m in algo.miners or [] %}
+              <tr>
+                <td class="mono">{{ m.address[:12] }}…</td>
+                <td class="mono small">{{ m.worker or '—' }}</td>
+                <td>{{ m.hashrate }}</td>
+                <td>{{ '%.2f'|format(m.weight) }}</td>
+                <td><strong>{{ '%.2f'|format(m.pct) }}%</strong></td>
+                <td>{{ '%.4f'|format(m.estimated_stone) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if key == 'sha256d' %}
+        <p class="muted small" style="margin-top:0.75rem" data-field="nb-cross-note"{% if not algo.cross_subsidy_miners %} hidden{% endif %}>{{ algo.cross_subsidy_note or 'Cross-algo subsidy' }}: <span class="muted">Click a row for 24h earnings chart.</span></p>
+        <div class="table-wrap" data-field="nb-cross-table"{% if not algo.cross_subsidy_miners %} hidden{% endif %}>
+          <table>
+            <thead>
+              <tr><th>Address</th><th>Algo</th><th>Hashrate</th><th>Weight</th><th>%</th><th>Est. STONE</th></tr>
+            </thead>
+            <tbody data-field="nb-cross-miners">
+              {% for m in algo.cross_subsidy_miners %}
+              <tr class="miner-cross-row" data-address="{{ m.address }}" data-worker="{{ m.worker or '' }}" data-source-algo="{{ m.source_algo or '' }}" title="Show 24h ASIC subsidy earnings">
+                <td class="mono">{{ m.address[:12] }}…</td>
+                <td class="mono small">{{ m.source_algo }}</td>
+                <td>{{ m.hashrate or '—' }}</td>
+                <td>{{ '%.2f'|format(m.weight) }}</td>
+                <td><strong>{{ '%.2f'|format(m.pct) }}%</strong></td>
+                <td>{{ '%.4f'|format(m.estimated_stone) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+        {% if not algo.miners %}
+        <p class="muted small" data-field="nb-empty">No pool shares in the current open round yet.</p>
+        {% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<div id="miner-earnings-modal" class="miner-earnings-modal" hidden>
+  <div class="miner-earnings-modal-backdrop" data-earnings-close></div>
+  <div class="miner-earnings-modal-card" role="dialog" aria-labelledby="miner-earnings-title" aria-modal="true">
+    <div class="miner-earnings-modal-head">
+      <div>
+        <h3 id="miner-earnings-title">ASIC subsidy earnings (24h)</h3>
+        <p class="muted small mono" id="miner-earnings-subtitle"></p>
+      </div>
+      <button type="button" class="btn btn-small btn-ghost" data-earnings-close aria-label="Close">Close</button>
+    </div>
+    <div class="miner-earnings-modal-body">
+      <p class="muted small" id="miner-earnings-summary">Loading…</p>
+      <canvas id="miner-earnings-chart" class="miner-earnings-chart" width="880" height="280" role="img" aria-label="Miner earnings chart"></canvas>
+      <p class="muted small" id="miner-earnings-footnote"></p>
+    </div>
+  </div>
+</div>
+
+<section class="panel" id="bitaxe-panel"{% if not pool_dashboard.bitaxe or not pool_dashboard.bitaxe.devices %} hidden{% endif %}>
+  <div class="panel-head">
+    <h2>Bitaxe live hashrate</h2>
+    <p class="muted small panel-sub" id="bitaxe-note">{{ pool_dashboard.bitaxe.note if pool_dashboard.bitaxe else '' }}</p>
+    <p class="muted small panel-sub" id="bitaxe-forwarder-status" hidden></p>
+    <p class="muted small panel-sub flash flash-warning" id="bitaxe-stratum-alert" hidden></p>
+  </div>
+  <div class="table-wrap">
+    <table id="bitaxe-devices">
+      <thead>
+        <tr><th>Device</th><th>Status</th><th>Hashrate</th><th>Worker</th><th>Device shares</th><th>Pool blocks</th><th>ASIC</th></tr>
+      </thead>
+      <tbody>
+        {% for d in (pool_dashboard.bitaxe.devices if pool_dashboard.bitaxe else []) %}
+        <tr>
+          <td>{{ d.name or 'Bitaxe' }}</td>
+          <td>{% if d.online %}online{% else %}{{ d.error or 'offline' }}{% endif %}</td>
+          <td><strong>{{ d.hashrate or '—' }}</strong></td>
+          <td class="mono small">{{ d.worker or '—' }}</td>
+          <td>{{ d.asic_model or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel" id="block-finds-panel"{% if not pool_dashboard.block_find_leaderboard and not pool_dashboard.recent_block_finds %} hidden{% endif %}>
+  <div class="panel-head">
+    <h2>Pool block finds</h2>
+    <p class="muted small panel-sub">Miners ranked by blocks submitted to the pool. Counts from deploy forward.</p>
+  </div>
+  <div class="panel-body">
+    {% if pool_dashboard.block_find_leaderboard %}
+    <h3 class="muted small">Most blocks found</h3>
+    <div class="table-wrap">
+      <table id="block-find-leaderboard">
+        <thead>
+          <tr><th>Address</th><th>Total</th><th>SHA256d</th><th>Neoscrypt</th><th>Yespower</th></tr>
+        </thead>
+        <tbody>
+          {% for row in pool_dashboard.block_find_leaderboard[:12] %}
+          <tr>
+            <td class="mono">{{ row.address[:14] }}…</td>
+            <td><strong>{{ row.total_blocks }}</strong></td>
+            <td>{{ row.sha256d or '—' }}</td>
+            <td>{{ row.neoscrypt or '—' }}</td>
+            <td>{{ row.yespower or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% if pool_dashboard.recent_block_finds %}
+    <h3 class="muted small">Recent finds</h3>
+    <div class="table-wrap">
+      <table id="recent-block-finds">
+        <thead>
+          <tr><th>Algo</th><th>Height</th><th>Finder</th><th>Worker</th></tr>
+        </thead>
+        <tbody>
+          {% for row in pool_dashboard.recent_block_finds[:8] %}
+          <tr>
+            <td>{{ row.algo }}</td>
+            <td>{{ row.block_height }}</td>
+            <td class="mono">{{ row.finder_address[:14] }}…</td>
+            <td class="mono small">{{ row.finder_worker or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Network Hash Rate</h2>
+    <p class="muted small panel-sub">Estimated from the last 120 blocks per algorithm</p>
+  </div>
+  <div class="diff-grid hashrate-grid">
+    {% for key, entry in network_hashrates.per_algo.items() %}
+    <div>
+      <span class="muted">{{ entry.label }}</span>
+      <strong data-network-hashps="{{ key }}">{{ entry.formatted }}</strong>
+    </div>
+    {% endfor %}
+    <div class="hashrate-total">
+      <span class="muted">Blockchain total</span>
+      <strong data-network-hashps="total">{{ network_hashrates.total_formatted }}</strong>
+    </div>
+  </div>
+</section>
+
+<section class="pools-grid">
+  {% for key, pool in pools.items() %}
+  <article class="pool-card {% if pool.healthy %}healthy{% else %}down{% endif %}" data-pool-key="{{ key }}">
+    <div class="pool-head">
+      <h2>{{ pool.name }}</h2>
+      <span class="status-dot" title="{{ 'Online' if pool.healthy else 'Offline' }}"></span>
+    </div>
+    <dl>
+      <dt>Stratum URL</dt>
+      <dd class="mono copy-row">
+        <code>{{ pool.url }}</code>
+        <button type="button" class="btn btn-small" data-copy="{{ pool.url }}">Copy</button>
+      </dd>
+      {% if pool.url_tls %}
+      <dt>Stratum URL (TLS)</dt>
+      <dd class="mono copy-row">
+        <code>{{ pool.url_tls }}</code>
+        <button type="button" class="btn btn-small" data-copy="{{ pool.url_tls }}">Copy</button>
+      </dd>
+      <dt>Bitaxe / ASIC</dt>
+      <dd class="muted small">{{ pool.connection_note }}</dd>
+      {% endif %}
+      <dt>Workers</dt>
+      <dd>
+        <span class="pool-workers" data-pool-workers="{{ key }}">{{ pool.workers }}</span> connected
+        <span class="muted small pool-browser-wrap" data-pool-browser-wrap="{{ key }}"{% if not pool.browser_workers %} hidden{% endif %}>
+          (<span class="pool-browser-workers" data-pool-browser="{{ key }}">{{ pool.browser_workers }}</span> browser)
+        </span>
+      </dd>
+      <dt>Share diff</dt>
+      <dd>
+        {% if key == 'sha256d' %}
+        <span id="sha256-share-diff">{{ pool.rod_block_diff.effective_share_difficulty if pool.rod_block_diff else pool.share_difficulty }}</span>
+        <span class="muted small" id="sha256-share-diff-note">
+          {% if pool.rod_block_diff and pool.rod_block_diff.rod_block_diff_mode %}
+          (ROD block target)
+          {% else %}
+          (pool)
+          {% endif %}
+        </span>
+        {% else %}
+        {{ pool.share_difficulty }}
+        {% endif %}
+      </dd>
+      {% if key == 'sha256d' and pool.rod_block_diff %}
+      <dt>Min share diff</dt>
+      <dd><span id="sha256-min-share-diff">{{ pool.rod_block_diff.asic_diff_min }}</span> <span class="muted small">(pool floor)</span></dd>
+      <dt>ROD merge diff</dt>
+      <dd class="muted small" id="sha256-rod-block-diff-label">
+        {% if pool.rod_block_diff.rod_block_diff_mode %}ON{% else %}OFF{% endif %}
+      </dd>
+      {% endif %}
+      <dt>Miner</dt><dd>{{ pool.miner_hint }}</dd>
+      <dt>Username</dt><dd class="mono small">{{ pool.example_user }}</dd>
+      <dt>Password</dt>
+      <dd>
+        {% if key == 'neoscrypt' or key == 'yespower' or key == 'rod_neoscrypt' %}
+        <code>x</code> pool · <code>solo</code> solo
+        {% else %}
+        <code>x</code>
+        {% endif %}
+      </dd>
+    </dl>
+    <div class="pool-actions">
+      <a class="btn btn-ghost" href="{{ url_for('pool_detail', pool_key=key) }}">Setup guide</a>
+      {% if key == 'neoscrypt' %}
+      <a class="btn" href="{{ url_for('pool_detail', pool_key=key) }}#web-miner">Pool mine</a>
+      <a class="btn btn-ghost" href="{{ url_for('pool_detail', pool_key=key, mode='solo') }}#web-miner">Solo mine</a>
+      <a class="btn btn-ghost" href="{{ url_for('mine', reward='rod') }}#web-miner">Mine ROD</a>
+      {% elif key == 'yespower' %}
+      <a class="btn" href="{{ url_for('pool_detail', pool_key=key) }}#web-miner">Pool mine</a>
+      <a class="btn btn-ghost" href="{{ url_for('pool_detail', pool_key=key, mode='solo') }}#web-miner">Solo mine</a>
+      {% elif key == 'rod_neoscrypt' %}
+      <a class="btn" href="{{ url_for('pool_detail', pool_key=key) }}#web-miner">Browser mine ROD</a>
+      {% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Recent Blocks</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Height</th><th>Hash</th><th>Time</th><th>Algo</th><th>Txs</th></tr>
+      </thead>
+      <tbody>
+        {% if not blocks %}
+        <tr><td colspan="5" class="muted">Loading recent blocks from the node… refresh if this stays empty.</td></tr>
+        {% endif %}
+        {% for b in blocks %}
+        <tr>
+          <td><a href="{{ explorer_url }}block/{{ b.height }}" target="_blank" rel="noopener">{{ b.height }}</a></td>
+          <td class="mono"><a href="{{ explorer_url }}block/{{ b.hash }}" target="_blank" rel="noopener">{{ short_hash(b.hash) }}</a></td>
+          <td>{{ b.time_fmt }}</td>
+          <td>
+            {% if b.powdata %}
+            <span class="badge badge-{{ b.powdata.algo }}">{{ b.powdata.algo }}</span>
+            {% if b.powdata.merge_parent %}
+            <span class="badge badge-rod" title="AuxPoW merge-mined on {{ b.powdata.merge_parent }} (chain {{ b.powdata.merge_chain_id }})">{{ b.powdata.merge_ticker }}</span>
+            {% elif b.powdata.mergemined %}
+            <span class="badge badge-merge">merge</span>
+            {% endif %}
+            {% else %}—{% endif %}
+          </td>
+          <td>{{ b.nTx }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+{% block extra_scripts %}
+<script type="module">
+  import { initMeshAssetLibrary } from "{{ url_for('static', filename='js/mesh-asset-library.js') }}?v=20260704-mesh-admin";
+  initMeshAssetLibrary({ limit: 50, pollMs: 120000 });
+</script>
+{% endblock %}

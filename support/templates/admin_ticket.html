@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Admin · {{ ticket.public_id }}{% endblock %}
+{% block content %}
+<section class="panel">
+  <div class="panel-head ticket-head">
+    <div>
+      <h2 class="mono">{{ ticket.public_id }}</h2>
+      <p class="muted">{{ ticket.subject }} · {{ ticket.email }}</p>
+    </div>
+    <span class="badge badge-{{ ticket.status }}">{{ ticket.status }}</span>
+  </div>
+  <div class="panel-body">
+    <div class="thread">
+      {% for msg in messages %}
+      <article class="msg {% if msg.author == 'Support' %}msg-staff{% endif %}">
+        <div class="msg-meta">{{ msg.author }} · {{ msg.created_at }}</div>
+        <div class="msg-body">{{ msg.body }}</div>
+      </article>
+      {% endfor %}
+    </div>
+    <form class="stack-form" method="post">
+      <label class="field">
+        <span>Staff reply</span>
+        <textarea name="body" rows="4" placeholder="Reply to user…"></textarea>
+      </label>
+      <label class="field">
+        <span>Status</span>
+        <select name="status">
+          {% for s in statuses %}
+          <option value="{{ s }}" {% if ticket.status == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="btn" type="submit">Update ticket</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

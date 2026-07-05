@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Open a ticket{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Support &amp; tickets</h1>
+  <p class="hero-sub">Mining, wallet, explorer, or node issues — we’ll get back to you on your ticket thread.</p>
+</section>
+<section class="panel">
+  <div class="panel-head"><h2>Submit a request</h2></div>
+  <div class="panel-body">
+    <form class="stack-form" method="post" action="{{ url_for('submit') }}">
+      <label class="field">
+        <span>Your email</span>
+        <input type="email" name="email" required placeholder="you@example.com">
+      </label>
+      <label class="field">
+        <span>Name (optional)</span>
+        <input type="text" name="name" placeholder="Display name">
+      </label>
+      <label class="field">
+        <span>Category</span>
+        <select name="category">
+          {% for val, label in categories %}
+          <option value="{{ val }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label class="field">
+        <span>Subject</span>
+        <input type="text" name="subject" required minlength="4" placeholder="Brief summary">
+      </label>
+      <label class="field">
+        <span>Details</span>
+        <textarea name="body" rows="6" required minlength="10" placeholder="Describe the issue, steps to reproduce, payout address if mining-related…"></textarea>
+      </label>
+      <button class="btn" type="submit">Submit ticket</button>
+    </form>
+  </div>
+</section>
+<p class="muted small">Already have a ticket? <a href="{{ url_for('lookup') }}">Track your ticket</a> with your ID and access link.</p>
+{% endblock %}

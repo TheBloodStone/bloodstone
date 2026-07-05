@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Browser Miner · Bloodstone{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Phone &amp; Browser CPU Miner</h1>
+  <p class="hero-sub">Mine STONE or ROD on your phone or PC. <a href="#mobile-miner">Install on Android or iPhone</a> for a home-screen app, or use a <a href="#run-locally">desktop miner</a> for more hashrate.</p>
+</section>
+
+{% include "_mobile_miner_callout.html" %}
+
+{% with mining_focus=true %}{% include "_run_locally_callout.html" %}{% endwith %}
+
+{% if default_reward_target == 'rod' %}
+<section class="info-box" style="margin-bottom:1rem;">
+  <strong>Mining ROD?</strong> Use the <a href="#rod-payout-wallet-panel">ROD payout wallet</a> field. Rewards are sent on-chain to that address; you do not withdraw from the portal separately.
+</section>
+{% endif %}
+
+<section class="pools-grid pools-grid-compact">
+  {% for key, cfg in [('neoscrypt', pools_neoscrypt), ('yespower', pools_yespower)] %}
+  <article class="pool-card healthy">
+    <div class="pool-head"><h2>{{ cfg.name }}</h2></div>
+    <p class="muted small">{{ cfg.miner_hint }}</p>
+    {% if cfg.url %}
+    <p class="mono small copy-row" style="margin:0.5rem 0;">
+      <code>{{ cfg.url }}</code>
+      <button type="button" class="btn btn-small" data-copy="{{ cfg.url }}">Copy</button>
+    </p>
+    {% endif %}
+    <div class="pool-actions">
+      <a class="btn" href="{{ url_for('pool_detail', pool_key=key) }}#web-miner">Pool mine</a>
+      <a class="btn btn-ghost" href="{{ url_for('pool_detail', pool_key=key, mode='solo') }}#web-miner">Solo mine</a>
+      {% if key == 'neoscrypt' %}
+      <a class="btn btn-ghost" href="{{ url_for('mine', reward='rod') }}#web-miner">Mine ROD</a>
+      {% endif %}
+    </div>
+  </article>
+  {% endfor %}
+</section>
+
+{% include "_web_miner_panel.html" %}
+{% endblock %}

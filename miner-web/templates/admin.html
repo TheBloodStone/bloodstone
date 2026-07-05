@@ -1,0 +1,773 @@
+{% extends "base.html" %}
+{% block title %}Admin · Bloodstone{% endblock %}
+{% block content %}
+<section class="page-head">
+  <h1>Service admin</h1>
+  <p class="muted">Edit faucet, pool payout, and stratum settings for each mining algorithm.</p>
+  <div class="btn-row">
+    <a class="btn btn-ghost" href="{{ url_for('admin_generators') }}">Document generators</a>
+    <a class="btn btn-ghost" href="{{ url_for('admin_change_password') }}">Change password</a>
+    <form action="{{ url_for('admin_logout') }}" method="post" style="display:inline">
+      <button type="submit" class="btn btn-ghost">Logout</button>
+    </form>
+  </div>
+</section>
+
+<section class="panel highlight-panel" id="master-creator-panel">
+  <div class="panel-head">
+    <h2>Master Creator</h2>
+    <p class="panel-sub muted small">
+      Fleet-backed admin edits — device fleet records and panel field overrides stored in pool DB.
+    </p>
+  </div>
+  <div class="panel-body">
+    {% if master_creator %}
+    <div class="flash flash-success" style="margin-bottom:1rem">
+      <strong>Master Creator active.</strong> You can edit fleet devices and admin panel fields below.
+      <form action="{{ url_for('admin_master_creator_logout') }}" method="post" style="display:inline;margin-left:0.75rem">
+        <button type="submit" class="btn btn-small btn-ghost">End edit access</button>
+      </form>
+    </div>
+    {% else %}
+    <p class="muted small">Sign in with the Master Creator access code to edit fleet data and apply admin panel changes.</p>
+    <form method="post" action="{{ url_for('admin_master_creator_unlock') }}" class="stack-form" style="max-width:24rem">
+      <label class="field">
+        <span>Master Creator access code</span>
+        <input type="password" name="master_creator_code" class="mono" required autocomplete="off"
+               placeholder="MASTER-CREATOR-…">
+      </label>
+      <button type="submit" class="btn">Unlock fleet admin</button>
+    </form>
+    {% endif %}
+  </div>
+
+  {% if master_creator %}
+  <div class="panel-body">
+    <h3>Device fleet</h3>
+    <p class="muted small">Edit registered miners from <span class="mono">device_fleet</span> (addresses, workers, labels).</p>
+    {% if fleet_devices %}
+    <div class="admin-fleet-device-list">
+      {% for dev in fleet_devices %}
+      <form method="post" action="{{ url_for('admin_fleet_device_save') }}" class="admin-fleet-device-card admin-grid">
+        <input type="hidden" name="device_id" value="{{ dev.device_id }}">
+        <label class="field">
+          <span>Device <span class="mono muted small">{{ dev.device_id[:12] }}…</span></span>
+          <input type="text" name="model" class="mono small" value="{{ dev.model }}" placeholder="Model">
+        </label>
+        <label class="field">
+          <span>Address</span>
+          <input type="text" name="address" class="mono small" value="{{ dev.address }}" required>
+        </label>
+        <label class="field">
+          <span>Worker</span>
+          <input type="text" name="worker" class="mono small" value="{{ dev.worker }}">
+        </label>
+        <label class="field">
+          <span>Algo</span>
+          <input type="text" name="algo" class="mono small" value="{{ dev.algo }}">
+        </label>
+        <label class="field">
+          <span>Miner kind</span>
+          <select name="miner_kind">
+            {% for kind in ['browser', 'android', 'ios'] %}
+            <option value="{{ kind }}"{% if dev.miner_kind == kind %} selected{% endif %}>{{ kind }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label class="field">
+          <span>Transport</span>
+          <input type="text" name="transport" class="mono small" value="{{ dev.transport }}">
+        </label>
+        <label class="field">
+          <span>Display name</span>
+          <input type="text" name="display_name" value="{{ dev.display_name }}">
+        </label>
+        <label class="field">
+          <span>Creator role</span>
+          <input type="text" name="creator_role" value="{{ dev.creator_role }}" placeholder="master">
+        </label>
+        <label class="field" style="grid-column:1/-1">
+          <span>Admin notes</span>
+          <input type="text" name="admin_notes" value="{{ dev.admin_notes }}">
+        </label>
+        <div class="muted small" style="grid-column:1/-1">Last seen {{ fmt_time(dev.last_seen) }} · {{ dev.hashrate }} H/s reported</div>
+        <div class="btn-row" style="grid-column:1/-1">
+          <button type="submit" class="btn btn-small">Save device</button>
+        </div>
+      </form>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted small">No fleet devices in the database yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="panel-body">
+    <h3>Fleet admin field overrides</h3>
+    <p class="muted small">Stored in pool DB; merged into the main settings form below.</p>
+    <form method="post" action="{{ url_for('admin_fleet_settings_save') }}" class="admin-grid">
+      {% for section in fleet_admin_sections %}
+      <div class="admin-field-group" style="grid-column:1/-1">
+        <h4>{{ section.title }}</h4>
+      </div>
+      {% for field in section.fields %}
+      <label class="field">
+        <span>{{ field.label }}</span>
+        {% set val = fleet_fields.get(field.key, '') %}
+        {% if field.type == 'bool' %}
+        <select name="{{ field.key }}">
+          <option value="0"{% if val not in ['1', 'true', 'yes', 'on'] %} selected{% endif %}>Off</option>
+          <option value="1"{% if val in ['1', 'true', 'yes', 'on'] %} selected{% endif %}>On</option>
+        </select>
+        {% else %}
+        <input type="text" name="{{ field.key }}" class="mono" value="{{ val }}">
+        {% endif %}
+      </label>
+      {% endfor %}
+      {% endfor %}
+      <div style="grid-column:1/-1">
+        <button type="submit" class="btn btn-small">Save fleet overrides</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel" id="blocked-addresses-panel">
+  <div class="panel-head">
+    <h2>Blocked addresses</h2>
+    <p class="panel-sub muted small">
+      Wallets excluded from mining, share weight, or on-chain payout.
+      Weight-frozen list: <code class="mono">{{ blocked_addresses.weight_frozen_path }}</code>
+    </p>
+  </div>
+  <div class="panel-body">
+    <div class="admin-grid" style="margin-bottom:1rem">
+      <div class="stat-card">
+        <div class="stat-label">Total blocked</div>
+        <div class="stat-value">{{ blocked_addresses.count }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Weight frozen</div>
+        <div class="stat-value">{{ blocked_addresses.weight_frozen_count }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Blocked miners</div>
+        <div class="stat-value">{{ blocked_addresses.blocked_miner_count }}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Forfeited balances</div>
+        <div class="stat-value">{{ blocked_addresses.forfeited_count }}</div>
+      </div>
+    </div>
+    {% if blocked_addresses.addresses %}
+    <div class="table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Address</th>
+            <th>Reasons</th>
+            <th>Open-round weight</th>
+            <th>Pending STONE</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in blocked_addresses.addresses %}
+          <tr>
+            <td class="mono small">{{ row.address }}</td>
+            <td>
+              {% for reason in row.reasons %}
+              <span class="badge badge-down" style="margin:0 0.25rem 0.25rem 0">{{ reason }}</span>
+              {% endfor %}
+            </td>
+            <td class="mono small">
+              {% if row.open_round_weight > 0 %}
+              {{ '%.4f'|format(row.open_round_weight) }}
+              {% if row.per_algo_weight %}
+              <div class="muted small">
+                {% for algo, w in row.per_algo_weight.items() %}
+                {{ algo }} {{ '%.2f'|format(w) }}{% if not loop.last %} · {% endif %}
+                {% endfor %}
+              </div>
+              {% endif %}
+              {% else %}—{% endif %}
+            </td>
+            <td class="mono small">
+              {% if row.pending_stone > 0 %}{{ '%.8f'|format(row.pending_stone) }}{% else %}—{% endif %}
+            </td>
+            <td class="muted small">
+              {% if row.forfeited_balance and row.forfeited_stone is defined %}
+              Forfeited {{ '%.4f'|format(row.forfeited_stone) }} STONE ({{ row.forfeited_payouts }} credits)
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted small">No blocked addresses right now.</p>
+    {% endif %}
+    <p class="muted small" style="margin-top:0.75rem">
+      <strong>Blocked miner</strong> — hard-coded junk/invalid wallets; stratum rejects and payouts skip.
+      <strong>Weight frozen</strong> — shares deleted and new shares ignored (admin weight reset).
+      <strong>Forfeited</strong> — pending balance cleared after invalid payout attempts.
+    </p>
+  </div>
+</section>
+
+<form method="post" action="{{ url_for('admin_save_settings') }}" class="admin-form"{% if not master_creator %} data-readonly-admin="1"{% endif %}>
+  {% if not master_creator %}
+  <div class="panel-body">
+    <p class="muted small">Panel fields are read-only until you unlock <strong>Master Creator</strong> above.</p>
+  </div>
+  {% endif %}
+  <section class="panel">
+    <div class="panel-head"><h2>Faucet</h2></div>
+    <div class="panel-body admin-grid">
+      <label class="field">
+        <span>Claim amount (STONE)</span>
+        <input type="number" step="any" min="0.00000001" name="claim_amount" value="{{ fleet_fields.claim_amount }}" required{% if not master_creator %} disabled{% endif %}>
+      </label>
+      <label class="field">
+        <span>Cooldown min (hours)</span>
+        <input type="number" step="1" min="1" name="claim_cooldown_min_hours" value="{{ fleet_fields.claim_cooldown_min_hours }}" required{% if not master_creator %} disabled{% endif %}>
+      </label>
+      <label class="field">
+        <span>Cooldown max (hours)</span>
+        <input type="number" step="1" min="1" name="claim_cooldown_max_hours" value="{{ fleet_fields.claim_cooldown_max_hours }}" required{% if not master_creator %} disabled{% endif %}>
+      </label>
+      <label class="field">
+        <span>Minimum faucet balance (STONE)</span>
+        <input type="number" step="any" min="0" name="min_faucet_balance" value="{{ fleet_fields.min_faucet_balance }}" required{% if not master_creator %} disabled{% endif %}>
+      </label>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Pool on-chain payouts</h2></div>
+    <div class="panel-body admin-grid">
+      <label class="field">
+        <span>Maximum payout per miner (STONE per run)</span>
+        <input type="number" step="any" min="0.00000001" name="payout_chunk_max" value="{{ fleet_fields.payout_chunk_max }}" required{% if not master_creator %} disabled{% endif %}>
+      </label>
+    </div>
+    <div class="panel-body">
+      <p class="muted small">
+        Caps how much STONE is sent to each miner address in one automatic payout run.
+        Balances above this limit are paid across multiple runs. Miner payout threshold:
+        {{ pool_payout.payout_min }} STONE. Config file:
+        <code class="mono">{{ pool_payout.config_path }}</code>
+      </p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>Stratum / mining pools</h2></div>
+    <div class="panel-body admin-grid">
+      <label class="field">
+        <span>Public VPS IP (shown in pool URLs)</span>
+        <input type="text" name="miner_vps_ip" class="mono" value="{{ fleet_fields.miner_vps_ip }}" required{% if not master_creator %} disabled{% endif %}>
+      </label>
+    </div>
+    <div class="table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Algorithm</th>
+            <th>Status</th>
+            <th>TCP port</th>
+            <th>Share difficulty</th>
+            <th>GPU share diff / max</th>
+            <th>Workers</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for key in pool_keys %}
+          {% set pool = pools[key] %}
+          <tr>
+            <td><strong>{{ pool.name }}</strong><br><span class="muted small mono">{{ pool.url }}</span></td>
+            <td>{% if pool.healthy %}<span class="badge badge-active">online</span>{% else %}<span class="badge badge-down">offline</span>{% endif %}</td>
+            <td>
+              {% if key == 'neoscrypt' %}
+              <input type="number" min="1" max="65535" name="neoscrypt_port" value="{{ fleet_fields.neoscrypt_port }}" required{% if not master_creator %} disabled{% endif %}>
+              {% elif key == 'sha256d' %}
+              <input type="number" min="1" max="65535" name="sha256d_port" value="{{ fleet_fields.sha256d_port }}" required{% if not master_creator %} disabled{% endif %}>
+              {% elif key == 'yespower' %}
+              <input type="number" min="1" max="65535" name="yespower_port" value="{{ fleet_fields.yespower_port }}" required{% if not master_creator %} disabled{% endif %}>
+              {% endif %}
+            </td>
+            <td>
+              {% if key == 'neoscrypt' %}
+              <input type="text" name="neoscrypt_share_difficulty" class="mono" value="{{ fleet_fields.neoscrypt_share_difficulty }}" required{% if not master_creator %} disabled{% endif %}>
+              {% elif key == 'sha256d' %}
+              <div class="stack-field">
+                <input type="text" name="sha256d_share_difficulty" class="mono" value="{{ fleet_fields.sha256d_share_difficulty }}" required title="Base share difficulty"{% if not master_creator %} disabled{% endif %}>
+                <label class="muted small">Min ASIC diff
+                  <input type="text" name="sha256d_asic_diff_min" class="mono" value="{{ fleet_fields.sha256d_asic_diff_min }}" required title="Minimum ASIC share difficulty floor"{% if not master_creator %} disabled{% endif %}>
+                </label>
+                <label class="muted small">Max ASIC diff
+                  <input type="text" name="sha256d_asic_diff_max" class="mono" value="{{ fleet_fields.sha256d_asic_diff_max }}" required title="0 = unlimited (no ceiling)"{% if not master_creator %} disabled{% endif %}>
+                </label>
+              </div>
+              {% elif key == 'yespower' %}
+              <input type="text" name="yespower_share_difficulty" class="mono" value="{{ fleet_fields.yespower_share_difficulty }}" required{% if not master_creator %} disabled{% endif %}>
+              {% endif %}
+            </td>
+            <td>
+              {% if key == 'neoscrypt' %}
+              <div class="stack-field">
+                <input type="text" name="neoscrypt_gpu_share_difficulty" class="mono" value="{{ fleet_fields.neoscrypt_gpu_share_difficulty }}" required title="Starting GPU share difficulty"{% if not master_creator %} disabled{% endif %}>
+                <label class="muted small">GPU diff max
+                  <input type="text" name="neoscrypt_gpu_diff_max" class="mono" value="{{ fleet_fields.neoscrypt_gpu_diff_max }}" required title="Vardiff ceiling for GPU miners (e.g. 1000, 5000)"{% if not master_creator %} disabled{% endif %}>
+                </label>
+              </div>
+              {% elif key == 'yespower' %}
+              <div class="stack-field">
+                <input type="text" name="yespower_gpu_share_difficulty" class="mono" value="{{ fleet_fields.yespower_gpu_share_difficulty }}" required title="Starting GPU share difficulty"{% if not master_creator %} disabled{% endif %}>
+                <label class="muted small">GPU diff max
+                  <input type="text" name="yespower_gpu_diff_max" class="mono" value="{{ fleet_fields.yespower_gpu_diff_max }}" required title="Vardiff ceiling for GPU miners"{% if not master_creator %} disabled{% endif %}>
+                </label>
+              </div>
+              {% else %}
+              <span class="muted small">—</span>
+              {% endif %}
+            </td>
+            <td>{{ pool.workers }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="panel-body admin-grid">
+      <label class="field checkbox-field">
+        <input type="checkbox" name="sha256d_rod_block_diff_mode" value="1"
+          {% if fleet_fields.sha256d_rod_block_diff_mode in ['1', 'true', 'yes', 'on'] %}checked{% endif %}{% if not master_creator %} disabled{% endif %}>
+        <span><strong>SHA256 ROD merge block difficulty</strong> — use SpaceXpanse ROD block target for merge-mined shares (raises difficulty for dual-submit).</span>
+      </label>
+    </div>
+    <div class="panel-body">
+      <label class="field checkbox-field">
+        <input type="checkbox" name="restart_stratum" value="1" checked{% if not master_creator %} disabled{% endif %}>
+        <span>Restart all stratum pools after saving (required for port changes)</span>
+      </label>
+      <div class="btn-row">
+        <button type="submit" class="btn"{% if not master_creator %} disabled{% endif %}>Save all settings</button>
+      </div>
+      <p class="muted small">Faucet changes apply immediately after save. SHA256 share/min difficulty and ROD merge mode apply live on the stratum server. With <strong>ROD merge block difficulty</strong> enabled, jobs use live ROD chain target (~100M+ SHA256d) — the share difficulty field is only the STONE pool floor when ROD aux is unavailable. Port changes need stratum restart.</p>
+    </div>
+  </section>
+</form>
+
+{% if master_creator %}
+<section class="panel highlight-panel" id="node-patch-panel">
+  <div class="panel-head">
+    <h2>Live node patches (hot OTA)</h2>
+    <p class="panel-sub muted small">
+      Ship stratum/pool/bridge fixes like APK web-bundle updates — bloodstoned stays running.
+      Patch bundles are zip files with <span class="mono">manifest.json</span> + <span class="mono">files/</span>.
+    </p>
+  </div>
+  <div class="panel-body">
+    <p class="muted small" id="node-patch-status">Loading patch status…</p>
+    <div class="admin-grid">
+      <form id="node-patch-apply-form" class="stack-form" method="post"
+            action="{{ url_for('admin_node_patch_apply') }}" enctype="multipart/form-data">
+        <h3>Apply patch now</h3>
+        <label class="field">
+          <span>Patch bundle (.zip)</span>
+          <input type="file" name="patch_bundle" accept=".zip,application/zip" required>
+        </label>
+        <button type="submit" class="btn btn-small">Apply live (no bloodstoned stop)</button>
+        <p class="muted small" id="node-patch-apply-result"></p>
+      </form>
+      <form id="node-patch-publish-form" class="stack-form" method="post"
+            action="{{ url_for('admin_node_patch_publish') }}" enctype="multipart/form-data">
+        <h3>Publish for fleet auto-update</h3>
+        <label class="field">
+          <span>Patch bundle (.zip)</span>
+          <input type="file" name="patch_bundle" accept=".zip,application/zip" required>
+        </label>
+        <button type="submit" class="btn btn-small">Publish to /downloads/</button>
+        <p class="muted small" id="node-patch-publish-result"></p>
+      </form>
+    </div>
+    <div class="btn-row" style="margin-top:0.75rem">
+      <button type="button" class="btn btn-ghost btn-small" id="node-patch-check-updates">
+        Check &amp; apply published patch
+      </button>
+      <span class="muted small" id="node-patch-auto-result"></span>
+    </div>
+    <p class="muted small" style="margin-top:0.75rem">
+      Manifest fields: <span class="mono">patch_version</span>, <span class="mono">files[]</span>
+      (<span class="mono">bundle_path</span>, <span class="mono">dest</span>),
+      optional <span class="mono">reload_services</span> (stratum/web units only).
+      Set <span class="mono">restart_bloodstoned: true</span> only when a daemon restart is required.
+      Public check: <span class="mono">/mining/api/node-patch/update</span>
+    </p>
+  </div>
+</section>
+
+<section class="panel highlight-panel" id="time-capsule-panel">
+  <div class="panel-head">
+    <h2>Time Capsule</h2>
+    <p class="panel-sub muted small">
+      Archive full chain history to the mesh so new nodes download a pruned tip (~550&nbsp;MiB).
+      Local prune is optional and disables <span class="mono">txindex</span> — history stays in the capsule.
+    </p>
+  </div>
+  <div class="panel-body">
+    <pre class="muted small" id="time-capsule-status" style="white-space:pre-wrap">Loading…</pre>
+    <label class="field" style="margin-top:0.75rem">
+      <span>Mesh publish token</span>
+      <input type="password" id="time-capsule-publish-token" class="mono" autocomplete="off"
+             placeholder="CHAIN_MESH_PUBLISH_TOKEN">
+    </label>
+    <div class="admin-grid" style="margin-top:0.75rem">
+      <div>
+        <button type="button" class="btn btn-small" id="time-capsule-archive-btn">Archive to capsule now</button>
+        <p class="muted small" id="time-capsule-archive-result"></p>
+      </div>
+      <div>
+        <label class="mesh-upload-check">
+          <input type="checkbox" id="time-capsule-prune-confirm">
+          I confirm archive is complete and accept disabling txindex for local prune
+        </label>
+        <button type="button" class="btn btn-small btn-ghost" id="time-capsule-prune-btn" style="margin-top:0.35rem">
+          Enable local prune
+        </button>
+        <p class="muted small" id="time-capsule-prune-result"></p>
+      </div>
+    </div>
+    <p class="muted small" style="margin-top:0.75rem">
+      Upkeep archives automatically (<span class="mono">BLOODSTONE_TIME_CAPSULE_ARCHIVE=1</span>).
+      Auto-prune requires <span class="mono">BLOODSTONE_TIME_CAPSULE_ENABLE_PRUNE=1</span> on the VPS.
+      Status API: <span class="mono">GET /api/chain-mesh/time-capsule/status</span>
+    </p>
+  </div>
+</section>
+{% endif %}
+
+<section class="panel" id="ssh-keys-panel">
+  <div class="panel-head">
+    <h2>SSH keys</h2>
+    <p class="panel-sub muted small">
+      Key pairs on this VPS (<span class="mono">{{ ssh_keys.ssh_dir }}</span>).
+      Copy a <strong>public</strong> key to another machine's <span class="mono">~/.ssh/authorized_keys</span>
+      (e.g. secondary worker <span class="mono">{{ ssh_keys.secondary_host }}</span>).
+      Private keys never leave the server except when you download them from disk.
+    </p>
+  </div>
+
+  {% if ssh_key_generated %}
+  <div class="panel-body">
+    <div class="info-box">
+      <strong>New key: {{ ssh_key_generated.name }}</strong>
+      <p class="muted small">Fingerprint: <span class="mono">{{ ssh_key_generated.fingerprint }}</span></p>
+      <label class="field">
+        <span>Public key (paste on other VPS)</span>
+        <textarea class="mono small ssh-key-text" readonly rows="3">{{ ssh_key_generated.public_key }}</textarea>
+      </label>
+      <button type="button" class="btn btn-small" data-copy="{{ ssh_key_generated.public_key }}">Copy public key</button>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="panel-body admin-grid">
+    <form method="post" action="{{ url_for('admin_ssh_generate') }}" class="stack-form">
+      <h3>Generate key pair</h3>
+      <label class="field">
+        <span>Key name</span>
+        <input type="text" name="key_name" class="mono" placeholder="secondary-vps" required pattern="[A-Za-z0-9._-]+" maxlength="64">
+      </label>
+      <label class="field">
+        <span>Comment (optional)</span>
+        <input type="text" name="key_comment" class="mono" placeholder="bloodstone-main-to-secondary">
+      </label>
+      <button type="submit" class="btn">Generate ed25519 key</button>
+    </form>
+
+    <form method="post" action="{{ url_for('admin_ssh_authorize') }}" class="stack-form">
+      <h3>Allow SSH login here</h3>
+      <label class="field">
+        <span>Paste public key line</span>
+        <textarea name="public_key" class="mono small ssh-key-text" rows="4" placeholder="ssh-ed25519 AAAA… comment" required></textarea>
+      </label>
+      <button type="submit" class="btn">Add to authorized_keys</button>
+    </form>
+  </div>
+
+  <div class="panel-body">
+    <h3>Key pairs on this server</h3>
+    {% if ssh_keys.key_pairs %}
+    <div class="table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr><th>Name</th><th>Fingerprint</th><th>Public key</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for key in ssh_keys.key_pairs %}
+          <tr>
+            <td class="mono">{{ key.name }}</td>
+            <td class="mono small">{{ key.fingerprint or '—' }}</td>
+            <td class="mono small ssh-key-snippet">{{ key.public_key[:48] }}…</td>
+            <td>
+              <button type="button" class="btn btn-small" data-copy="{{ key.public_key }}">Copy</button>
+              <a class="btn btn-small btn-ghost" href="{{ url_for('admin_ssh_download_pub', name=key.name) }}">.pub</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted small">No key pairs found in {{ ssh_keys.ssh_dir }}.</p>
+    {% endif %}
+  </div>
+
+  <div class="panel-body">
+    <h3>Authorized to log in here</h3>
+    {% if ssh_keys.authorized_keys %}
+    <div class="table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr><th>Fingerprint</th><th>Comment</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for row in ssh_keys.authorized_keys %}
+          <tr>
+            <td class="mono small">{{ row.fingerprint or '—' }}</td>
+            <td class="mono small">{{ row.comment or '—' }}</td>
+            <td>
+              <form method="post" action="{{ url_for('admin_ssh_revoke') }}" style="display:inline">
+                <input type="hidden" name="fingerprint" value="{{ row.fingerprint }}">
+                <button type="submit" class="btn btn-small btn-ghost" onclick="return confirm('Remove this authorized key?');">Revoke</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted small">No entries in authorized_keys yet.</p>
+    {% endif %}
+    <p class="muted small" style="margin-top:0.75rem">
+      Main VPS: <span class="mono">{{ ssh_keys.server_host }}</span> ·
+      Secondary worker: <span class="mono">{{ ssh_keys.secondary_host }}</span>
+    </p>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Coin image (installers + Qt wallet)</h2>
+    <p class="panel-sub muted small">Used in Windows NSIS installers, Electron GUI icons, and the core Qt wallet splash screen on first load.</p>
+  </div>
+  <div class="panel-body admin-grid">
+    <div class="installer-icon-preview">
+      {% if installer_icon.configured %}
+      <img src="{{ installer_icon.preview_url }}?v={{ installer_icon.updated_utc|replace(' ', '_') }}" alt="Current installer coin" width="128" height="128">
+      <p class="muted small">
+        Current: {{ installer_icon.width }}×{{ installer_icon.height }} px
+        {% if installer_icon.updated_utc %}· updated {{ installer_icon.updated_utc }}{% endif %}
+      </p>
+      {% else %}
+      <p class="muted">No custom image yet — installers use the bundled GUI icon.</p>
+      {% endif %}
+    </div>
+    <form method="post" action="{{ url_for('admin_upload_installer_icon') }}" enctype="multipart/form-data" class="admin-form">
+      <label class="field">
+        <span>Upload PNG (square, 256×256 recommended)</span>
+        <input type="file" name="installer_icon" accept="image/png" required>
+      </label>
+      <div class="btn-row">
+        <button type="submit" class="btn">Save installer image</button>
+      </div>
+      <p class="muted small">Replaces the coin image in new Windows installers and Qt wallet builds. Use a transparent PNG for best results.</p>
+    </form>
+  </div>
+  <div class="panel-body">
+    <form method="post" action="{{ url_for('admin_rebuild_installers') }}">
+      <button type="submit" class="btn btn-ghost">Rebuild Windows installers now</button>
+      <p class="muted small">Runs both GUI build scripts in the background (may take several minutes).</p>
+    </form>
+    <form method="post" action="{{ url_for('admin_rebuild_miner_pack') }}" style="margin-top:1rem;">
+      <button type="submit" class="btn btn-ghost">Rebuild Windows CPU miner zip</button>
+      <p class="muted small">Packages cpuminer-opt with current pool ports and publishes to /downloads/.</p>
+    </form>
+    <form method="post" action="{{ url_for('admin_rebuild_android_miner') }}" style="margin-top:1rem;">
+      <button type="submit" class="btn btn-ghost">Rebuild Android miner source zip</button>
+      <p class="muted small">Capacitor project source for developers with Android Studio.</p>
+    </form>
+    <form method="post" action="{{ url_for('admin_rebuild_android_apk') }}" style="margin-top:1rem;">
+      <button type="submit" class="btn btn-ghost">Rebuild Android miner APK</button>
+      <p class="muted small">Builds signed sideload APK on this VPS and publishes to /downloads/ (may take several minutes).</p>
+    </form>
+  </div>
+</section>
+
+<section class="panel" id="admin-mesh-panel" data-mesh-admin="1">
+  <div class="panel-head">
+    <h2>Blockchain mesh files</h2>
+    <p class="panel-sub muted small">
+      Admin uploads publish immediately. User uploads from the Network Data Portal are queued below for your approval
+      before they are registered on the chain mesh.
+    </p>
+  </div>
+  <div class="panel-body mesh-pending-wrap">
+    <h3 class="mesh-upload-title">Pending user submissions (<span id="mesh-pending-count">—</span>)</h3>
+    <p class="muted small">Review queued uploads, then approve to publish or reject with an optional reason.</p>
+    <p class="muted small mesh-upload-status" id="mesh-pending-status"></p>
+    <div class="table-wrap">
+      <table id="mesh-pending-submissions">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Key</th>
+            <th>Size</th>
+            <th>Chunks</th>
+            <th>Submitter</th>
+            <th>Note</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="8" class="muted">Loading pending submissions…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="panel-body mesh-asset-upload-wrap">
+    <p class="muted small">Keys must start with <span class="mono">downloads/</span> or <span class="mono">assets/</span>. Max 64&nbsp;MiB per upload in browser.</p>
+    <form id="mesh-asset-upload-form" class="mesh-asset-upload-form">
+      <label class="mesh-upload-field">
+        <span class="muted small">File</span>
+        <input type="file" id="mesh-asset-file" required>
+      </label>
+      <label class="mesh-upload-field">
+        <span class="muted small">Asset key</span>
+        <input type="text" id="mesh-asset-key" class="mono" placeholder="downloads/my-release.zip" autocomplete="off">
+      </label>
+      <label class="mesh-upload-field">
+        <span class="muted small">Display name</span>
+        <input type="text" id="mesh-asset-name" placeholder="My release" autocomplete="off">
+      </label>
+      <label class="mesh-upload-field mesh-upload-field-inline">
+        <span class="muted small">Version</span>
+        <input type="text" id="mesh-asset-version" class="mono" placeholder="1.0" autocomplete="off">
+      </label>
+      <label class="mesh-upload-check">
+        <input type="checkbox" id="mesh-asset-anchor" checked>
+        <span>Anchor manifest on-chain (BSM1)</span>
+      </label>
+      <div class="mesh-upload-actions">
+        <button type="submit" class="btn btn-small" id="mesh-asset-upload-btn">Upload &amp; publish</button>
+        <span class="muted small" id="mesh-asset-upload-progress"></span>
+      </div>
+      <p class="muted small mesh-upload-status" id="mesh-asset-upload-status"></p>
+    </form>
+  </div>
+  <div class="panel-body mesh-asset-library-wrap" id="mesh-asset-library-wrap">
+    <h3 class="mesh-upload-title">Published catalog</h3>
+    <p class="muted small">View, edit metadata, download, or replace files on the mesh.</p>
+    <label class="mesh-upload-field">
+      <span class="muted small">Filter</span>
+      <input type="search" id="mesh-library-search" class="mono" placeholder="Search name or key…" autocomplete="off">
+    </label>
+    <p class="muted small" id="mesh-library-status"></p>
+    <div class="table-wrap">
+      <table id="mesh-asset-library">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Key</th>
+            <th>Version</th>
+            <th>Size</th>
+            <th>Chunks</th>
+            <th>Anchor</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="7" class="muted">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="panel admin-services-panel">
+  <div class="panel-head">
+    <h2>Server services</h2>
+    <p class="panel-sub muted small">Restart systemd units on this VPS. Status refreshes when you reload the page.</p>
+  </div>
+  <div class="panel-body">
+    <div class="admin-service-groups">
+      {% for group in restart_groups %}
+      <form method="post" action="{{ url_for('admin_restart_service_group', group_id=group.id) }}" class="admin-service-group-form">
+        <button type="submit" class="btn">{{ group.label }}</button>
+        {% if group.description %}
+        <span class="muted small">{{ group.description }}</span>
+        {% endif %}
+      </form>
+      {% endfor %}
+    </div>
+    {% for section in service_sections %}
+    <div class="admin-service-section">
+      <h3>{{ section.title }}</h3>
+      {% if section.description %}
+      <p class="muted small">{{ section.description }}</p>
+      {% endif %}
+      <div class="admin-service-grid">
+        {% for svc in section.services %}
+        <div class="admin-service-card">
+          <div class="admin-service-card-head">
+            <strong>{{ svc.label }}</strong>
+            {% if svc.healthy %}
+            <span class="badge badge-active">{{ svc.status }}</span>
+            {% else %}
+            <span class="badge badge-down">{{ svc.status }}</span>
+            {% endif %}
+          </div>
+          <code class="mono small admin-service-unit">{{ svc.unit }}</code>
+          <form method="post" action="{{ url_for('admin_restart_service', service_id=svc.id) }}">
+            <button type="submit" class="btn btn-small btn-ghost">Restart</button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Restart individual pools (legacy)</h2></div>
+  <div class="panel-body pool-actions">
+    {% for key in pool_keys %}
+    <form method="post" action="{{ url_for('admin_restart', pool_key=key) }}">
+      <button type="submit" class="btn btn-ghost">{{ pools[key].name }}</button>
+    </form>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
+{% block extra_scripts %}
+<script type="module">
+  import { initMeshAssetUpload } from "{{ url_for('static', filename='js/mesh-asset-publish.js') }}?v=20260704-mesh-pending";
+  import { initMeshAssetLibrary } from "{{ url_for('static', filename='js/mesh-asset-library.js') }}?v=20260704-mesh-pending";
+  import { initMeshAssetPending } from "{{ url_for('static', filename='js/mesh-asset-pending.js') }}?v=20260704-mesh-pending";
+  initMeshAssetLibrary({ limit: 100, admin: true });
+  initMeshAssetPending({ limit: 50, pollMs: 30000 });
+  initMeshAssetUpload();
+  {% if master_creator %}
+  import { initNodePatchAdmin } from "{{ url_for('static', filename='js/node-patch-admin.js') }}?v=20260704-node-patch";
+  initNodePatchAdmin();
+  import { initTimeCapsuleAdmin } from "{{ url_for('static', filename='js/time-capsule-admin.js') }}?v=20260704-time-capsule";
+  initTimeCapsuleAdmin();
+  {% endif %}
+</script>
+{% endblock %}

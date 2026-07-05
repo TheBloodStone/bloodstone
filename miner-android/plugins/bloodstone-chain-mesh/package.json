@@ -1,0 +1,21 @@
+{
+  "name": "bloodstone-chain-mesh",
+  "version": "1.0.0",
+  "description": "Native VPS chain-fill backup storage for Bloodstone Android miner",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "types": "src/index.ts",
+  "files": [
+    "android/src/main/",
+    "android/build.gradle",
+    "src/"
+  ],
+  "peerDependencies": {
+    "@capacitor/core": "^6.0.0"
+  },
+  "capacitor": {
+    "android": {
+      "src": "android"
+    }
+  }
+}

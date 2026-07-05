@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">bloodstonewallet.mytunnel.org</domain>
+        <domain includeSubdomains="true">rodcoinwallet.duckdns.org</domain>
+        <domain includeSubdomains="true">64.188.22.190</domain>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

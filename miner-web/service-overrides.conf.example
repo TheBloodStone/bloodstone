@@ -1,0 +1,2 @@
+# Optional systemd EnvironmentFile overrides for miner-web deployments.
+# BLOODSTONE_PUBLIC_ROOT=https://your-domain.example

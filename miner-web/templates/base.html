@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#d4a017">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="STONE Miner">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>{% block title %}Bloodstone Mining{% endblock %}</title>
+  <link rel="manifest" href="{{ url_for('web_manifest') }}">
+  {% if coin_icon_url %}<link rel="icon" href="{{ coin_icon_url }}" type="image/png">
+  <link rel="apple-touch-icon" href="{{ coin_icon_url }}">{% else %}
+  <link rel="apple-touch-icon" href="{{ portal_url }}/branding/installer-icon.png">{% endif %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/miner.css') }}">
+</head>
+<body
+  data-url-prefix="{{ url_prefix }}"
+  data-stratum-host="{{ stratum_host }}"
+  data-stratum-host-neoscrypt="{{ stratum_client_hosts.neoscrypt }}"
+  data-stratum-host-yespower="{{ stratum_client_hosts.yespower }}"
+  data-stratum-host-rod-neoscrypt="{{ stratum_client_hosts.rod_neoscrypt }}"
+  data-stratum-neoscrypt="{{ stratum_ports.neoscrypt }}"
+  data-stratum-yespower="{{ stratum_ports.yespower }}"
+  data-stratum-rod-neoscrypt="{{ stratum_ports.rod_neoscrypt }}"
+>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="{{ url_for('index') }}">
+        {% include "_brand_icon.html" %}
+        <span class="brand-text">Bloodstone Mining</span>
+      </a>
+      <nav class="nav-links">
+        <a href="{{ portal_url }}/">Portal</a>
+        <a href="{{ url_for('index') }}">Dashboard</a>
+        <a href="{{ url_for('network_data') }}">Network Data</a>
+        <a href="{{ url_for('mesh_search_page') }}">Mesh Search</a>
+        <a href="{{ url_for('rentals_page') }}">Rentals</a>
+        <a href="{{ url_for('mine') }}">Web Miner</a>
+        <a href="{{ wallet_url }}">Wallet</a>
+
+        <a href="{{ explorer_url }}">Explorer</a>
+        <a href="{{ faucet_url }}">Faucet</a>
+        <a href="{{ url_for('admin') }}">Admin</a>
+      </nav>
+    </div>
+  </header>
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+      <div class="flash-wrap">
+        {% for category, message in messages %}
+        <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <span>Bloodstone solo mining · {{ vps_ip }}</span>
+      <span id="live-height" class="live-stat"></span>
+    </div>
+  </footer>
+  <script src="{{ url_for('static', filename='js/miner.js') }}?v=20260704-miner-earnings-chart"></script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

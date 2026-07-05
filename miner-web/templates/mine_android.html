@@ -1,0 +1,27 @@
+{% extends "base_android.html" %}
+{% block title %}Bloodstone Fleet Miner{% endblock %}
+{% block content %}
+<p class="android-boot-status" id="android-boot-status">Fleet miner ready — choose local node mode, tap <strong>Start full node</strong>, then mine or point other rigs at your LAN IP.</p>
+<div class="chain-download-panel" id="local-node-sync-wrap" hidden>
+  <div class="chain-download-head">
+    <strong id="local-node-sync-title">Blockchain download</strong>
+    <span class="chain-download-phase" id="local-node-sync-phase">Starting…</span>
+  </div>
+  <div class="chain-download-pct-row">
+    <span class="chain-download-pct mono" id="local-node-sync-pct">0%</span>
+    <span class="muted small" id="local-node-sync-label">Preparing local node…</span>
+  </div>
+  <div class="progress-bar chain-download-bar" id="local-node-sync-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+    <div class="progress-bar-fill" id="local-node-sync-fill"></div>
+  </div>
+  <div class="chain-download-stats" id="local-node-sync-stats">
+    <span><span class="stat-k">Height</span> <span class="mono" id="local-node-sync-height">—</span></span>
+    <span><span class="stat-k">Network</span> <span class="mono" id="local-node-sync-network">—</span></span>
+    <span><span class="stat-k">Behind</span> <span class="mono" id="local-node-sync-behind">—</span></span>
+    <span><span class="stat-k">On disk</span> <span class="mono" id="local-node-sync-disk">—</span></span>
+  </div>
+  <p class="muted small chain-download-detail" id="local-node-sync-detail">Keep the app open on Wi‑Fi while blocks download.</p>
+</div>
+{% set android_miner_shell = true %}
+{% include "_web_miner_panel.html" %}
+{% endblock %}

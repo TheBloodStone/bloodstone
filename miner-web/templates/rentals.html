@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Hash Rate Rentals · Bloodstone Mining{% endblock %}
+{% block content %}
+<section class="page-head">
+  <h1>Hash Rate Rentals</h1>
+  <p class="muted">
+    Rent proven pool hash rate to earn mesh publish credits for data and chain-mesh asset creation.
+    Sellers point rigs at a rental worker prefix; delivered shares meter credits you spend on
+    <code>/api/chain-mesh/rental/publish-asset</code>.
+  </p>
+</section>
+
+<section class="panel">
+  <div class="panel-body">
+    <h2>Create rental order</h2>
+    <form id="rental-create-form" class="form-grid">
+      <label>
+        Algorithm
+        <select name="algo" required>
+          {% for algo in rental_algos %}
+          <option value="{{ algo }}">{{ algo }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Target hash rate (H/s)
+        <input type="number" name="target_hashrate" min="{{ min_target_hashrate|int }}" step="1000000" value="{{ min_target_hashrate|int }}" required>
+        <span class="muted small">Minimum {{ (min_target_hashrate / 1e6)|round(0) }} MH/s</span>
+      </label>
+      <label>
+        Duration (hours)
+        <input type="number" name="duration_hours" min="{{ min_duration_hours }}" step="0.5" value="{{ min_duration_hours }}" required>
+      </label>
+      <label>
+        Renter STONE wallet
+        <input type="text" name="renter_wallet" placeholder="Your STONE payout address" required>
+      </label>
+      <label>
+        Max price ETH (optional)
+        <input type="number" name="max_price_eth" min="0" step="0.0001" value="0">
+        <span class="muted small">Escrow settlement — roadmap</span>
+      </label>
+      <label>
+        ETH wallet (optional)
+        <input type="text" name="renter_eth" placeholder="0x… for future escrow">
+      </label>
+      <label class="full-width">
+        Notes
+        <input type="text" name="notes" maxlength="500" placeholder="Mesh data project, burst window, etc.">
+      </label>
+      <div class="form-actions full-width">
+        <button type="submit" class="btn">Post rental order</button>
+      </div>
+    </form>
+    <div id="rental-create-result" class="mono small" hidden></div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-body">
+    <h2>Open &amp; active orders</h2>
+    <div class="form-actions">
+      <button type="button" class="btn btn-ghost btn-small" id="rental-refresh">Refresh</button>
+    </div>
+    <div id="rental-orders-list" class="rental-orders"></div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-body">
+    <h2>Seller: accept an order</h2>
+    <form id="rental-accept-form" class="form-grid">
+      <label>
+        Order ID
+        <input type="text" name="order_id" required>
+      </label>
+      <label>
+        Your STONE address (seller)
+        <input type="text" name="seller_wallet" required>
+      </label>
+      <div class="form-actions full-width">
+        <button type="submit" class="btn">Accept &amp; get stratum worker</button>
+      </div>
+    </form>
+    <div id="rental-accept-result" class="mono small" hidden></div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-body">
+    <h2>Stratum pools</h2>
+    <dl class="detail-dl">
+      {% for key, pool in rental_pools.items() %}
+      <dt>{{ pool.name }}</dt>
+      <dd class="mono">{{ pool.url }} · worker <code>rental/&lt;order_id&gt;.&lt;your_address&gt;</code></dd>
+      {% endfor %}
+    </dl>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-body">
+    <h2>Mesh publish (renter)</h2>
+    <p class="muted small">
+      After shares deliver credits, publish assets under your order prefix using
+      <code>rental_order_id</code>, <code>renter_token</code> (shown once at order creation),
+      and keys under <code>assets/rental/&lt;order_id&gt;/</code>.
+    </p>
+    <pre class="code-block">POST /api/chain-mesh/rental/publish-asset
+{
+  "rental_order_id": "&lt;id&gt;",
+  "renter_token": "&lt;secret&gt;",
+  "asset_key": "assets/rental/&lt;id&gt;/myfile.bin",
+  "file_size": 12345,
+  ...
+}</pre>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{{ url_for('static', filename='js/rentals.js') }}?v=20260705-rentals"></script>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Fund Faucet{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Fund the Faucet</h1>
+  <p class="hero-sub">Donate STONE from your wallet so others can claim test coins. You, or any wallet user, can contribute anytime.</p>
+</section>
+
+{% if not status.ok %}
+<section class="panel panel-warn">
+  <div class="panel-body"><p><strong>Unavailable:</strong> {{ status.error }}</p></div>
+</section>
+{% else %}
+<section class="stats-grid">
+  <div class="stat-card highlight">
+    <div class="stat-label">Faucet balance</div>
+    <div class="stat-value">{{ "%.4f"|format(status.balance) }} <span class="unit">STONE</span></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Logged donations</div>
+    <div class="stat-value">{{ "%.2f"|format(donation_total) }} <span class="unit">STONE</span></div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Faucet receive address</h2></div>
+  <div class="panel-body stack">
+    <code class="address-box">{{ status.address }}</code>
+    <p class="muted">Use your Bloodstone web wallet to send STONE to this address, or pick a quick amount:</p>
+    <div class="btn-row">
+      <a class="btn" href="{{ status.donate_url }}">Open wallet send</a>
+      <a class="btn btn-ghost" href="{{ status.donate_5_url }}">Donate 5 STONE</a>
+      <a class="btn btn-ghost" href="{{ status.donate_10_url }}">Donate 10 STONE</a>
+      <a class="btn btn-ghost" href="{{ status.donate_25_url }}">Donate 25 STONE</a>
+    </div>
+    <p class="muted small">Not logged in? You’ll be prompted to sign in, then the send form opens with the faucet address filled in.</p>
+  </div>
+</section>
+{% endif %}
+
+{% if recent_donations %}
+<section class="panel">
+  <div class="panel-head"><h2>Recent donations</h2></div>
+  <div class="panel-body table-wrap">
+    <table>
+      <thead><tr><th>Amount</th><th>Address</th><th>Tx</th></tr></thead>
+      <tbody>
+        {% for row in recent_donations %}
+        <tr>
+          <td>{{ row.amount }} STONE</td>
+          <td class="mono small">{{ row.from_address or '—' }}</td>
+          <td class="mono small">{{ row.txid[:16] }}…</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<p><a href="{{ url_for('index') }}">← Back to claim</a></p>
+{% endblock %}

@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<!-- Source copy of /var/www/bloodstone/downloads/index.html — deploy with: cp /root/bloodstone-downloads-index.html /var/www/bloodstone/downloads/index.html -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bloodstone Downloads</title>
+  <style>
+    :root { color-scheme: light; }
+    html, body { background: #ffffff; }
+    body { font-family: system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; line-height: 1.45; }
+    h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
+    h2 { font-size: 1.15rem; margin: 2rem 0 0.5rem; padding-top: 0.5rem; border-top: 2px solid #e4e4e7; }
+    h2:first-of-type { border-top: none; margin-top: 1rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+    th, td { text-align: left; padding: 0.55rem 0.75rem; border-bottom: 1px solid #ddd; vertical-align: top; }
+    th { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.03em; color: #555; }
+    a { color: #7c3aed; font-weight: 600; }
+    .muted { color: #666; font-size: 0.92rem; }
+    .lead { font-size: 1rem; margin: 0.5rem 0 1rem; }
+    code { background: #f4f4f5; padding: 0.12rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+    .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.15rem 0.45rem; border-radius: 999px; margin-right: 0.35rem; }
+    .badge-qt { background: #dbeafe; color: #1d4ed8; }
+    .badge-win { background: #ede9fe; color: #5b21b6; }
+    .badge-linux { background: #dcfce7; color: #166534; }
+    .badge-arm { background: #fef3c7; color: #92400e; }
+    .badge-electron { background: #ffedd5; color: #9a3412; }
+    .callout { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem 1rem; margin: 0.75rem 0 1rem; }
+    .callout strong { color: #0f172a; }
+    ul.compact { margin: 0.35rem 0 0; padding-left: 1.2rem; }
+    ul.compact li { margin: 0.2rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Bloodstone Downloads</h1>
+  <p class="lead muted">Core node v0.7.0 (Linux x86_64 + Raspberry Pi ARM64) · Core Qt v0.7.1 (Windows) · Electron wallet GUI v0.7.11 · Node GUI v0.6.9.2 · CPU miner v1.0.0 · Android node v1.3.44 · live UI 1.3.55-web</p>
+  <p><a href="https://bloodstonewallet.mytunnel.org/">← Back to portal</a></p>
+  <p class="muted small">Release files are stored on the Bloodstone pool worker and served at <code>https://bloodstonewallet.mytunnel.org/downloads/</code> (links below use that URL).</p>
+
+  <h2>Documentation</h2>
+  <table>
+    <thead>
+      <tr><th>Download</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <a href="Bloodstone-Development-Journey-White-Paper.docx">Bloodstone-Development-Journey-White-Paper.docx</a><br>
+          <span class="muted"><a href="Bloodstone-Development-Journey-White-Paper-latest.docx">latest alias</a></span>
+        </td>
+        <td><strong>Development journey white paper (July 2026, v1.0)</strong> — from the SpaceXpanse ROD fork through the June 2026 genesis relaunch, Core 0.7.x releases, ecosystem growth, and lessons learned (including the v0.7.0 genesis fix).</td>
+      </tr>
+      <tr>
+        <td><a href="Bloodstone-Decentralized-Network-White-Paper.docx">Bloodstone-Decentralized-Network-White-Paper.docx</a></td>
+        <td><strong>White paper (July 2026)</strong> — decentralization architecture, every node type (full, pruned, mesh, fleet, chain mesh, ASIC/SV2), Android v1.3.x evolution, and how each new node strengthens the coin over its lifetime.</td>
+      </tr>
+      <tr>
+        <td><a href="Bloodstone-Chain-Mesh-Storage-White-Paper.docx">Bloodstone-Chain-Mesh-Storage-White-Paper.docx</a></td>
+        <td><strong>Storage layer white paper (July 2026, v1.1)</strong> — Chain Mesh chunking, Mesh Asset Library (catalog, preview, download, versions), BSM1 on-chain anchors, anchor index, 64&nbsp;MiB limits, and Android mesh-backed APK fallback.</td>
+      </tr>
+      <tr>
+        <td><a href="Bloodstone-Mesh-File-Upload-White-Paper.docx">Bloodstone-Mesh-File-Upload-White-Paper.docx</a></td>
+        <td><strong>File upload white paper (July 2026, v1.0)</strong> — how to post files to the chain mesh, list writable asset keys, overwrite by key, user submission vs admin publish, BSM2 transfers, HTTP API reference, and verification checklist.</td>
+      </tr>
+      <tr>
+        <td><a href="Bloodstone-Mesh-Virtual-LAN-White-Paper.docx">Bloodstone-Mesh-Virtual-LAN-White-Paper.docx</a></td>
+        <td><strong>Virtual LAN white paper (July 2026, v1.0)</strong> — BSM3 mesh packets, mining attestation, LAN P2P, BSM4 IPv4 tunnel, mesh-gateway internet egress (ICMP, DNS, HTTP), API reference, and roadmap.</td>
+      </tr>
+      <tr>
+        <td><a href="Bloodstone-Economic-Model-White-Paper.docx">Bloodstone-Economic-Model-White-Paper.docx</a></td>
+        <td><strong>Economic model white paper (July 2026, v1.1)</strong> — halving schedule (eras 0–4), long-run ~2.956% inflation phase, STONE block reward waterfall, cross-algo subsidies, ASIC–mobile sharing, staking, weight caps, and faucet rules.</td>
+      </tr>
+      <tr>
+        <td>
+          <a href="Bloodstone-Live-Patchable-Node-White-Paper.docx">Bloodstone-Live-Patchable-Node-White-Paper.docx</a><br>
+          <span class="muted"><a href="Bloodstone-Live-Patchable-Node-White-Paper-latest.docx">latest alias</a></span>
+        </td>
+        <td><strong>Live-patchable node white paper (July 2026, v1.0)</strong> — hot OTA node patch bundles (like APK web-bundle updates), Master Creator governance, zero-downtime <code>bloodstoned</code> operation, and fleet auto-apply via upkeep.</td>
+      </tr>
+      <tr>
+        <td>
+          <a href="Bloodstone-Time-Capsule-White-Paper.docx">Bloodstone-Time-Capsule-White-Paper.docx</a><br>
+          <span class="muted"><a href="Bloodstone-Time-Capsule-White-Paper-latest.docx">latest alias</a></span>
+        </td>
+        <td><strong>Time Capsule white paper (July 2026, v1.0)</strong> — archive full chain history to Chain Mesh, sync a pruned tip (~550&nbsp;MiB) instead of downloading everything, capability matrix, safe prune workflow, and fleet Time Capsule mode.</td>
+      </tr>
+      <tr>
+        <td>
+          <a href="Bloodstone-Subsidy-Fork-Release-Notes.docx">Bloodstone-Subsidy-Fork-Release-Notes.docx</a><br>
+          <span class="muted"><a href="Bloodstone-Subsidy-Fork-Release-Notes.md">.md source</a></span>
+        </td>
+        <td><strong>Subsidy fork release notes (draft, July 2026)</strong> — Bloodstone Core 0.7.0: 100 STONE halving schedule, scaled era-5+ inflation, pool alignment, upgrade checklist before block 5,270,400.</td>
+      </tr>
+      <tr>
+        <td>
+          <a href="Bloodstone-Blurt-S3-Mesh-Integration-Operations-Guide.docx">Bloodstone-Blurt-S3-Mesh-Integration-Operations-Guide.docx</a>
+        </td>
+        <td><strong>Blurt S3 + mesh ops guide (July 2026, v1.1)</strong> — hybrid storage, mirror cron, partner APIs, byte-range VOD, hash-rate rental, overflow server economics.</td>
+      </tr>
+      <tr>
+        <td>
+          <a href="Bloodstone-Storage-Cost-Comparison-Proposal.docx">Bloodstone-Storage-Cost-Comparison-Proposal.docx</a><br>
+          <span class="muted"><a href="Bloodstone-Storage-Cost-Comparison-Proposal.md">.md source</a></span>
+        </td>
+        <td><strong>Storage cost comparison (July 2026)</strong> — Bloodstone chain mesh vs Filecoin, Storj, S3; pricing targets and fleet economics.</td>
+      </tr>
+      <tr>
+        <td>
+          <a href="Bloodstone-Chain-Mesh-Capacity-And-Usage-FAQ.docx">Bloodstone-Chain-Mesh-Capacity-And-Usage-FAQ.docx</a><br>
+          <span class="muted"><a href="Bloodstone-Chain-Mesh-Capacity-And-Usage-FAQ.md">.md source</a></span>
+        </td>
+        <td><strong>Chain mesh capacity FAQ (July 2026)</strong> — coin supply vs mesh size, chain sync vs file fetch, overwrite-by-key, fleet usage.</td>
+      </tr>
+      <tr>
+        <td>
+          <a href="Bloodstone-Mesh-File-Lookup.md">Bloodstone-Mesh-File-Lookup.md</a><br>
+          <span class="muted"><a href="mesh-file-lookup.py">mesh-file-lookup.py</a> · <a href="mesh-file-lookup.js">mesh-file-lookup.js</a></span>
+        </td>
+        <td><strong>Mesh file lookup (July 2026)</strong> — resolve which chunks hold a file (by key, merkle root, or anchor txid); byte-range download clients.</td>
+      </tr>
+      <tr>
+        <td>
+          <a href="Bloodstone-Master-Creator-Key-FAQ.docx">Bloodstone-Master-Creator-Key-FAQ.docx</a><br>
+          <span class="muted"><a href="Bloodstone-Master-Creator-Key-FAQ.md">.md source</a></span>
+        </td>
+        <td><strong>Master Creator key FAQ (July 2026)</strong> — admin panel second-tier unlock (fleet, faucet, stratum, node patches); not a wallet or mesh token.</td>
+      </tr>
+      <tr>
+        <td>
+          <a href="Bloodstone-How-The-Network-Works.docx">Bloodstone-How-The-Network-Works.docx</a><br>
+          <span class="muted"><a href="Bloodstone-How-The-Network-Works.md">.md source</a> · <a href="Bloodstone-How-The-Network-Works-latest.docx">latest alias</a></span>
+        </td>
+        <td><strong>How the network works (July 2026)</strong> — plain-language guide for everyday users: mining, nodes, household Wi‑Fi, consensus modes; not an engineering spec.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <strong>Qt crash: “fatal internal error” / <code>hashMerkleRoot mismatch</code> on first run?</strong>
+    Bloodstone Core Qt <strong>v0.7.0</strong> shipped a broken genesis block — fresh installs fail immediately. Fixed in <strong>v0.7.1</strong>.
+    <ul class="compact">
+      <li>Download <a href="bloodstone-qt-0.7.1-win64.exe">bloodstone-qt-0.7.1-win64.exe</a> (confirm <code>debug.log</code> says <code>Bloodstone version v0.7.1</code>).</li>
+      <li>Reset chain data left by a failed v0.7.0 run — wallets are kept: <a href="reset-bloodstone-chain-data.ps1">reset-bloodstone-chain-data.ps1</a></li>
+    </ul>
+  </div>
+
+  <div class="callout">
+    <strong>Qt wallet shows “Incorrect or no genesis block” / wrong datadir?</strong>
+    That means old pre-relaunch chain data is still on disk (often under <code>%APPDATA%\Bloodstone</code> or <code>%APPDATA%\SpaceXpanse</code>).
+    Your coins stay in <code>wallets/</code> — only <code>blocks/</code> and <code>chainstate/</code> need to go.
+    <ul class="compact">
+      <li><strong>Directory does not exist?</strong> download <a href="fix-bloodstone-qt-datadir.ps1">fix-bloodstone-qt-datadir.ps1</a> (removes bad <code>datadir=</code> lines), or <a href="reset-bloodstone-chain-data.ps1">reset-bloodstone-chain-data.ps1</a> for old chain data.</li>
+      <li><strong>Better fix:</strong> install <a href="bloodstone-qt-0.7.1-win64.exe">bloodstone-qt v0.7.1</a> — it detects old data on startup and offers a one-click reset (keeps wallets).</li>
+    </ul>
+  </div>
+
+  <div class="callout">
+    <strong>Looking for the core Qt wallet?</strong>
+    The official Bitcoin-style GUI is <code>bloodstone-qt</code> (Bloodstone Core Qt).
+    <ul class="compact">
+      <li><strong>Linux:</strong> included in the wallet package below — run <code>bin/bloodstone-qt</code> after extracting.</li>
+      <li><strong>Windows:</strong> download <a href="bloodstone-qt-0.7.1-win64.exe">bloodstone-qt-0.7.1-win64.exe</a>
+        (standalone) or use <code>bin/bloodstone-qt.exe</code> inside the
+        <a href="bloodstone-wallet-0.7.1-win64.zip">full wallet zip</a>.</li>
+    </ul>
+  </div>
+
+  <h2 id="core-qt">Core Qt wallet (bloodstone-qt)</h2>
+  <p class="muted">Full-node GUI wallet — syncs the chain, send/receive STONE, encrypt wallet, RPC console.</p>
+  <table>
+    <thead>
+      <tr><th>Platform</th><th>Download</th><th>What you get</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="badge badge-linux">Linux</span> x86_64</td>
+        <td><a href="bloodstone-wallet-0.7.0-linux-x86_64.tar.gz">bloodstone-wallet-0.7.0-linux-x86_64.tar.gz</a></td>
+        <td>
+          <strong>Core node v0.7.0:</strong> <code>bin/bloodstoned</code>, <code>bin/bloodstone-cli</code><br>
+          <span class="muted">Full Qt wallet package (0.6.9.1) still listed below if present on mirror.</span>
+        </td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-win">Windows</span> x64</td>
+        <td>
+          <a href="bloodstone-qt-0.7.1-win64.exe">bloodstone-qt-0.7.1-win64.exe</a><br>
+          <span class="muted">or <a href="bloodstone-wallet-0.7.1-win64.zip">full wallet zip</a></span>
+        </td>
+        <td>
+          <strong>Core Qt GUI:</strong> <code>bloodstone-qt.exe</code> — double-click to run.<br>
+          Full zip also includes <code>bloodstoned.exe</code>, <code>bloodstone-cli.exe</code>, <code>bloodstone-wallet.exe</code>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="core-package">Core wallet &amp; node (full package)</h2>
+  <p class="muted">Daemon + CLI + wallet tools + core Qt GUI. Windows zip may also bundle the Electron wallet GUI in <code>bin/</code> (separate app).</p>
+  <table>
+    <thead>
+      <tr><th>Platform</th><th>Download</th><th>Contents</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="badge badge-linux">Linux</span></td>
+        <td><a href="bloodstone-wallet-0.7.0-linux-x86_64.tar.gz">bloodstone-wallet-0.7.0-linux-x86_64.tar.gz</a></td>
+        <td>Node daemon + CLI — extract and run <code>bin/bloodstoned -daemon</code></td>
+      </tr>
+      <tr id="core-package-win">
+        <td><span class="badge badge-win">Windows</span></td>
+        <td><a href="bloodstone-wallet-0.7.1-win64.zip">bloodstone-wallet-0.7.1-win64.zip</a></td>
+        <td>
+          <code>bloodstone-qt.exe</code> (core Qt GUI), <code>bloodstoned.exe</code>, <code>bloodstone-cli.exe</code>,
+          <code>bloodstone-wallet.exe</code>, plus optional bundled Electron GUI in <code>bin/</code>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="cli-node">CLI node only (no wallet GUI)</h2>
+  <div class="callout">
+    <strong>Raspberry Pi 4 / 5 (64-bit OS)?</strong>
+    Use the ARM64 build — <code>bloodstoned</code> + <code>bloodstone-cli</code> + <code>start-node.sh</code>.
+    <ul class="compact">
+      <li><code>curl -fsSL https://bloodstonewallet.mytunnel.org/downloads/bloodstone-node-linux-aarch64-latest.tar.gz -o pi-node.tar.gz</code></li>
+      <li><code>tar -xzf pi-node.tar.gz &amp;&amp; cd bloodstone-node-0.7.0-linux-aarch64 &amp;&amp; ./start-node.sh</code></li>
+      <li>Tip: use an external USB SSD for <code>datadir=</code> in <code>~/.bloodstone/bloodstone.conf</code></li>
+    </ul>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Platform</th><th>Download</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="badge badge-arm">ARM64</span> Raspberry Pi</td>
+        <td>
+          <a href="bloodstone-node-0.7.0-linux-aarch64.tar.gz">bloodstone-node-0.7.0-linux-aarch64.tar.gz</a><br>
+          <span class="muted"><a href="bloodstone-node-linux-aarch64-latest.tar.gz">latest alias</a></span>
+        </td>
+        <td><strong>Pi / ARM64 SBC node (v0.7.0)</strong> — cross-compiled <code>bloodstoned</code> + <code>bloodstone-cli</code>, example config, <code>start-node.sh</code>. Pi 4/5 with 64-bit Raspberry Pi OS or Ubuntu ARM64.</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-linux">Linux</span> x86_64</td>
+        <td><a href="bloodstone-node-0.7.0-linux-x86_64.tar.gz">bloodstone-node-0.7.0-linux-x86_64.tar.gz</a></td>
+        <td><code>bloodstoned</code> + <code>bloodstone-cli</code> only (headless node)</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-win">Windows</span></td>
+        <td><a href="bloodstone-node-0.6.9.1-win64.zip">bloodstone-node-0.6.9.1-win64.zip</a></td>
+        <td><code>bloodstoned.exe</code> + <code>bloodstone-cli.exe</code> (headless node)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="electron-wallet">Electron wallet &amp; node GUI <span class="badge badge-electron">not core Qt</span></h2>
+  <p class="muted">Desktop app (Electron) — web-wallet login, local or VPS node, mining controls. Different from <code>bloodstone-qt</code>.</p>
+  <table>
+    <thead>
+      <tr><th>Download</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><a href="bloodstone-wallet-node-gui-0.7.11-win64.exe">bloodstone-wallet-node-gui-0.7.11-win64.exe</a></td>
+        <td>Windows Wallet &amp; Node GUI installer — genesis-mismatch detection, web-wallet sign-in</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-wallet-node-gui-0.7.11-win64-portable.exe">bloodstone-wallet-node-gui-0.7.11-win64-portable.exe</a></td>
+        <td>Portable build (no installer)</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-wallet-node-gui-0.7.10-win64.exe">bloodstone-wallet-node-gui-0.7.10-win64.exe</a></td>
+        <td><span class="muted">Previous release</span></td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-node-gui-0.6.9.2-win64.exe">bloodstone-node-gui-0.6.9.2-win64.exe</a></td>
+        <td>Windows Node-only GUI (no web-wallet panel)</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-node-gui-0.6.9.2-win64-portable.exe">bloodstone-node-gui-0.6.9.2-win64-portable.exe</a></td>
+        <td>Node GUI portable (same build)</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-node-gui-0.6.9.2-win64-source.zip">bloodstone-node-gui-0.6.9.2-win64-source.zip</a></td>
+        <td>Node GUI source — build on Windows with Node.js 18+</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Miners</h2>
+  <table>
+    <thead>
+      <tr><th>Download</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><a href="bloodstone-miner-1.0.0-win64.zip">bloodstone-miner-1.0.0-win64.zip</a></td>
+        <td>Windows CPU miner — cpuminer-opt + pool presets (Neoscrypt, Yespower, ROD)</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.44.apk">bloodstone-miner-android-1.3.44.apk</a> · <a href="bloodstone-miner-android-latest.apk">latest</a></td>
+        <td><strong>Android node + miner APK (latest)</strong> — APK 1.3.44: update-check fix; bloodstoned 0.7.0 ARM; full-chain local node</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.36.apk">bloodstone-miner-android-1.3.36.apk</a></td>
+        <td>Android node + miner APK (1.3.36) — previous release</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-web-1.3.55-web.zip">bloodstone-miner-android-web-1.3.55-web.zip</a> · <a href="bloodstone-miner-android-web-latest.zip">latest</a></td>
+        <td><strong>Android miner live UI bundle (latest)</strong> — 1.3.55-web: release download hooks (tar.gz/zip/APK), pruned+full node sync fixes. APK 1.3.17+ downloads this automatically on Wi‑Fi; manual zip for sideload/debug.</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.32.apk">bloodstone-miner-android-1.3.32.apk</a></td>
+        <td>Android node + miner APK (1.3.32) — sync progress fix, full chain download panel</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.17.apk">bloodstone-miner-android-1.3.17.apk</a></td>
+        <td>Android node + miner APK (1.3.17) — minimum for live UI OTA</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.15.apk">bloodstone-miner-android-1.3.15.apk</a></td>
+        <td>Android node + miner APK (1.3.15) — previous release</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.14.apk">bloodstone-miner-android-1.3.14.apk</a></td>
+        <td>Android node + miner APK (1.3.14) — previous release</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.13.apk">bloodstone-miner-android-1.3.13.apk</a></td>
+        <td>Android node + miner APK (1.3.13) — restored charts and node mode UI; mesh-backed update fallback</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.12.apk">bloodstone-miner-android-1.3.12.apk</a></td>
+        <td>Android node + miner APK (1.3.12) — mesh install from base64 native plugin</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.5.apk">bloodstone-miner-android-1.3.5.apk</a></td>
+        <td>Android node + miner APK (1.3.5) — local node sync fix; LAN mining info panel</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.4.apk">bloodstone-miner-android-1.3.4.apk</a></td>
+        <td>Android node + miner APK (1.3.4) — LAN mining info panel</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.3.apk">bloodstone-miner-android-1.3.3.apk</a></td>
+        <td>Android node + miner APK (1.3.3) — yespower pool share fix</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.2.apk">bloodstone-miner-android-1.3.2.apk</a></td>
+        <td>Android node + miner APK (1.3.2)</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.1.apk">bloodstone-miner-android-1.3.1.apk</a></td>
+        <td>Android node + miner APK (1.3.1)</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.2.2.apk">bloodstone-miner-android-1.2.2.apk</a></td>
+        <td>Android miner APK (1.2.2)</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.2.1.apk">bloodstone-miner-android-1.2.1.apk</a></td>
+        <td>Android miner APK (1.2.1)</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.1.0.apk">bloodstone-miner-android-1.1.0.apk</a></td>
+        <td>Android miner APK (older 1.1.0 build)</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.2-source.zip">bloodstone-miner-android-1.3.2-source.zip</a></td>
+        <td>Android node + miner source (Capacitor v1.3.2) — rebuild with Android Studio</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.1-source.zip">bloodstone-miner-android-1.3.1-source.zip</a></td>
+        <td>Android node + miner source (Capacitor v1.3.1)</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.1.0-source.zip">bloodstone-miner-android-1.1.0-source.zip</a></td>
+        <td>Android miner source (Capacitor v1.1.0, older)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="lan-forwarder">LAN ASIC hashrate forwarder (Gamma + Lucky)</h2>
+  <div class="callout">
+    <strong>Pool dashboard shows ~10 MH/s instead of terahashes?</strong>
+    The VPS cannot reach miners on your home LAN (<code>192.168.x.x</code>). Run the forwarder on any PC on the same Wi‑Fi/Ethernet as your miners — it polls Gamma (Bitaxe API) and Lucky (CGMiner API) and pushes real hashrate to the pool.
+    <ul class="compact">
+      <li><strong>Windows (one line):</strong> PowerShell → <code>Set-ExecutionPolicy -Scope Process Bypass; irm https://bloodstonewallet.mytunnel.org/downloads/install-lan-miner-forwarder.ps1 | iex</code></li>
+      <li><strong>Linux / Pi:</strong> <code>curl -fsSL https://bloodstonewallet.mytunnel.org/downloads/install-lan-miner-forwarder.sh | bash</code></li>
+      <li><strong>Manual files:</strong> <a href="lan-miner-hashrate-forward.py">lan-miner-hashrate-forward.py</a> · <a href="lan-miner-devices.json">lan-miner-devices.json</a> · <a href="install-lan-miner-forwarder.ps1">install-lan-miner-forwarder.ps1</a> · <a href="install-lan-miner-forwarder.sh">install-lan-miner-forwarder.sh</a></li>
+    </ul>
+    Edit <code>lan-miner-devices.json</code> if Lucky’s IP is not auto-discovered (set <code>"host": "http://192.168.x.x"</code> instead of <code>auto</code>).
+  </div>
+
+  <p class="muted">SHA256 checksums: append <code>.sha256</code> to any filename (e.g. <code>bloodstone-node-0.7.0-linux-x86_64.tar.gz.sha256</code>).</p>
+  <script>
+  (function () {
+    var RELEASE_RE = /\.(?:apk|tar\.gz|tgz|tar\.xz|zip|exe|deb|rpm|msi|dmg|7z|sha256|ps1|sh)(?:\?|$)/i;
+    function androidCapacitor() {
+      return window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === "android";
+    }
+    if (!androidCapacitor()) return;
+    document.addEventListener("click", function (event) {
+      var anchor = event.target && event.target.closest ? event.target.closest("a[href]") : null;
+      if (!anchor) return;
+      var href = anchor.getAttribute("href") || "";
+      var fileUrl;
+      try {
+        fileUrl = new URL(href, window.location.href).href;
+      } catch (err) {
+        fileUrl = href;
+      }
+      if (!RELEASE_RE.test(fileUrl)) return;
+      event.preventDefault();
+      var pool = window.Capacitor.Plugins && window.Capacitor.Plugins.BloodstoneDevicePool;
+      var method = /\.apk(?:\?|$)/i.test(fileUrl) ? "downloadAndInstallApk" : "downloadReleaseFile";
+      var action = pool && pool[method]
+        ? pool[method]({ url: fileUrl })
+        : window.Capacitor.nativePromise("BloodstoneDevicePool", method, { url: fileUrl });
+      Promise.resolve(action).catch(function () {
+        try {
+          window.open(fileUrl, "_system");
+        } catch (e2) {
+          window.location.href = fileUrl;
+        }
+      });
+    }, true);
+  })();
+  </script>
+</body>
+</html>

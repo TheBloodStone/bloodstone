@@ -1,0 +1,40 @@
+<section class="mobile-miner-callout" id="mobile-miner">
+  <div class="mobile-miner-inner">
+    <h2>Install on your phone</h2>
+    <p class="mobile-miner-lead">
+      Join the <strong>decentralized VPS pool</strong> — every phone, tablet, and home-screen install acts as a hash node
+      that shares load with the central server. The native Android APK uses <strong>direct stratum TCP</strong> (no VPS WebSocket bridge);
+      browsers and iOS PWAs still help via the bridge but count toward the same fleet.
+    </p>
+    <div class="mobile-miner-grid">
+      <article class="mobile-miner-card">
+        <h3>Android</h3>
+        <ol class="mobile-steps">
+          <li>Open <a href="{{ url_for('mine', _external=true) }}">Web Miner</a> in Chrome</li>
+          <li>Tap <strong>⋮</strong> → <strong>Install app</strong> or <strong>Add to Home screen</strong></li>
+          <li>Launch from your home screen — runs fullscreen with <code>miner_kind=android</code> pool tracking</li>
+        </ol>
+        {% if run_locally and run_locally.android_miner_apk %}
+        <a class="btn" href="{{ run_locally.android_miner_apk.url }}">Download Android APK v{{ run_locally.android_miner_version }}</a>
+        {% endif %}
+        {% if run_locally and run_locally.android_miner_src %}
+        <a class="btn btn-ghost btn-small" href="{{ run_locally.android_miner_src.url }}">Source (Capacitor)</a>
+        {% endif %}
+        <p class="muted small"><strong>Native APK (v{{ run_locally.android_miner_version if run_locally else '1.3.5' }})</strong> can run <em>pruned</em>, <em>full chain</em>, or <em>Time Capsule</em> local nodes (no wallet on device). Time Capsule syncs a pruned tip and backs up archived history across devices. Enable “Install unknown apps” to sideload.</p>
+      </article>
+      <article class="mobile-miner-card">
+        <h3>iPhone / iPad</h3>
+        <ol class="mobile-steps">
+          <li>Open <a href="{{ url_for('mine', _external=true) }}">Web Miner</a> in <strong>Safari</strong> (not Chrome)</li>
+          <li>Tap <strong>Share</strong> → <strong>Add to Home Screen</strong></li>
+          <li>Keep the app in the foreground while mining — iOS limits background CPU</li>
+        </ol>
+        <p class="muted small">Apple does not allow mining apps in the App Store. Home-screen install (PWA) is the supported path on iOS.</p>
+      </article>
+    </div>
+    <p class="muted small mobile-miner-note">
+      Pool mode on phone earns proportional STONE and may receive a share of ASIC block subsidies.
+      Use Wi‑Fi, keep the device cool, and expect low hashrate vs desktop — every phone helps spread the load.
+    </p>
+  </div>
+</section>

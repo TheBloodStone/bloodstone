@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %}Address {{ info.address }} · Bloodstone{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>Address</h1>
+  <p class="mono hash-full">{{ info.address }}</p>
+</section>
+
+<div class="detail-grid">
+  <div class="detail-card highlight">
+    <h3>Balance</h3>
+    <div class="big-balance">
+      {% if info.balance is not none %}
+      {{ fmt_amount(info.balance) }} <span class="unit">STONE</span>
+      {% else %}
+      <span class="muted">Unable to scan UTXO set</span>
+      {% endif %}
+    </div>
+    <p class="muted small">Balance from UTXO scan; may take a few seconds on first lookup.</p>
+  </div>
+
+  <div class="detail-card">
+    <h3>Details</h3>
+    <dl>
+      <dt>Script type</dt>
+      <dd>{{ "Script" if info.isscript else ("Witness" if info.iswitness else "Standard") }}</dd>
+      <dt>UTXOs</dt>
+      <dd>{{ info.utxos|length }}</dd>
+      <dt>ScriptPubKey</dt>
+      <dd class="mono small">{{ info.scriptPubKey }}</dd>
+    </dl>
+  </div>
+</div>
+
+{% if pool_mining and pool_mining.is_pool_miner %}
+<section class="panel">
+  <div class="panel-head">
+    <h2>Pool mining</h2>
+    <p class="muted small">Hashrate estimated from the last {{ (pool_mining.hashrate_window_sec // 60) }} minutes of accepted shares.</p>
+  </div>
+  <div class="detail-grid">
+    <div class="detail-card highlight">
+      <h3>Estimated hashrate</h3>
+      <div class="big-balance"><strong>{{ pool_mining.hashrate }}</strong></div>
+      <dl>
+        <dt>SHA256d</dt>
+        <dd>{{ pool_mining.hashrate_per_algo.sha256d.formatted if pool_mining.hashrate_per_algo.get('sha256d') else '—' }}</dd>
+        <dt>Neoscrypt</dt>
+        <dd>{{ pool_mining.hashrate_per_algo.neoscrypt.formatted if pool_mining.hashrate_per_algo.get('neoscrypt') else '—' }}</dd>
+        <dt>Yespower</dt>
+        <dd>{{ pool_mining.hashrate_per_algo.yespower.formatted if pool_mining.hashrate_per_algo.get('yespower') else '—' }}</dd>
+      </dl>
+    </div>
+    <div class="detail-card">
+      <h3>Pool balances</h3>
+      <dl>
+        <dt>Pending</dt>
+        <dd>{{ fmt_amount(pool_mining.pending_stone) }} STONE</dd>
+        <dt>Paid</dt>
+        <dd>{{ fmt_amount(pool_mining.paid_stone) }} STONE</dd>
+        <dt>Workers (recent)</dt>
+        <dd>{{ pool_mining.workers|length }}</dd>
+        {% if pool_mining.block_finds and pool_mining.block_finds.total_blocks %}
+        <dt>Blocks found</dt>
+        <dd>
+          <strong>{{ pool_mining.block_finds.total_blocks }}</strong>
+          {% if pool_mining.block_finds.sha256d or pool_mining.block_finds.neoscrypt or pool_mining.block_finds.yespower %}
+          <span class="muted small">
+            (SHA256d {{ pool_mining.block_finds.sha256d or 0 }},
+            neoscrypt {{ pool_mining.block_finds.neoscrypt or 0 }},
+            yespower {{ pool_mining.block_finds.yespower or 0 }})
+          </span>
+          {% endif %}
+        </dd>
+        {% endif %}
+      </dl>
+      <p class="muted small"><a href="{{ mining_url }}">Mining dashboard</a> · <a href="{{ url_for('miners_page') }}">All pool miners</a></p>
+    </div>
+  </div>
+  {% if pool_mining.workers %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Algo</th><th>Worker</th><th>Hashrate</th><th>Shares</th><th>Weight</th></tr></thead>
+      <tbody>
+        {% for w in pool_mining.workers %}
+        <tr>
+          <td>{{ w.algo }}</td>
+          <td class="mono small">{{ w.worker or '—' }}</td>
+          <td><strong>{{ w.hashrate }}</strong></td>
+          <td>{{ w.shares }}</td>
+          <td>{{ '%.2f'|format(w.weight) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if info.utxos %}
+<section class="panel">
+  <div class="panel-head"><h2>Unspent Outputs ({{ info.utxos|length }})</h2></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>TxID</th>
+          <th>Vout</th>
+          <th>Amount</th>
+          <th>Height</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for utxo in info.utxos %}
+        <tr>
+          <td class="mono"><a href="{{ url_for('tx_page', txid=utxo.txid) }}">{{ short_hash(utxo.txid) }}</a></td>
+          <td>{{ utxo.vout }}</td>
+          <td>{{ fmt_amount(utxo.amount) }} STONE</td>
+          <td><a href="{{ url_for('block_page', query=utxo.height) }}">{{ utxo.height }}</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,53 @@
+**Point-by-point technical response** to the infrastructure review (not a trust appeal).
+
+We read the audit carefully. Much of it is **correct about the application/onboarding layer**. Where we disagree is the conclusion that **nothing operates independently** of the hosted stack.
+
+---
+
+**1. “Participation ≠ independence”**
+✓ Agreed for portal, pool dashboard, explorer, faucet, mesh catalog API.
+✗ Incomplete as a blanket claim — `bloodstoned` nodes validate chain state locally on P2P (:17333). That is consensus independence.
+
+**2. “Everything hits central endpoints”**
+✓ True for default onboarding/UX.
+✗ Chain validation, solo mining, and LAN mining do not require the portal. Test: run `bloodstoned`, query local RPC (:18340), or use the Android APK offline shell.
+
+**3. “Seeds/bootstrap are narrow”**
+✓ Correct today — Phase 1, documented in our Decentralized Network White Paper.
+✗ Seeds are the default on-ramp, not the full topology. Each new full node is peer infrastructure.
+
+**4. “Decentralized VPS = execution not control”**
+Half right. Pool accounting, explorer, faucet = coordinated today.
+Also distributed: fleet hashrate, native Android stratum TCP, local nodes on devices, mesh chunks on user hardware, LAN mining via mDNS.
+
+**5. “No third-party explorers/repos”**
+Fair maturity gap vs Bitcoin. Does not prove no independent infrastructure — runnable node binaries, APKs, and mesh-anchored artifacts exist at bloodstonewallet.mytunnel.org/downloads/
+
+**6. “What runs without the control layer?”**
+YES (portal offline): full nodes, Android pruned/full nodes, solo LAN mining, LAN client + mDNS, mesh LAN serve (:18341), BSM4 peer gateway.
+NO (today): pool payouts, explorer, faucet, default mesh catalog API.
+
+**7. Blurt/Discord follow-up**
+Agreed — dismissive replies were wrong. Technical questions deserve technical answers. This comment + linked doc are that answer.
+
+**8. Whitepaper alignment**
+We agree: centralized bootstrap (Phase 1). We disagree: “nothing independent exists” — falsified by node/LAN/mesh paths above.
+
+| Term | Today |
+|------|-------|
+| Bootstrap independence | Not yet |
+| Consensus independence | Yes — synced `bloodstoned` |
+
+**Verify yourself (portal offline):**
+1. APK → start local node → LAN stratum works
+2. `bloodstoned` + `bloodstone-cli` → chain queries work
+3. Solo mine to local stratum → work from local chain
+4. Mesh chunk from `http://<lan-ip>:18341/`
+5. Phone gateway for LAN miner BSM4 egress
+
+Full point-by-point doc (DOCX):
+https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Infrastructure-Audit-Point-by-Point-Rebuttal.docx
+
+Related: Infrastructure Independence + Decentralized Network white papers (same downloads page).
+
+If any claim here is wrong, name **which test failed** and **what you observed**. We will respond in kind.

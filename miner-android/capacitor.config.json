@@ -1,0 +1,19 @@
+{
+  "appId": "org.bloodstone.miner",
+  "appName": "Bloodstone Fleet Miner",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true,
+    "startPath": "offline-mine.html",
+    "allowNavigation": [
+      "bloodstonewallet.mytunnel.org",
+      "rodcoinwallet.duckdns.org",
+      "*.mytunnel.org"
+    ]
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#0d0f14"
+  }
+}

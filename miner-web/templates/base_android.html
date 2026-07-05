@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#d4a017">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>{% block title %}Bloodstone Miner{% endblock %}</title>
+  {% if coin_icon_url %}<link rel="icon" href="{{ coin_icon_url }}" type="image/png">{% endif %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/miner.css') }}">
+  <style>
+    body.android-app { margin: 0; background: #0d0f14; }
+    body.android-app .site-header,
+    body.android-app .site-footer { display: none; }
+    body.android-app main.container { padding: 0.75rem 1rem 1.5rem; max-width: 720px; }
+    .android-boot-status {
+      text-align: center;
+      color: #8b95a8;
+      font-size: 0.9rem;
+      padding: 0.5rem 0 1rem;
+    }
+  </style>
+</head>
+<body
+  class="android-app"
+  data-url-prefix="{{ url_prefix }}"
+  data-stratum-host="{{ stratum_host }}"
+  data-stratum-host-neoscrypt="{{ stratum_client_hosts.neoscrypt }}"
+  data-stratum-host-yespower="{{ stratum_client_hosts.yespower }}"
+  data-stratum-host-rod-neoscrypt="{{ stratum_client_hosts.rod_neoscrypt }}"
+  data-stratum-neoscrypt="{{ stratum_ports.neoscrypt }}"
+  data-stratum-yespower="{{ stratum_ports.yespower }}"
+  data-stratum-rod-neoscrypt="{{ stratum_ports.rod_neoscrypt }}"
+  data-android-app="1"
+>
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
