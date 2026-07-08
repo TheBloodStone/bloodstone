@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wave V — OpenAI-compatible inference shim with Hailo/Coral NPU execution delegates."""
+"""Wave W — tenant NPU model resolution + Hailo/Coral execution delegates."""
 
 from __future__ import annotations
 
@@ -157,7 +157,26 @@ def _tflite_interpreter(model_path: str):
     return Interpreter(model_path=model_path)
 
 
+def _tenant_inference_hint(body: Dict[str, Any]) -> Dict[str, Any]:
+    author = str(body.get("blurt_author") or body.get("author") or "").strip()
+    if not author:
+        return {}
+    try:
+        from chain_mesh import tenant_npu_models as tnpu
+
+        return tnpu.resolve_inference_spec(
+            blurt_author=author,
+            tenant_id=str(body.get("tenant_id") or ""),
+            runtime_hint=str(body.get("runtime") or ""),
+        )
+    except Exception:
+        return {}
+
+
 def _infer_runtime(body: Dict[str, Any]) -> str:
+    hint = _tenant_inference_hint(body)
+    if hint.get("runtime") and str(hint.get("runtime")) != "cpu-inference":
+        return str(hint["runtime"])
     explicit = str(body.get("runtime") or "").strip().lower()
     if explicit in ("onnx", "tflite", "llama.cpp", "cpu-inference"):
         return explicit
@@ -195,16 +214,30 @@ def _proxy_llama(body: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
         return 502, {"error": str(exc)}
 
 
+def _resolve_model_path(body: Dict[str, Any], *, runtime: str) -> str:
+    hint = _tenant_inference_hint(body)
+    if str(hint.get("runtime") or "") == runtime and hint.get("model_path"):
+        path = str(hint["model_path"]).strip()
+        if path and os.path.isfile(path):
+            return path
+    if runtime == "onnx" and ONNX_MODEL and os.path.isfile(ONNX_MODEL):
+        return ONNX_MODEL
+    if runtime == "tflite" and TFLITE_MODEL and os.path.isfile(TFLITE_MODEL):
+        return TFLITE_MODEL
+    return ""
+
+
 def _onnx_completion(body: Dict[str, Any], *, stub_only: bool = False) -> Dict[str, Any]:
     prompt = str(body.get("prompt") or "").strip()
     model = str(body.get("model") or "onnx-delegate")
-    if not stub_only and ONNX_MODEL and os.path.isfile(ONNX_MODEL):
+    onnx_path = _resolve_model_path(body, runtime="onnx")
+    if not stub_only and onnx_path:
         try:
             import numpy as np
             import onnxruntime as ort
 
             providers = _onnx_execution_providers()
-            session = ort.InferenceSession(ONNX_MODEL, providers=providers)
+            session = ort.InferenceSession(onnx_path, providers=providers)
             inputs = session.get_inputs()
             if inputs:
                 shape = [1]
@@ -226,14 +259,10 @@ def _onnx_completion(body: Dict[str, Any], *, stub_only: bool = False) -> Dict[s
 def _tflite_completion(body: Dict[str, Any], *, stub_only: bool = False) -> Dict[str, Any]:
     prompt = str(body.get("prompt") or "").strip()
     model = str(body.get("model") or "tflite-delegate")
-    if not stub_only and TFLITE_MODEL and os.path.isfile(TFLITE_MODEL):
+    tflite_path = _resolve_model_path(body, runtime="tflite")
+    if not stub_only and tflite_path:
         try:
-            try:
-                from tflite_runtime.interpreter import Interpreter
-            except ImportError:
-                from tensorflow.lite import Interpreter  # type: ignore
-
-            interpreter = _tflite_interpreter(TFLITE_MODEL)
+            interpreter = _tflite_interpreter(tflite_path)
             interpreter.allocate_tensors()
             hw = _npu_hardware().get("hardware") or {}
             kind = str(hw.get("kind") or "cpu")
@@ -322,7 +351,8 @@ class InferenceHandler(BaseHTTPRequestHandler):
                     "delegates": _probe_delegates(),
                     "npu_runtimes": _npu_runtime_prefs(),
                     "npu_hardware": (_npu_hardware().get("hardware") or {}),
-                    "wave": "V",
+                    "tenant_npu_resolve": f"{os.environ.get('BLOODSTONE_PUBLIC_ROOT', 'http://127.0.0.1:8887')}/api/convergence/tenant/npu/resolve",
+                    "wave": "W",
                 },
             )
             return

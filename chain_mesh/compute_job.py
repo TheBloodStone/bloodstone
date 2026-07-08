@@ -276,6 +276,15 @@ def submit_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         tenant_id=str(payload.get("tenant_id") or ""),
         stone_address=body["stone_address"],
     )
+    from chain_mesh import tenant_submit_gate as tgate
+
+    gate = tgate.check_submit_allowed(
+        tenant_id=tctx["tenant_id"],
+        blurt_author=tctx["blurt_author"],
+        stone_address=body["stone_address"],
+    )
+    if not gate.get("allowed"):
+        raise PermissionError(gate.get("reason") or "tenant submit quorum not satisfied")
     quota_check = depin.check_compute_allowed(
         body["stone_address"],
         flops_budget=int(body.get("flops_budget") or 0),
@@ -303,6 +312,7 @@ def submit_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
             "flops_remaining": quota.get("flops_remaining"),
             "enforce_quota": quota.get("enforce_quota"),
         },
+        "submit_gate": gate,
         "verify_url": f"{public}/api/convergence/compute/job/verify?job_id={body['job_id']}",
         "memo": f"compute:{body['stone_address']}:{body['job_id']}",
         "next_steps": [

@@ -2426,6 +2426,75 @@ def api_convergence_tenant_sync():
     return jsonify(cm.convergence_tenant_sync_payload())
 
 
+@app.route("/api/convergence/tenant/submit/status")
+@app.route("/mining/api/convergence/tenant/submit/status")
+def api_convergence_tenant_submit_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_submit_status_payload())
+
+
+@app.route("/api/convergence/tenant/submit/check")
+@app.route("/mining/api/convergence/tenant/submit/check")
+def api_convergence_tenant_submit_check():
+    import chain_mesh.api as cm
+
+    return jsonify(
+        cm.convergence_tenant_submit_check_payload(
+            tenant_id=str(request.args.get("tenant_id") or ""),
+            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            stone_address=str(request.args.get("stone_address") or ""),
+        )
+    )
+
+
+@app.route("/api/convergence/tenant/quorum/author")
+@app.route("/mining/api/convergence/tenant/quorum/author")
+def api_convergence_tenant_quorum_author():
+    import chain_mesh.api as cm
+
+    return jsonify(
+        cm.convergence_tenant_quorum_author_payload(
+            tenant_id=str(request.args.get("tenant_id") or ""),
+            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+        )
+    )
+
+
+@app.route("/api/convergence/tenant/npu/bind", methods=["POST"])
+@app.route("/mining/api/convergence/tenant/npu/bind", methods=["POST"])
+def api_convergence_tenant_npu_bind():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_tenant_npu_bind_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/tenant/npu/status")
+@app.route("/mining/api/convergence/tenant/npu/status")
+def api_convergence_tenant_npu_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_npu_status_payload())
+
+
+@app.route("/api/convergence/tenant/npu/resolve")
+@app.route("/mining/api/convergence/tenant/npu/resolve")
+def api_convergence_tenant_npu_resolve():
+    import chain_mesh.api as cm
+
+    return jsonify(
+        cm.convergence_tenant_npu_resolve_payload(
+            tenant_id=str(request.args.get("tenant_id") or ""),
+            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            runtime=str(request.args.get("runtime") or ""),
+        )
+    )
+
+
 @app.route("/api/convergence/compute/job/status")
 @app.route("/mining/api/convergence/compute/job/status")
 def api_convergence_compute_job_status():

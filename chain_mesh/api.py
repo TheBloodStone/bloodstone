@@ -1221,6 +1221,71 @@ def convergence_tenant_broadcast_status_payload() -> Dict[str, Any]:
     return tb.status_payload()
 
 
+def convergence_tenant_submit_status_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_submit_gate as tgate
+
+    return tgate.status_payload()
+
+
+def convergence_tenant_submit_check_payload(
+    *,
+    tenant_id: str = "",
+    blurt_author: str = "",
+    stone_address: str = "",
+) -> Dict[str, Any]:
+    from chain_mesh import tenant_submit_gate as tgate
+
+    return tgate.check_submit_allowed(
+        tenant_id=tenant_id,
+        blurt_author=blurt_author,
+        stone_address=stone_address,
+    )
+
+
+def convergence_tenant_quorum_author_payload(
+    *,
+    tenant_id: str = "",
+    blurt_author: str = "",
+) -> Dict[str, Any]:
+    from chain_mesh import tenant_submit_gate as tgate
+
+    return tgate.quorum_for_author(tenant_id=tenant_id, blurt_author=blurt_author)
+
+
+def convergence_tenant_npu_bind_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh import tenant_npu_models as tnpu
+
+    return tnpu.bind_npu_model(
+        tenant_id=str(payload.get("tenant_id") or ""),
+        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+        runtime=str(payload.get("runtime") or ""),
+        model_path=str(payload.get("model_path") or ""),
+        hardware_kind=str(payload.get("hardware_kind") or ""),
+        preferred=bool(payload.get("preferred", True)),
+    )
+
+
+def convergence_tenant_npu_status_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_npu_models as tnpu
+
+    return tnpu.status_payload()
+
+
+def convergence_tenant_npu_resolve_payload(
+    *,
+    tenant_id: str = "",
+    blurt_author: str = "",
+    runtime: str = "",
+) -> Dict[str, Any]:
+    from chain_mesh import tenant_npu_models as tnpu
+
+    return tnpu.resolve_inference_spec(
+        tenant_id=tenant_id,
+        blurt_author=blurt_author,
+        runtime_hint=runtime,
+    )
+
+
 def convergence_tenant_dashboard_page_payload() -> str:
     from chain_mesh import tenant_dashboard as tdash
 

@@ -38,6 +38,11 @@ def dashboard_payload(
     storage_q = storage.tenant_quota(
         tenant_id=tid, blurt_author=author, stone_address=addr
     )
+    from chain_mesh import tenant_npu_models as tnpu
+    from chain_mesh import tenant_submit_gate as tgate
+
+    quorum = tgate.quorum_for_author(tenant_id=tid, blurt_author=author) if author else {}
+    npu_models = tnpu.list_npu_models(tenant_id=tid, blurt_author=author) if author else []
     return {
         "ok": True,
         "format": DASHBOARD_FORMAT,
@@ -54,6 +59,8 @@ def dashboard_payload(
             "bandwidth": bool(bandwidth_q.get("enforce")),
             "storage": bool(storage_q.get("enforce")),
         },
+        "quorum": quorum,
+        "npu_models": npu_models,
     }
 
 
@@ -146,8 +153,8 @@ def dashboard_page_html() -> str:
 </head>
 <body>
   <main>
-    <h1>Tenant Dashboard <span class="badge">Wave V</span></h1>
-    <p class="meta">Per-author caps across compute, bandwidth, and storage DePIN rails.</p>
+    <h1>Tenant Dashboard <span class="badge">Wave W</span></h1>
+    <p class="meta">Per-author caps, fleet quorum, and NPU model bindings.</p>
     <div>
       <input id="author" placeholder="blurt author" />
       <input id="stone" placeholder="STONE address (optional)" />
@@ -155,6 +162,8 @@ def dashboard_page_html() -> str:
     </div>
     <p id="status">Enter an author and click Load quota.</p>
     <div class="grid" id="rails"></div>
+    <div class="card" id="quorum" style="margin-top:0.75rem;display:none"></div>
+    <div class="card" id="npu" style="margin-top:0.75rem;display:none"></div>
     <p class="meta"><a href="{public}/api/convergence/tenant/status">API status</a> ·
       <a href="{public}/api/convergence/status">Convergence</a></p>
   </main>
@@ -183,6 +192,22 @@ def dashboard_page_html() -> str:
             '</div><div>used: ' + used + '</div><div>remaining: ' + rem + '</div>';
           grid.appendChild(card);
         }}
+        const q = data.quorum || {{}};
+        const qEl = document.getElementById('quorum');
+        if (q.blurt_author) {{
+          qEl.style.display = 'block';
+          qEl.innerHTML = '<h2>fleet quorum</h2><div>' + (q.quorum || '?') +
+            ' · votes ' + (q.votes_found || 0) + ' · ' +
+            (q.satisfied ? 'satisfied ✓' : 'pending') + '</div>';
+        }} else {{ qEl.style.display = 'none'; }}
+        const npu = data.npu_models || [];
+        const nEl = document.getElementById('npu');
+        if (npu.length) {{
+          nEl.style.display = 'block';
+          nEl.innerHTML = '<h2>NPU models</h2>' + npu.map(m =>
+            '<div>' + m.runtime + ': ' + (m.model_path || '(auto)') + ' [' + (m.hardware_kind || 'cpu') + ']</div>'
+          ).join('');
+        }} else {{ nEl.style.display = 'none'; }}
       }}).catch(e => document.getElementById('status').textContent = String(e));
     }};
   </script>

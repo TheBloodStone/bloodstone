@@ -370,6 +370,29 @@ curl -X POST http://127.0.0.1:8887/api/convergence/tenant/sync
 curl -fsS http://127.0.0.1:8081/health | jq '.wave,.delegates,.npu_hardware'
 ```
 
+### Wave W — submit quorum gate + tenant NPU models + dashboard quorum panel
+
+**Compute/AI submit** checks fleet quorum when `TENANT_SUBMIT_QUORUM_REQUIRE=1`:
+
+```bash
+curl -fsS 'http://127.0.0.1:8887/api/convergence/tenant/submit/check?blurt_author=meshops' | jq .
+curl -fsS http://127.0.0.1:8887/api/convergence/tenant/quorum/author?blurt_author=meshops | jq .
+```
+
+**Per-author NPU model bindings** propagate via tenant manifests and inference shim:
+
+```bash
+curl -X POST http://127.0.0.1:8887/api/convergence/tenant/npu/bind \
+  -H 'Content-Type: application/json' \
+  -d '{"blurt_author":"meshops","runtime":"onnx","model_path":"/var/lib/bloodstone/models/edge.onnx","hardware_kind":"hailo"}'
+curl -fsS 'http://127.0.0.1:8887/api/convergence/tenant/npu/resolve?blurt_author=meshops' | jq .
+curl -X POST http://127.0.0.1:8081/v1/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"blurt_author":"meshops","prompt":"tenant npu","max_tokens":32}'
+```
+
+Dashboard at `/convergence/tenant` shows quorum votes and NPU model rows per author.
+
 ### Coordinator AI dispatch (Wave N)
 
 When no local provider matches and uplink is stable, edge nodes HTTP-dispatch to the coordinator instead of queue-only fallback:

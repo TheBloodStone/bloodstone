@@ -60,6 +60,7 @@ def _parse_manifest_body(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not author:
         return None
     rails = data.get("rails") if isinstance(data.get("rails"), dict) else {}
+    npu_models = data.get("npu_models") if isinstance(data.get("npu_models"), list) else []
     return {
         "v": "1",
         "format": TENANT_MANIFEST_ID,
@@ -67,6 +68,7 @@ def _parse_manifest_body(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "blurt_author": author,
         "stone_address": str(data.get("stone_address") or "").strip(),
         "rails": rails,
+        "npu_models": npu_models,
         "node_id": str(data.get("node_id") or "").strip()[:64],
         "updated_at": int(data.get("updated_at") or _now()),
     }
@@ -100,6 +102,9 @@ def build_tenant_manifest_body(
         rails.setdefault("bandwidth", {})["bytes_cap"] = int(bandwidth_bytes_cap)
     if int(storage_bytes_cap or 0) > 0:
         rails.setdefault("storage", {})["bytes_cap"] = int(storage_bytes_cap)
+    from chain_mesh import tenant_npu_models as tnpu
+
+    npu_models = tnpu.npu_models_for_manifest(tenant_id=tid, blurt_author=author)
     return {
         "v": "1",
         "format": TENANT_MANIFEST_ID,
@@ -107,6 +112,7 @@ def build_tenant_manifest_body(
         "blurt_author": author,
         "stone_address": (stone_address or "").strip(),
         "rails": rails,
+        "npu_models": npu_models,
         "node_id": (node_id or os.environ.get("DTN_NODE_ID") or "pi-edge").strip()[:64],
         "updated_at": _now(),
     }
@@ -184,6 +190,7 @@ def apply_manifest_bindings(body: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import bandwidth_tenant_quota as bw
     from chain_mesh import compute_tenant_quota as compute
     from chain_mesh import storage_tenant_quota as storage
+    from chain_mesh import tenant_npu_models as tnpu
 
     parsed = _parse_manifest_body(body)
     if not parsed:
@@ -216,6 +223,23 @@ def apply_manifest_bindings(body: Dict[str, Any]) -> Dict[str, Any]:
             stone_address=addr,
             bytes_cap=int(st_r.get("bytes_cap") or 0),
         )
+    npu_models = parsed.get("npu_models") if isinstance(parsed.get("npu_models"), list) else []
+    for entry in npu_models:
+        if not isinstance(entry, dict):
+            continue
+        rt = str(entry.get("runtime") or "").strip().lower()
+        if rt not in tnpu.VALID_RUNTIMES:
+            continue
+        try:
+            tnpu.bind_npu_model(
+                tenant_id=tid,
+                blurt_author=author,
+                runtime=rt,
+                model_path=str(entry.get("model_path") or ""),
+                hardware_kind=str(entry.get("hardware_kind") or "cpu"),
+            )
+        except Exception:
+            pass
     return {"ok": True, "tenant_id": tid, "blurt_author": author}
 
 
