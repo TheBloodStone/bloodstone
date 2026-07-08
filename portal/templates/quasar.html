@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QUASAR · 51% Defense · Bloodstone</title>
+  <meta name="description" content="Bloodstone QUASAR — seven-layer defense against 51% attacks. Triple-PoW consensus, mesh witnesses, LAN echo quorum. You need 51% of reality.">
+  {% if coin_icon_url %}<link rel="icon" href="{{ coin_icon_url }}" type="image/png">
+  <link rel="apple-touch-icon" href="{{ coin_icon_url }}">{% endif %}
+  <link rel="canonical" href="{{ public_root }}/quasar/">
+  <meta property="og:title" content="Bloodstone QUASAR — 51% Defense">
+  <meta property="og:description" content="You don't need 51% of one hash. You need 51% of reality.">
+  <meta property="og:url" content="{{ public_root }}/quasar/">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/portal.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/quasar.css') }}">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="{{ public_root }}/">
+        {% include "_brand_icon.html" %}
+        <span class="brand-text">Bloodstone</span>
+      </a>
+      <nav class="nav-links">
+        <a href="{{ public_root }}/explorer/">Explorer</a>
+        <a href="{{ public_root }}/exchange/">Exchange</a>
+        <a href="{{ public_root }}/quasar/" class="nav-cta">QUASAR</a>
+        <a href="{{ public_root }}/mining/">Mining</a>
+        <a href="{{ downloads_base }}/">Downloads</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="quasar-hero" aria-labelledby="quasar-title">
+      <div class="quasar-hero-inner">
+        <span class="quasar-badge">Operation QUASAR · Live + rolling out</span>
+        <h1 id="quasar-title">You don’t need 51% of one hash.<br>You need <em>51% of reality.</em></h1>
+        <p class="quasar-tagline">
+          A seven-layer immune system against chain reorgs — built on triple-PoW consensus,
+          Android fleet nodes, chain mesh anchors, and exchange-grade witness policy.
+        </p>
+        <p class="quasar-punch">
+          Renting SHA256 does not buy Bloodstone. An attacker must win three hashrate markets,
+          weighted work math, mesh capsules, and LAN echoes from real living rooms — at the same time.
+        </p>
+        <div class="quasar-cta-row">
+          <a class="quasar-cta-primary" href="{{ downloads_base }}/Bloodstone-QUASAR-51-Percent-Defense-White-Paper.md">Full white paper</a>
+          <a class="quasar-cta-secondary" href="{{ downloads_base }}/Bloodstone-QUASAR-Exchange-One-Pager.md">Exchange one-pager</a>
+          <a class="quasar-cta-secondary" href="{{ downloads_base }}/Bloodstone-QUASAR-Social-Thread.txt">X / Twitter thread</a>
+          <a class="quasar-cta-secondary" href="{{ public_root }}/exchange/">CEX listing pack</a>
+        </div>
+        <p class="quasar-built-with">Architected &amp; shipped with <strong>Grok Build</strong> — consensus, fleet, mesh, pool telemetry, release gates.</p>
+
+        <div class="hydra-stack" aria-label="QUASAR layer stack">
+          <div class="hydra-layer phase"><span class="hydra-num">L7</span> Anomaly tripwires <span class="hydra-status phase">Phase 2</span></div>
+          <div class="hydra-layer phase"><span class="hydra-num">L6</span> Exchange witness policy <span class="hydra-status phase">Phase 1</span></div>
+          <div class="hydra-layer phase"><span class="hydra-num">L5</span> LAN echo quorum <span class="hydra-status phase">Phase 2</span></div>
+          <div class="hydra-layer phase"><span class="hydra-num">L4</span> Mesh witness capsules (BSM1) <span class="hydra-status phase">Phase 2</span></div>
+          <div class="hydra-layer phase"><span class="hydra-num">L3</span> Epoch braid finality <span class="hydra-status phase">Phase 1</span></div>
+          <div class="hydra-layer live"><span class="hydra-num">L2</span> Tri-algo work tensor <span class="hydra-status live">Live</span></div>
+          <div class="hydra-layer live"><span class="hydra-num">L1</span> Triple-purpose PoW <span class="hydra-status live">Live</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Three algorithms. One attacker budget nightmare.</h2>
+        <p class="panel-sub">SHA256d · Neoscrypt · Yespower — independent retargeting, weighted chain work</p>
+      </div>
+      <div class="panel-body quasar-grid">
+        <div class="quasar-card">
+          <h3>SHA256d (auxpow)</h3>
+          <p>Merge-mined lane — rented ASIC farms attack here. Deliberately <strong>down-weighted</strong> in consensus work math.</p>
+        </div>
+        <div class="quasar-card">
+          <h3>Neoscrypt</h3>
+          <p>Standalone GPU/CPU lane. LAN miners, desktop fleet. High decision mass per hash.</p>
+        </div>
+        <div class="quasar-card">
+          <h3>Yespower</h3>
+          <p>Phones, laptops, Pi nodes. Highest log-weight. The chain runs on <strong>your Wi‑Fi</strong>, not a poster.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Attack theater — five scenarios, five humiliations</h2>
+      </div>
+      <div class="panel-body">
+        <table class="scenario-table">
+          <thead>
+            <tr><th>Attacker move</th><th>QUASAR response</th><th>Outcome</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Rent SHA256, private-fork 6 blocks</td>
+              <td>Weighted work + braid skew + mesh/LAN disagree + exchange policy</td>
+              <td class="scenario-outcome">Expensive, loud, slow</td>
+            </tr>
+            <tr>
+              <td>10,000 fake HTTP “nodes”</td>
+              <td>Mesh capsules cost sync + anchor fees; LAN Echo needs real mDNS</td>
+              <td class="scenario-outcome">Sybil budget explodes</td>
+            </tr>
+            <tr>
+              <td>Kill one algorithm</td>
+              <td>Triple-purpose mining on the other two lanes</td>
+              <td class="scenario-outcome">Stalemate, not takeover</td>
+            </tr>
+            <tr>
+              <td>Deep reorg names / DEX state</td>
+              <td>Application layer anchors to ancestry — integrators halt</td>
+              <td class="scenario-outcome">PoW wins, app layer loses</td>
+            </tr>
+            <tr>
+              <td>51% the pool, not the chain</td>
+              <td>Pool economics ≠ canonical tip on full nodes</td>
+              <td class="scenario-outcome">Miners argue; chain stays honest</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>For exchanges &amp; integrators</h2>
+        <p class="panel-sub">Run your own node. Poll witness depth. Bump confirmations when SHA256-heavy.</p>
+      </div>
+      <div class="panel-body">
+        <ul class="compact-list">
+          <li><a href="{{ public_root }}/api/exchange">/api/exchange</a> — listing JSON (confirmations, seeds, ElectrumX)</li>
+          <li><a href="{{ downloads_base }}/Bloodstone-QUASAR-Exchange-One-Pager.html">QUASAR exchange one-pager (print PDF)</a> · <a href="{{ downloads_base }}/Bloodstone-QUASAR-Exchange-One-Pager.docx">.docx</a></li>
+          <li><a href="{{ downloads_base }}/Bloodstone-RPC-Reference.md">RPC reference</a> — <code>getblockchaininfo</code>, <code>getchaintips</code>, <code>getmininginfo</code></li>
+          <li>Exchange node package — <a href="{{ downloads_base }}/">downloads</a> (never use pool VPS RPC for deposits)</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Documentation</h2>
+      </div>
+      <div class="panel-body quasar-grid">
+        <div class="quasar-card">
+          <h3><a href="{{ downloads_base }}/Bloodstone-QUASAR-51-Percent-Defense-White-Paper.md">51% Defense white paper</a></h3>
+          <p>Full QUASAR blueprint — layers, attack budgets, roadmap.</p>
+        </div>
+        <div class="quasar-card">
+          <h3><a href="{{ downloads_base }}/Bloodstone-QUASAR-Social-Thread.md">Social thread</a></h3>
+          <p>Ready-to-post X/Twitter thread — copy from .txt for paste.</p>
+        </div>
+        <div class="quasar-card">
+          <h3><a href="{{ downloads_base }}/Bloodstone-Chain-Mesh-Storage-White-Paper.md">Chain Mesh</a></h3>
+          <p>BSM1 anchors — foundation for witness capsules (L4).</p>
+        </div>
+      </div>
+    </section>
+
+    <p class="quasar-footer-quote">“Come attack us — bring three markets, a balanced braid, and 51% of reality.”</p>
+    <p class="muted small" style="text-align:center">Bloodstone · QUASAR · {{ updated }} · <a href="{{ public_root }}/">Portal</a></p>
+  </main>
+</body>
+</html>

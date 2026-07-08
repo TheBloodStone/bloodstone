@@ -39,6 +39,17 @@
   <p><a href="https://bloodstonewallet.mytunnel.org/">← Back to portal</a></p>
   <p class="muted small">Release files are stored on the Bloodstone pool worker and served at <code>https://bloodstonewallet.mytunnel.org/downloads/</code> (links below use that URL).</p>
 
+  <h2 id="quasar">QUASAR — 51% attack defense</h2>
+  <div class="callout" style="background:#f5f3ff;border-color:#c4b5fd">
+    <strong>You don’t need 51% of one hash. You need 51% of reality.</strong>
+    <ul class="compact">
+      <li><strong>Landing page:</strong> <a href="https://bloodstonewallet.mytunnel.org/quasar/">bloodstonewallet.mytunnel.org/quasar/</a></li>
+      <li><strong>Exchange one-pager:</strong> <a href="Bloodstone-QUASAR-Exchange-One-Pager.html">.html (print PDF)</a> · <a href="Bloodstone-QUASAR-Exchange-One-Pager.md">.md</a> · <a href="Bloodstone-QUASAR-Exchange-One-Pager.docx">.docx</a></li>
+      <li><strong>Full white paper:</strong> <a href="Bloodstone-QUASAR-51-Percent-Defense-White-Paper.md">.md</a> · <a href="Bloodstone-QUASAR-51-Percent-Defense-White-Paper.docx">.docx</a></li>
+      <li><strong>X / Twitter thread:</strong> <a href="Bloodstone-QUASAR-Social-Thread.txt">copy-paste .txt</a> · <a href="Bloodstone-QUASAR-Social-Thread.md">.md</a></li>
+    </ul>
+  </div>
+
   <h2 id="exchange">Exchange / CEX integration</h2>
   <div class="callout callout-exchange">
     <strong>Listing STONE on a centralized exchange?</strong> Start here — do <em>not</em> use the pool VPS RPC (localhost-only).
