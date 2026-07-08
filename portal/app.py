@@ -728,6 +728,65 @@ def api_convergence_condenser_embed():
     return jsonify(result)
 
 
+@app.route("/api/convergence/condenser/offline/status")
+def api_convergence_condenser_offline_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_condenser_offline_status_payload())
+
+
+@app.route("/api/convergence/condenser/offline/feed")
+def api_convergence_condenser_offline_feed():
+    import chain_mesh.api as cm
+
+    try:
+        limit = int(request.args.get("limit") or 40)
+    except (TypeError, ValueError):
+        limit = 40
+    return jsonify(
+        cm.convergence_condenser_offline_feed_payload(
+            author=(request.args.get("author") or "").strip(),
+            limit=limit,
+        )
+    )
+
+
+@app.route("/api/convergence/condenser/offline/post")
+def api_convergence_condenser_offline_post():
+    import chain_mesh.api as cm
+
+    result = cm.convergence_condenser_offline_post_payload(
+        author=(request.args.get("author") or "").strip(),
+        post_id=(request.args.get("post_id") or request.args.get("permlink") or "").strip(),
+    )
+    if not result.get("ok"):
+        return jsonify(result), 404
+    return jsonify(result)
+
+
+@app.route("/api/convergence/condenser/offline/index", methods=["POST"])
+def api_convergence_condenser_offline_index():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    sync_blurt = payload.get("sync_blurt", True) not in (False, "0", 0)
+    return jsonify(cm.convergence_condenser_offline_index_payload(sync_blurt=bool(sync_blurt)))
+
+
+@app.route("/convergence/offline")
+def convergence_offline_feed_page():
+    from chain_mesh import condenser_offline as coff
+
+    return coff.feed_page_html()
+
+
+@app.route("/convergence/offline/<author>/<post_id>")
+def convergence_offline_post_page(author: str, post_id: str):
+    from chain_mesh import condenser_offline as coff
+
+    return coff.post_page_html(author=author, post_id=post_id)
+
+
 @app.route("/convergence/embed/<author>/<post_id>")
 def convergence_embed_page(author: str, post_id: str):
     import chain_mesh.api as cm

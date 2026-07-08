@@ -145,6 +145,18 @@ curl -X POST http://127.0.0.1:8887/api/convergence/dtn/starlink/handoff
 
 Set `DTN_STARLINK_INTERFACE=eth1` on Pi nodes wired through a Starlink dish router. Handoff runs automatically in DTN upkeep when `DTN_STARLINK_ENABLE=1`.
 
+### Offline Condenser reader (Wave J)
+
+Browse mesh-hosted Blurt posts **without internet** when chunks are stored locally:
+
+```bash
+open http://127.0.0.1:8887/convergence/offline
+curl -fsS http://127.0.0.1:8887/api/convergence/condenser/offline/feed | jq .
+curl -X POST http://127.0.0.1:8887/api/convergence/condenser/offline/index
+```
+
+DTN bundles now include `post-manifests.json` for offline feed sync.
+
 ### Manual peer register
 
 ```bash

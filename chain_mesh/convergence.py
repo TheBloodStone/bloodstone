@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 from chain_mesh import agent_identity as agents
 from chain_mesh import blurt_registry_v2 as blurt_reg
 from chain_mesh import blog_manifest as blog
+from chain_mesh import condenser_offline as coff
 from chain_mesh import compute_job as cjobs
 from chain_mesh import depin_credits as depin
 from chain_mesh import dtn_gossip as gossip
@@ -73,7 +74,7 @@ def layer_status() -> List[Dict[str, Any]]:
             "layer": 5,
             "name": "Ambient UI (Condenser + Spatial WebXR)",
             "status": "beta",
-            "detail": f"Condenser embed + {spatial.SPATIAL_MANIFEST_ID} AR overlays",
+            "detail": f"Condenser embed + {coff.OFFLINE_FORMAT} offline reader + {spatial.SPATIAL_MANIFEST_ID} AR",
             "api": f"{public}/api/convergence/condenser/embed",
             "page": f"{public}/convergence/embed/{{author}}/{{post_id}}",
             "spatial_embed": f"{public}/api/convergence/spatial/embed",
@@ -90,7 +91,7 @@ def status_payload() -> Dict[str, Any]:
         "ok": True,
         "vision": "Sovereign Mesh 2030 — Blurt trust anchor + Bloodstone memory fabric",
         "tagline": "Autonomous, self-healing nervous system — identity owns truth, hardware owns the network",
-        "roadmap": "Wave A–H ✓ · Wave I: Starlink handoff bridge ✓",
+        "roadmap": "Wave A–I ✓ · Wave J: offline-first Condenser fork ✓",
         "layers": layer_status(),
         "mesh_v2": {
             "spec": v2_sys.get("spec"),
@@ -124,6 +125,7 @@ def status_payload() -> Dict[str, Any]:
         "provenance_id": "bloodstone_provenance/v1",
         "mesh_anchor_id": blurt_reg.CUSTOM_JSON_ID,
         "dtn": dtn.status_payload(),
+        "condenser_offline": coff.status_payload(),
         "spatial_manifest_id": spatial.SPATIAL_MANIFEST_ID,
         "spatial_asset_prefix": "assets/spatial/",
         "use_cases": [

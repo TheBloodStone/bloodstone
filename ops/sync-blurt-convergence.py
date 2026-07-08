@@ -8,6 +8,7 @@ sys.path.insert(0, "/root")
 import os
 
 from chain_mesh import agent_identity as agent
+from chain_mesh import condenser_offline as coff
 from chain_mesh import blurt_registry_v2 as br
 from chain_mesh import compute_job as cjobs
 from chain_mesh import depin_credits as depin
@@ -45,6 +46,7 @@ def main() -> int:
         for a in (spatial_sync.get("accounts") or [])
         if a.get("ok")
     )
+    offline_index = coff.index_offline_feed(sync_blurt=os.environ.get("CONDENSER_OFFLINE_SYNC_BLURT", "1") == "1")
     dtn_upkeep = dtn.upkeep_dtn(
         force_flush=os.environ.get("DTN_AUTO_FLUSH", "0").strip() in ("1", "true", "yes")
     )
@@ -65,6 +67,8 @@ def main() -> int:
         "dtn_heal=" + str((dtn_upkeep.get("heal") or {}).get("heal_queued", 0)),
         "dtn_gossip=" + str((dtn_upkeep.get("gossip") or {}).get("exchanged", 0)),
         "dtn_starlink=" + str((dtn_upkeep.get("starlink") or {}).get("delivered", 0)),
+        "offline_posts=" + str(offline_index.get("posts_total", 0)),
+        "offline_playable=" + str(offline_index.get("posts_playable_local", 0)),
     )
     return 0
 

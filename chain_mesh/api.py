@@ -942,6 +942,38 @@ def convergence_condenser_embed_payload(payload: Dict[str, Any]) -> Dict[str, An
     )
 
 
+def convergence_condenser_offline_status_payload() -> Dict[str, Any]:
+    from chain_mesh import condenser_offline as coff
+
+    return coff.status_payload()
+
+
+def convergence_condenser_offline_feed_payload(
+    *,
+    author: str = "",
+    limit: int = 40,
+) -> Dict[str, Any]:
+    from chain_mesh import condenser_offline as coff
+
+    return coff.list_feed(author=author, limit=limit)
+
+
+def convergence_condenser_offline_post_payload(
+    *,
+    author: str = "",
+    post_id: str = "",
+) -> Dict[str, Any]:
+    from chain_mesh import condenser_offline as coff
+
+    return coff.resolve_offline_post(author=author, post_id=post_id)
+
+
+def convergence_condenser_offline_index_payload(*, sync_blurt: bool = True) -> Dict[str, Any]:
+    from chain_mesh import condenser_offline as coff
+
+    return coff.index_offline_feed(sync_blurt=sync_blurt)
+
+
 def convergence_provenance_anchor_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import provenance as prov
 

@@ -298,6 +298,12 @@ def _collect_spatial_manifests(*, since: int) -> List[Dict[str, Any]]:
     return [dict(r) for r in rows]
 
 
+def _collect_post_manifests(*, since: int) -> List[Dict[str, Any]]:
+    from chain_mesh import condenser_offline as coff
+
+    return coff.collect_post_manifest_rows(since=since)
+
+
 def _collect_compute_jobs(*, since: int) -> List[Dict[str, Any]]:
     from chain_mesh import compute_job as cjobs
 
@@ -326,6 +332,12 @@ def _import_compute_jobs(rows: List[Dict[str, Any]]) -> int:
     from chain_mesh import compute_job as cjobs
 
     return cjobs.import_job_rows(rows)
+
+
+def _import_post_manifests(rows: List[Dict[str, Any]]) -> int:
+    from chain_mesh import condenser_offline as coff
+
+    return coff.import_post_manifest_rows(rows)
 
 
 def _collect_agent_identities(*, since: int) -> List[Dict[str, Any]]:
@@ -426,6 +438,7 @@ def build_dtn_bundle(
     agent_rows = _collect_agent_identities(since=watermark)
     spatial_rows = _collect_spatial_manifests(since=watermark)
     compute_rows = _collect_compute_jobs(since=watermark)
+    post_rows = _collect_post_manifests(since=watermark)
     chunk_hashes = _chunk_hashes_from_anchors(blurt_anchors)
 
     meta = {
@@ -441,6 +454,7 @@ def build_dtn_bundle(
         "agent_count": len(agent_rows),
         "spatial_count": len(spatial_rows),
         "compute_job_count": len(compute_rows),
+        "post_manifest_count": len(post_rows),
         "chunk_count": len(chunk_hashes),
         "include_chunks": bool(include_chunks),
         "use_case": "off_grid_dtn_mesh",
@@ -457,6 +471,7 @@ def build_dtn_bundle(
         zf.writestr("agent-identities.json", json.dumps(agent_rows, indent=2))
         zf.writestr("spatial-manifests.json", json.dumps(spatial_rows, indent=2))
         zf.writestr("compute-jobs.json", json.dumps(compute_rows, indent=2))
+        zf.writestr("post-manifests.json", json.dumps(post_rows, indent=2))
         zf.writestr(
             "README.txt",
             "Bloodstone DTN sync bundle (Wave C+)\n"
@@ -647,6 +662,9 @@ def import_dtn_bundle(raw: bytes, *, skip_dedup: bool = False) -> Dict[str, Any]
         compute_rows: List[Dict[str, Any]] = []
         if "compute-jobs.json" in zf.namelist():
             compute_rows = json.loads(zf.read("compute-jobs.json").decode("utf-8"))
+        post_rows: List[Dict[str, Any]] = []
+        if "post-manifests.json" in zf.namelist():
+            post_rows = json.loads(zf.read("post-manifests.json").decode("utf-8"))
         for name in zf.namelist():
             if not name.startswith("chunks/") or not name.endswith(".bin"):
                 continue
@@ -668,6 +686,7 @@ def import_dtn_bundle(raw: bytes, *, skip_dedup: bool = False) -> Dict[str, Any]
     agent_imported = _import_agents(agent_rows)
     spatial_imported = _import_spatial(spatial_rows)
     compute_imported = _import_compute_jobs(compute_rows)
+    post_imported = _import_post_manifests(post_rows)
 
     node_id = str(meta.get("node_id") or "imported")
     bundle_id = str(meta.get("bundle_id") or "")
@@ -695,6 +714,7 @@ def import_dtn_bundle(raw: bytes, *, skip_dedup: bool = False) -> Dict[str, Any]
         "agents_imported": agent_imported,
         "spatial_imported": spatial_imported,
         "compute_jobs_imported": compute_imported,
+        "post_manifests_imported": post_imported,
         "chunks_stored": stored_chunks,
         "total_chunks_in_bundle": len(chunk_pairs),
     }
@@ -1598,7 +1618,7 @@ def status_payload() -> Dict[str, Any]:
     fw = flush_window_status()
     return {
         "ok": True,
-        "wave": "I",
+        "wave": "J",
         "hardened": True,
         "use_case": "off_grid_dtn_mesh",
         "format": DTN_BUNDLE_FORMAT,
