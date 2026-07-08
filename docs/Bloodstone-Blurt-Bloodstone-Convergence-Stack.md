@@ -14,7 +14,7 @@
 | 2 | Memory Fabric + DTN sync | Beta | `GET /api/convergence/dtn/export` · `POST /api/convergence/dtn/import` |
 | 3 | Edge DePIN (storage + compute + bandwidth) | Beta | `POST /api/chain-mesh/v2/providers` (roles) |
 | 4 | Circulatory Economy (memo rails) | Beta | `GET /api/convergence/depin/quota` · storage/compute/bandwidth |
-| 5 | Local Condenser UI | Beta | `GET /api/convergence/condenser/embed` · `/convergence/embed/{author}/{post_id}` |
+| 5 | Ambient UI (Condenser + Spatial WebXR) | Beta | `GET /api/convergence/spatial/embed` · `/convergence/spatial/{author}/{scene_id}` |
 
 **Stack status:** `GET /api/convergence/status`
 
@@ -211,6 +211,45 @@ Provider registry supports roles: `storage`, `compute`, `bandwidth`, `sensor`, `
 
 ---
 
+## Layer 5 — Spatial WebXR (Wave D)
+
+Blurt `custom_json` id: `bloodstone_spatial_manifest/v1`
+
+Spatial assets live under `assets/spatial/<scene_id>/model.glb` (glTF, USDZ supported).
+
+**Create manifest** (geo-anchored AR overlay):
+
+```bash
+curl -s -X POST https://bloodstonewallet.mytunnel.org/api/convergence/spatial/manifest \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "scene_id":"museum-exhibit",
+    "author":"megadrive",
+    "post_id":"field-report-01",
+    "title":"Bronze age artifact",
+    "model_format":"glb",
+    "placement":"geo",
+    "geo":{"lat":51.5074,"lon":-0.1278,"alt_m":12,"heading_deg":90}
+  }'
+```
+
+**WebXR embed page** (model-viewer + View in AR):
+
+```
+/convergence/spatial/megadrive/museum-exhibit
+```
+
+**AR overlay API** — nearby scenes or Blurt post anchor:
+
+```bash
+curl -s 'https://bloodstonewallet.mytunnel.org/api/convergence/spatial/overlay?lat=51.5074&lon=-0.1278&radius_m=500'
+curl -s 'https://bloodstonewallet.mytunnel.org/api/convergence/spatial/overlay?author=megadrive&post_id=field-report-01'
+```
+
+DTN bundles include `spatial-manifests.json` for offline Pi sync.
+
+---
+
 ## Condenser embed (Layer 5)
 
 **API** — mesh embed fragment + Pi-hostable page:
@@ -241,6 +280,7 @@ Supports HTTP Range — HTML5 `<video>` compatible.
 - Blurt registry sync (`chain_mesh_anchor` scan)
 - Provenance anchor sync (`bloodstone_provenance/v1` scan)
 - Agent identity sync (`bloodstone_agent/v1` scan)
+- Spatial manifest sync (`bloodstone_spatial_manifest/v1` scan)
 - Storage outpost transfer scan (`@bloodstone-storage`)
 - DePIN outpost transfer scan (`@bloodstone-depin` — compute + bandwidth memos)
 - DTN forward flush when `DTN_AUTO_FLUSH=1` (store-and-forward uplink window)

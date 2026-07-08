@@ -12,6 +12,7 @@ from chain_mesh import blurt_registry_v2 as br
 from chain_mesh import depin_credits as depin
 from chain_mesh import dtn_sync as dtn
 from chain_mesh import provenance as prov
+from chain_mesh import spatial_manifest as spatial
 from chain_mesh import storage_credits as sc
 
 
@@ -20,6 +21,7 @@ def main() -> int:
     credits = sc.sync_outpost_transfers()
     provenance = prov.sync_registry_provenance()
     agents = agent.sync_registry_agents()
+    spatial_sync = spatial.sync_registry_spatial()
     depin_sync = depin.sync_depin_transfers()
     prov_indexed = sum(
         int(a.get("indexed") or 0)
@@ -31,6 +33,11 @@ def main() -> int:
         for a in (agents.get("accounts") or [])
         if a.get("ok")
     )
+    spatial_indexed = sum(
+        int(a.get("indexed") or 0)
+        for a in (spatial_sync.get("accounts") or [])
+        if a.get("ok")
+    )
     dtn_flush = None
     if os.environ.get("DTN_AUTO_FLUSH", "0").strip() in ("1", "true", "yes"):
         dtn_flush = dtn.flush_forward_queue()
@@ -40,6 +47,7 @@ def main() -> int:
         "credits=" + str(credits.get("credited", 0)),
         "provenance_indexed=" + str(prov_indexed),
         "agents_indexed=" + str(agent_indexed),
+        "spatial_indexed=" + str(spatial_indexed),
         "compute_credited=" + str(depin_sync.get("compute_credited", 0)),
         "bandwidth_credited=" + str(depin_sync.get("bandwidth_credited", 0)),
         "dtn_pending=" + str(dtn.list_pending_forwards(limit=1).get("pending_count", 0)),

@@ -2369,6 +2369,109 @@ def api_convergence_dtn_replication_check():
         return jsonify({"ok": False, "error": str(exc)}), 400
 
 
+@app.route("/api/convergence/spatial/manifest", methods=["GET", "POST"])
+@app.route("/mining/api/convergence/spatial/manifest", methods=["GET", "POST"])
+def api_convergence_spatial_manifest():
+    import chain_mesh.api as cm
+
+    if request.method == "GET":
+        payload = {
+            "scene_id": request.args.get("scene_id") or "",
+            "author": request.args.get("author") or "",
+            "post_id": request.args.get("post_id") or "",
+            "title": request.args.get("title") or "",
+            "filename": request.args.get("filename") or "",
+            "model_format": request.args.get("model_format") or "glb",
+            "placement": request.args.get("placement") or "surface",
+            "provenance_id": request.args.get("provenance_id") or "",
+        }
+        if request.args.get("lat") and request.args.get("lon"):
+            try:
+                payload["geo"] = {
+                    "lat": float(request.args.get("lat")),
+                    "lon": float(request.args.get("lon")),
+                    "alt_m": float(request.args.get("alt_m") or 0),
+                    "heading_deg": float(request.args.get("heading_deg") or 0),
+                }
+            except (TypeError, ValueError):
+                return jsonify({"ok": False, "error": "invalid geo coordinates"}), 400
+    else:
+        payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_spatial_manifest_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/spatial/embed")
+@app.route("/mining/api/convergence/spatial/embed")
+def api_convergence_spatial_embed():
+    import chain_mesh.api as cm
+
+    payload = {
+        "scene_id": request.args.get("scene_id") or "",
+        "author": request.args.get("author") or "",
+        "post_id": request.args.get("post_id") or "",
+        "title": request.args.get("title") or "",
+    }
+    result = cm.convergence_spatial_embed_payload(payload)
+    if not result.get("ok"):
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@app.route("/convergence/spatial/<author>/<scene_id>")
+@app.route("/mining/convergence/spatial/<author>/<scene_id>")
+def convergence_spatial_page(author: str, scene_id: str):
+    import chain_mesh.api as cm
+    from flask import Response
+
+    result = cm.convergence_spatial_embed_payload(
+        {"scene_id": scene_id, "author": author, "title": request.args.get("title") or ""}
+    )
+    if not result.get("ok"):
+        return result.get("error", "spatial embed failed"), 404
+    return Response(result.get("page_html") or "", mimetype="text/html")
+
+
+@app.route("/api/convergence/spatial/overlay")
+@app.route("/mining/api/convergence/spatial/overlay")
+def api_convergence_spatial_overlay():
+    import chain_mesh.api as cm
+
+    lat = lon = None
+    if request.args.get("lat") and request.args.get("lon"):
+        try:
+            lat = float(request.args.get("lat"))
+            lon = float(request.args.get("lon"))
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "invalid lat/lon"}), 400
+    try:
+        radius = float(request.args.get("radius_m") or 500)
+        limit = int(request.args.get("limit") or 20)
+    except (TypeError, ValueError):
+        radius, limit = 500.0, 20
+    return jsonify(
+        cm.convergence_spatial_overlay_payload(
+            lat=lat,
+            lon=lon,
+            radius_m=radius,
+            author=(request.args.get("author") or "").strip(),
+            post_id=(request.args.get("post_id") or "").strip(),
+            scene_id=(request.args.get("scene_id") or "").strip(),
+            limit=limit,
+        )
+    )
+
+
+@app.route("/api/convergence/spatial/sync", methods=["POST"])
+@app.route("/mining/api/convergence/spatial/sync", methods=["POST"])
+def api_convergence_spatial_sync():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_spatial_sync_payload())
+
+
 @app.route("/api/chain-mesh/v2/blurt/sync", methods=["POST"])
 @admin_api_required
 def api_chain_mesh_v2_blurt_sync():
