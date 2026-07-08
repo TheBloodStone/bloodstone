@@ -2558,6 +2558,39 @@ def api_convergence_dtn_tls_status():
     return jsonify(cm.convergence_dtn_tls_status_payload())
 
 
+@app.route("/api/convergence/dtn/gossip/status")
+@app.route("/mining/api/convergence/dtn/gossip/status")
+def api_convergence_dtn_gossip_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_dtn_gossip_status_payload())
+
+
+@app.route("/api/convergence/dtn/gossip/exchange", methods=["POST"])
+@app.route("/mining/api/convergence/dtn/gossip/exchange", methods=["POST"])
+def api_convergence_dtn_gossip_exchange():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_dtn_gossip_exchange_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/dtn/gossip/round", methods=["POST"])
+@app.route("/mining/api/convergence/dtn/gossip/round", methods=["POST"])
+def api_convergence_dtn_gossip_round():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        limit = int(payload.get("limit") or request.args.get("limit") or 0)
+    except (TypeError, ValueError):
+        limit = 0
+    return jsonify(cm.convergence_dtn_gossip_round_payload(limit=limit))
+
+
 @app.route("/api/convergence/spatial/manifest", methods=["GET", "POST"])
 @app.route("/mining/api/convergence/spatial/manifest", methods=["GET", "POST"])
 def api_convergence_spatial_manifest():

@@ -122,6 +122,17 @@ Convergence upkeep syncs memos from Blurt every 5 minutes (timer) or via coordin
 
 Browsing peers registers them in the LAN DTN peer table (`/api/convergence/dtn/peers`).
 
+### Gossip rumor exchange (Wave H)
+
+Beyond mDNS, nodes exchange peer tables via `bloodstone_dtn_gossip/v1`:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/dtn/gossip/status | jq .
+curl -X POST http://127.0.0.1:8887/api/convergence/dtn/gossip/round
+```
+
+Gossip runs automatically during DTN upkeep when `DTN_GOSSIP_ENABLE=1` (default).
+
 ### Manual peer register
 
 ```bash

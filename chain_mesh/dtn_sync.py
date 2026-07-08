@@ -1387,10 +1387,18 @@ def alerts_payload() -> Dict[str, Any]:
 
 
 def upkeep_dtn(*, force_flush: bool = False) -> Dict[str, Any]:
-    """Unified DTN hardening cycle — expire, compact, discover peers, quorum, flush."""
+    """Unified DTN hardening cycle — expire, compact, discover peers, gossip, quorum, flush."""
     expired = expire_stale_queue_items()
     compact = compact_forward_queue()
     peers = discover_dtn_peers()
+    gossip = None
+    try:
+        from chain_mesh import dtn_gossip as gossip_mod
+
+        if gossip_mod.GOSSIP_ENABLE:
+            gossip = gossip_mod.gossip_round()
+    except Exception as exc:
+        gossip = {"ok": False, "error": str(exc)}
     quorum = update_region_quorum()
     alerts = check_forward_alerts()
     heal = None
@@ -1406,6 +1414,7 @@ def upkeep_dtn(*, force_flush: bool = False) -> Dict[str, Any]:
         "expired": expired,
         "compact": compact,
         "peers": {"discovered": peers.get("discovered", 0), "count": len(peers.get("peers") or [])},
+        "gossip": gossip,
         "quorum": {
             "chunks_checked": quorum.get("chunks_checked"),
             "chunks_satisfied": quorum.get("chunks_satisfied"),
@@ -1536,6 +1545,20 @@ def _mdns_status_brief() -> Dict[str, Any]:
         return {"enabled": False, "error": str(exc)}
 
 
+def _gossip_status_brief() -> Dict[str, Any]:
+    try:
+        from chain_mesh import dtn_gossip as gossip
+
+        st = gossip.status_payload()
+        return {
+            "enabled": st.get("enabled"),
+            "format": st.get("format"),
+            "last_round": st.get("last_round") or {},
+        }
+    except Exception as exc:
+        return {"enabled": False, "error": str(exc)}
+
+
 def status_payload() -> Dict[str, Any]:
     from chain_mesh import dtn_tls as tls
 
@@ -1550,7 +1573,7 @@ def status_payload() -> Dict[str, Any]:
     fw = flush_window_status()
     return {
         "ok": True,
-        "wave": "F",
+        "wave": "H",
         "hardened": True,
         "use_case": "off_grid_dtn_mesh",
         "format": DTN_BUNDLE_FORMAT,
@@ -1575,6 +1598,7 @@ def status_payload() -> Dict[str, Any]:
             "webhook_configured": bool(DTN_ALERT_WEBHOOK_URL),
         },
         "mdns": _mdns_status_brief(),
+        "gossip": _gossip_status_brief(),
         "watermarks": [dict(r) for r in wm],
         "apis": {
             "export": f"{public}/api/convergence/dtn/export",
@@ -1590,6 +1614,9 @@ def status_payload() -> Dict[str, Any]:
             "replication": f"{public}/api/convergence/dtn/replication/status",
             "alerts": f"{public}/api/convergence/dtn/alerts",
             "tls_status": f"{public}/api/convergence/dtn/tls/status",
+            "gossip_exchange": f"{public}/api/convergence/dtn/gossip/exchange",
+            "gossip_round": f"{public}/api/convergence/dtn/gossip/round",
+            "gossip_status": f"{public}/api/convergence/dtn/gossip/status",
         },
     }
 

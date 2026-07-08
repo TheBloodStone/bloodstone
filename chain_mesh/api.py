@@ -1206,6 +1206,26 @@ def convergence_dtn_peer_register_payload(payload: Dict[str, Any]) -> Dict[str, 
     )
 
 
+def convergence_dtn_gossip_status_payload() -> Dict[str, Any]:
+    from chain_mesh import dtn_gossip as gossip
+
+    return gossip.status_payload()
+
+
+def convergence_dtn_gossip_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh import dtn_gossip as gossip
+
+    result = gossip.ingest_exchange_payload(payload)
+    reply = result.pop("reply", None) or gossip.build_exchange_payload()
+    return {**result, **reply}
+
+
+def convergence_dtn_gossip_round_payload(*, limit: int = 0) -> Dict[str, Any]:
+    from chain_mesh import dtn_gossip as gossip
+
+    return gossip.gossip_round(limit=limit)
+
+
 def convergence_dtn_replication_heal_payload(
     *,
     region: str = "",

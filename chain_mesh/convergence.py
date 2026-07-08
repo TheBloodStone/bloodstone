@@ -10,6 +10,7 @@ from chain_mesh import blurt_registry_v2 as blurt_reg
 from chain_mesh import blog_manifest as blog
 from chain_mesh import compute_job as cjobs
 from chain_mesh import depin_credits as depin
+from chain_mesh import dtn_gossip as gossip
 from chain_mesh import dtn_sync as dtn
 from chain_mesh import mesh_providers as providers
 from chain_mesh import mesh_v2_lite as v2
@@ -50,7 +51,7 @@ def layer_status() -> List[Dict[str, Any]]:
             "layer": 3,
             "name": "Edge DePIN (storage + compute + bandwidth)",
             "status": "beta",
-            "detail": f"Provider roles + {cjobs.COMPUTE_JOB_ID} mesh job manifests",
+            "detail": f"Provider roles + {cjobs.COMPUTE_JOB_ID} + DTN gossip ({gossip.GOSSIP_FORMAT})",
             "api": f"{public}/api/chain-mesh/v2/providers",
             "compute_quota_api": f"{public}/api/convergence/compute/quota",
             "compute_job_api": f"{public}/api/convergence/compute/job/submit",
@@ -85,7 +86,7 @@ def status_payload() -> Dict[str, Any]:
         "ok": True,
         "vision": "Sovereign Mesh 2030 — Blurt trust anchor + Bloodstone memory fabric",
         "tagline": "Autonomous, self-healing nervous system — identity owns truth, hardware owns the network",
-        "roadmap": "Wave A–F ✓ · Wave G: Pi fleet playbook + memo rail enforcement ✓",
+        "roadmap": "Wave A–G ✓ · Wave H: DTN gossip peer rumor exchange ✓",
         "layers": layer_status(),
         "mesh_v2": {
             "spec": v2_sys.get("spec"),
