@@ -2415,6 +2415,37 @@ def api_convergence_dtn_replication_heal():
         return jsonify({"ok": False, "error": str(exc)}), 400
 
 
+@app.route("/api/convergence/dtn/mdns/status")
+@app.route("/mining/api/convergence/dtn/mdns/status")
+def api_convergence_dtn_mdns_status():
+    import chain_mesh.api as cm
+
+    include = request.args.get("browse") in ("1", "true", "yes")
+    return jsonify(cm.convergence_dtn_mdns_status_payload(include_browse=include))
+
+
+@app.route("/api/convergence/dtn/mdns/register", methods=["POST"])
+@app.route("/mining/api/convergence/dtn/mdns/register", methods=["POST"])
+def api_convergence_dtn_mdns_register():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_dtn_mdns_register_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/dtn/mdns/browse", methods=["POST"])
+@app.route("/mining/api/convergence/dtn/mdns/browse", methods=["POST"])
+def api_convergence_dtn_mdns_browse():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    register = payload.get("register", True) not in (False, "0", 0)
+    return jsonify(cm.convergence_dtn_mdns_browse_payload(register=register))
+
+
 @app.route("/api/convergence/dtn/replication/status")
 @app.route("/mining/api/convergence/dtn/replication/status")
 def api_convergence_dtn_replication_status():

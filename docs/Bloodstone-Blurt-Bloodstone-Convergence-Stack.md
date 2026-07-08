@@ -153,7 +153,8 @@ Bundle contents: `blurt-anchors.json`, `provenance-anchors.json`, `agent-identit
 | Flush windows | `DTN_FLUSH_WINDOWS_UTC=02:00-02:30,14:00-14:30` · `GET …/dtn/flush-window` |
 | Retry + backoff | `DTN_MAX_RETRIES=5` · `DTN_RETRY_BACKOFF_SEC=60,300,900,3600,7200` |
 | Bundle TTL | `DTN_BUNDLE_TTL_SEC=604800` (7 days) |
-| Peer discovery | LAN heartbeat + `DTN_PEER_URLS` · `POST …/dtn/peers/discover` |
+| Peer discovery | mDNS `_bloodstone-dtn._tcp` + LAN heartbeat + `DTN_PEER_URLS` |
+| mDNS broadcast | `bloodstone-dtn-mdns.service` on Pi · `POST …/dtn/mdns/register` |
 | Compaction | `POST …/dtn/compact` — prune delivered, dedupe pending |
 | Unified upkeep | `POST …/dtn/upkeep` — expire, compact, discover, quorum, flush |
 | Quorum heal | `POST …/dtn/replication/heal` — queue minimal chunk bundles |
