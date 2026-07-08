@@ -2053,6 +2053,58 @@ def convergence_embed_page(author: str, post_id: str):
     return Response(result.get("page_html") or "", mimetype="text/html")
 
 
+@app.route("/api/convergence/provenance/anchor", methods=["GET", "POST"])
+@app.route("/mining/api/convergence/provenance/anchor", methods=["GET", "POST"])
+def api_convergence_provenance_anchor():
+    import chain_mesh.api as cm
+
+    if request.method == "GET":
+        payload = {
+            "author": request.args.get("author") or "",
+            "asset_key": request.args.get("asset_key") or "",
+            "content_sha256": request.args.get("content_sha256") or "",
+            "title": request.args.get("title") or "",
+            "device_id": request.args.get("device_id") or "",
+            "witness_capsule_id": request.args.get("witness_capsule_id") or "",
+            "provenance_id": request.args.get("provenance_id") or "",
+            "filename": request.args.get("filename") or "",
+        }
+        captured = request.args.get("captured_at")
+        if captured:
+            try:
+                payload["captured_at"] = int(captured)
+            except (TypeError, ValueError):
+                return jsonify({"ok": False, "error": "invalid captured_at"}), 400
+    else:
+        payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_provenance_anchor_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/provenance/verify")
+@app.route("/mining/api/convergence/provenance/verify")
+def api_convergence_provenance_verify():
+    import chain_mesh.api as cm
+
+    return jsonify(
+        cm.convergence_provenance_verify_payload(
+            asset_key=(request.args.get("asset_key") or "").strip(),
+            provenance_id=(request.args.get("provenance_id") or "").strip(),
+            content_sha256=(request.args.get("content_sha256") or "").strip(),
+        )
+    )
+
+
+@app.route("/api/convergence/provenance/sync", methods=["POST"])
+@app.route("/mining/api/convergence/provenance/sync", methods=["POST"])
+def api_convergence_provenance_sync():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_provenance_sync_payload())
+
+
 @app.route("/api/chain-mesh/v2/blurt/sync", methods=["POST"])
 @admin_api_required
 def api_chain_mesh_v2_blurt_sync():

@@ -1,6 +1,6 @@
 # Blurt–Bloodstone Convergence Stack
 
-**Vision:** Permanent, uncensorable, community-owned social media + storage on home hardware.  
+**Vision:** Sovereign Mesh 2030 — Blurt trust anchor + Bloodstone memory/compute fabric on home hardware.  
 **Updated:** July 2026
 
 ---
@@ -10,13 +10,43 @@
 | Layer | Name | Status | API |
 |-------|------|--------|-----|
 | 0 | Sovereign Identity (Blurt keys) | Live | Partner token + `required_posting_auths` |
-| 1 | Immutable Blogging (manifest pointers) | Beta | `POST /api/convergence/blog/manifest` |
+| 1 | Trust Anchor (provenance + blogging) | Beta | `POST /api/convergence/provenance/anchor` · `GET /api/convergence/provenance/verify` |
 | 2 | Sharded Media (Chain Mesh) | Live | `GET /api/chain-mesh/v2/manifest` |
 | 3 | Edge Serving (Pi/Android fleet) | Live | `POST /api/chain-mesh/v2/providers` |
 | 4 | Economic Alignment (BLURT→STONE credits) | Beta | `GET /api/convergence/storage/quota` |
 | 5 | Local Condenser UI | Beta | `GET /api/convergence/condenser/embed` · `/convergence/embed/{author}/{post_id}` |
 
 **Stack status:** `GET /api/convergence/status`
+
+---
+
+## Layer 1 — Trust Anchor (digital provenance)
+
+Blurt `custom_json` id: `bloodstone_provenance/v1`
+
+Post-Truth Engine: anchor content hash + mesh merkle root on Blurt; verify against live Chain Mesh manifest.
+
+```bash
+curl -s -X POST https://bloodstonewallet.mytunnel.org/api/convergence/provenance/anchor \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "author":"megadrive",
+    "asset_key":"assets/blurt/media/my-article/video.mp4",
+    "content_sha256":"<64-hex-sha256>",
+    "title":"Field capture",
+    "device_id":"pi-edge-01"
+  }'
+```
+
+Response includes `blurt_custom_json` for Blurt broadcast, `badge_html` for Condenser embeds, and `verify_url`.
+
+Verify (mesh + indexed anchor):
+
+```bash
+curl -s 'https://bloodstonewallet.mytunnel.org/api/convergence/provenance/verify?asset_key=assets/blurt/media/my-article/video.mp4'
+```
+
+Condenser embed pages (Layer 5) show the provenance badge when mesh media resolves.
 
 ---
 
@@ -96,6 +126,7 @@ Supports HTTP Range — HTML5 `<video>` compatible.
 
 `/root/sync-blurt-convergence.py` runs on upkeep cycle:
 - Blurt registry sync (`chain_mesh_anchor` scan)
+- Provenance anchor sync (`bloodstone_provenance/v1` scan)
 - Storage outpost transfer scan
 
 ---
