@@ -1521,12 +1521,8 @@ static void SoftForkDescPushBack(const CBlockIndex* active_chain_tip, UniValue& 
 
 static void SoftForkDescPushBack(const CBlockIndex* active_chain_tip, UniValue& softforks, const Consensus::Params& consensusParams, Consensus::DeploymentPos id)
 {
-    // FIXME: For now, BIP9 is not used until we can do always-auxpow.
-    return;
-
-    // For BIP9 deployments.
-
-    if (!DeploymentEnabled(consensusParams, id)) return;
+    // For BIP9 deployments (QUASAR quasar_braid_finality + standard version-bits).
+    // Report all registered deployments, including NEVER_ACTIVE (defined-only on mainnet).
 
     UniValue bip9(UniValue::VOBJ);
     const ThresholdState thresholdState = g_versionbitscache.State(active_chain_tip, consensusParams, id);

@@ -234,9 +234,9 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 0; // No activation delay
 
-        // QUASAR braid finality — mainnet defined only until operator vote
+        // QUASAR braid finality — mainnet visible, signaling starts 2027-01-01 UTC
         consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].bit = 3;
-        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nStartTime = 1798761600;
         consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].min_activation_height = 0;
 

@@ -36,7 +36,13 @@ static RPCHelpMan getquasarbraid()
     return RPCHelpMan{"getquasarbraid",
         "\nReturns QUASAR epoch braid index state from indexes/braid/ (Phase 3).\n",
         {},
-        RPCResult{RPCResult::Type::OBJ, "", ""},
+        RPCResult{RPCResult::Type::OBJ, "", "",
+            {
+                {RPCResult::Type::BOOL, "ok", "Whether braid index data is available"},
+                {RPCResult::Type::STR, "braid_status", "Current epoch braid status"},
+                {RPCResult::Type::NUM, "phase", "QUASAR phase"},
+                {RPCResult::Type::NUM, "synced_height", "Last indexed block height"},
+            }},
         RPCExamples{
             HelpExampleCli("getquasarbraid", "")
           + HelpExampleRpc("getquasarbraid", "")
@@ -52,7 +58,13 @@ static RPCHelpMan getquasaractivation()
     return RPCHelpMan{"getquasaractivation",
         "\nReturns QUASAR braid finality soft-fork deployment parameters (Phase 3 research).\n",
         {},
-        RPCResult{RPCResult::Type::OBJ, "", ""},
+        RPCResult{RPCResult::Type::OBJ, "", "",
+            {
+                {RPCResult::Type::STR, "deployment", "BIP9 deployment name"},
+                {RPCResult::Type::NUM, "version_bit", "Signaling version bit"},
+                {RPCResult::Type::STR, "state", "Deployment state"},
+                {RPCResult::Type::NUM, "epoch_blocks", "Epoch braid block count"},
+            }},
         RPCExamples{
             HelpExampleCli("getquasaractivation", "")
           + HelpExampleRpc("getquasaractivation", "")

@@ -2015,6 +2015,44 @@ def api_convergence_blog_publish_flow():
     return jsonify(cm.convergence_blog_publish_flow_payload(payload))
 
 
+@app.route("/api/convergence/condenser/embed")
+@app.route("/mining/api/convergence/condenser/embed")
+def api_convergence_condenser_embed():
+    import chain_mesh.api as cm
+
+    payload = {
+        "post_id": request.args.get("post_id") or request.args.get("permlink") or "",
+        "author": request.args.get("author") or "",
+        "title": request.args.get("title") or "",
+        "permlink": request.args.get("permlink") or "",
+        "asset_key": request.args.get("asset_key") or "",
+        "asset_keys": [k.strip() for k in (request.args.get("asset_keys") or "").split(",") if k.strip()],
+    }
+    result = cm.convergence_condenser_embed_payload(payload)
+    if not result.get("ok"):
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@app.route("/convergence/embed/<author>/<post_id>")
+@app.route("/mining/convergence/embed/<author>/<post_id>")
+def convergence_embed_page(author: str, post_id: str):
+    import chain_mesh.api as cm
+
+    payload = {
+        "post_id": post_id,
+        "author": author,
+        "asset_keys": [k.strip() for k in (request.args.get("asset_keys") or "").split(",") if k.strip()],
+        "title": request.args.get("title") or "",
+    }
+    result = cm.convergence_condenser_embed_payload(payload)
+    if not result.get("ok"):
+        return result.get("error", "embed failed"), 404
+    from flask import Response
+
+    return Response(result.get("page_html") or "", mimetype="text/html")
+
+
 @app.route("/api/chain-mesh/v2/blurt/sync", methods=["POST"])
 @admin_api_required
 def api_chain_mesh_v2_blurt_sync():

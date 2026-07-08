@@ -710,6 +710,40 @@ def api_convergence_status():
     return jsonify(cm.convergence_status_payload())
 
 
+@app.route("/api/convergence/condenser/embed")
+def api_convergence_condenser_embed():
+    import chain_mesh.api as cm
+
+    payload = {
+        "post_id": request.args.get("post_id") or request.args.get("permlink") or "",
+        "author": request.args.get("author") or "",
+        "title": request.args.get("title") or "",
+        "permlink": request.args.get("permlink") or "",
+        "asset_key": request.args.get("asset_key") or "",
+        "asset_keys": [k.strip() for k in (request.args.get("asset_keys") or "").split(",") if k.strip()],
+    }
+    result = cm.convergence_condenser_embed_payload(payload)
+    if not result.get("ok"):
+        return jsonify(result), 400
+    return jsonify(result)
+
+
+@app.route("/convergence/embed/<author>/<post_id>")
+def convergence_embed_page(author: str, post_id: str):
+    import chain_mesh.api as cm
+
+    payload = {
+        "post_id": post_id,
+        "author": author,
+        "asset_keys": [k.strip() for k in (request.args.get("asset_keys") or "").split(",") if k.strip()],
+        "title": request.args.get("title") or "",
+    }
+    result = cm.convergence_condenser_embed_payload(payload)
+    if not result.get("ok"):
+        return result.get("error", "embed failed"), 404
+    return render_template("convergence_embed.html", page_html=result.get("page_html") or "")
+
+
 @app.route("/api/quasar/status")
 def api_quasar_status():
     try:

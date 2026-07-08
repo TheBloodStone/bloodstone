@@ -14,7 +14,7 @@
 | 2 | Sharded Media (Chain Mesh) | Live | `GET /api/chain-mesh/v2/manifest` |
 | 3 | Edge Serving (Pi/Android fleet) | Live | `POST /api/chain-mesh/v2/providers` |
 | 4 | Economic Alignment (BLURT→STONE credits) | Beta | `GET /api/convergence/storage/quota` |
-| 5 | Local Condenser UI | Planned 2027 | Embed HTML from blog manifest API |
+| 5 | Local Condenser UI | Beta | `GET /api/convergence/condenser/embed` · `/convergence/embed/{author}/{post_id}` |
 
 **Stack status:** `GET /api/convergence/status`
 
@@ -68,9 +68,21 @@ Set `STORAGE_CREDIT_ENFORCE=1` to require credits on partner publish.
 
 ---
 
-## Condenser embed (Layer 5 preview)
+## Condenser embed (Layer 5)
 
-Use `embed_html` from blog manifest API, or direct playback:
+**API** — mesh embed fragment + Pi-hostable page:
+
+```bash
+curl -s 'https://bloodstonewallet.mytunnel.org/api/convergence/condenser/embed?author=megadrive&post_id=my-article&title=My%20Post'
+```
+
+**Standalone page** (iframe-friendly):
+
+```
+/convergence/embed/megadrive/my-article
+```
+
+Paste `embed_html` from the API into Blurt Condenser, or use `embed_html` from the blog manifest API. Direct playback:
 
 ```
 /api/chain-mesh/asset/assets/blurt/media/<post_id>/video.mp4/download
