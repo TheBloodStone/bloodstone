@@ -80,16 +80,24 @@ def ingest_manifest_snapshots(snapshots: List[Dict[str, Any]]) -> Dict[str, Any]
     return {"ok": True, "indexed": indexed, "skipped": skipped}
 
 
+def _indexed_manifest_count() -> int:
+    from chain_mesh import tenant_broadcast as tb
+
+    tb.init_tenant_manifest_db()
+    with tb._conn() as conn:
+        row = conn.execute("SELECT COUNT(*) AS c FROM tenant_manifest_index").fetchone()
+    return int(row["c"] or 0)
+
+
 def status_payload() -> Dict[str, Any]:
     public = os.environ.get(
         "BLOODSTONE_PUBLIC_ROOT", "https://bloodstonewallet.mytunnel.org"
     ).rstrip("/")
-    snaps = build_manifest_snapshots(limit=3)
     return {
         "ok": True,
         "format": MANIFEST_GOSSIP_FORMAT,
         "enabled": MANIFEST_GOSSIP_ENABLE,
-        "snapshot_count": len(snaps),
+        "snapshot_count": _indexed_manifest_count(),
         "limit": MANIFEST_GOSSIP_LIMIT,
         "apis": {
             "status": f"{public}/api/convergence/tenant/manifest/gossip/status",

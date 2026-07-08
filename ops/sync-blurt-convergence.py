@@ -16,6 +16,7 @@ from chain_mesh import storage_tenant_quota as stenant
 from chain_mesh import tenant_broadcast as tbroadcast
 from chain_mesh import tenant_fleet_quorum as tquorum
 from chain_mesh import tenant_manifest_gossip as tmgossip
+from chain_mesh import tenant_sovereign as tsov
 from chain_mesh import tenant_upkeep as tupkeep
 from chain_mesh import bridge_swap as bridge
 from chain_mesh import condenser_offline as coff
@@ -64,6 +65,7 @@ def main() -> int:
     ai_provider_sync = aip.sync_registry_providers()
     ai_broadcast_queue = aip.prepare_broadcast_queue()
     tenant_upkeep = tupkeep.upkeep_tenant()
+    tenant_sovereign = tsov.reconcile_sovereign_mesh()
     tenant_broadcast_queue_count = tenant_upkeep.get("broadcast_queue", 0)
     tenant_registry_synced = tenant_upkeep.get("registry_synced", 0)
     tenant_quorum_satisfied = (tenant_upkeep.get("quorum") or {}).get("pairs_satisfied", 0)
@@ -108,6 +110,12 @@ def main() -> int:
         "tenant_manifest_gossip=" + str(tenant_manifest_gossip),
         "tenant_route_gossip=" + str(tenant_route_gossip),
         "tenant_assignments=" + str(tenant_upkeep.get("assignments_total", 0)),
+        "tenant_planetary_regions=" + str(
+            (tenant_upkeep.get("planetary") or {}).get("regions_total", 0)
+        ),
+        "tenant_sovereign_planetary=" + str(
+            (tenant_sovereign.get("summary") or {}).get("planetary_satisfied", False)
+        ),
     )
     return 0
 

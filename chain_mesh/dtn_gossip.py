@@ -167,6 +167,15 @@ def build_exchange_payload() -> Dict[str, Any]:
     except Exception:
         pass
 
+    tenant_planetary_snapshots: List[Dict[str, Any]] = []
+    try:
+        from chain_mesh import tenant_planetary_quorum as tplanetary
+
+        if tplanetary.TENANT_PLANETARY_ENABLE:
+            tenant_planetary_snapshots = tplanetary.build_planetary_gossip_snapshots()
+    except Exception:
+        pass
+
     return {
         "ok": True,
         "format": GOSSIP_FORMAT,
@@ -181,6 +190,7 @@ def build_exchange_payload() -> Dict[str, Any]:
         "tenant_quorum_snapshots": tenant_quorum_snapshots,
         "tenant_manifest_snapshots": tenant_manifest_snapshots,
         "tenant_route_snapshots": tenant_route_snapshots,
+        "tenant_planetary_snapshots": tenant_planetary_snapshots,
         "max_hops": GOSSIP_MAX_HOPS,
         "rumor_ttl_sec": GOSSIP_RUMOR_TTL_SEC,
     }
@@ -319,6 +329,7 @@ def ingest_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     tenant_quorum_votes = 0
     tenant_manifest_indexed = 0
     tenant_route_recorded = 0
+    tenant_planetary_votes = 0
     try:
         from chain_mesh import tenant_fleet_quorum as tquorum
 
@@ -363,6 +374,19 @@ def ingest_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
             tenant_route_recorded = int(ingest_r.get("recorded") or 0)
         except Exception:
             pass
+        try:
+            from chain_mesh import tenant_planetary_quorum as tplanetary
+
+            if tplanetary.TENANT_PLANETARY_ENABLE:
+                planetary_snaps = [
+                    row
+                    for row in (payload.get("tenant_planetary_snapshots") or [])
+                    if isinstance(row, dict)
+                ]
+                ingest_p = tplanetary.ingest_planetary_snapshots(planetary_snaps)
+                tenant_planetary_votes = int(ingest_p.get("votes_recorded") or 0)
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -379,6 +403,7 @@ def ingest_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "tenant_quorum_votes_recorded": tenant_quorum_votes,
         "tenant_manifests_indexed": tenant_manifest_indexed,
         "tenant_routes_recorded": tenant_route_recorded,
+        "tenant_planetary_votes_recorded": tenant_planetary_votes,
         "reply": build_exchange_payload(),
     }
 

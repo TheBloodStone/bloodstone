@@ -1192,6 +1192,40 @@ def api_convergence_tenant_upkeep_run():
     return jsonify(cm.convergence_tenant_upkeep_run_payload())
 
 
+@app.route("/api/convergence/tenant/planetary/status")
+def api_convergence_tenant_planetary_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_planetary_status_payload())
+
+
+@app.route("/api/convergence/tenant/planetary/snapshots")
+def api_convergence_tenant_planetary_snapshots():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_planetary_snapshots_payload())
+
+
+@app.route("/api/convergence/tenant/sovereign/status")
+def api_convergence_tenant_sovereign_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_sovereign_status_payload())
+
+
+@app.route("/api/convergence/tenant/sovereign/reconcile", methods=["POST"])
+def api_convergence_tenant_sovereign_reconcile():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    force = str(payload.get("force_quorum_apply") or "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    return jsonify(cm.convergence_tenant_sovereign_reconcile_payload(force_quorum_apply=force))
+
+
 @app.route("/api/convergence/compute/job/status")
 def api_convergence_compute_job_status():
     import chain_mesh.api as cm

@@ -91,7 +91,7 @@ class TestAiWaveY(unittest.TestCase):
         self.assertIn("route_history", dash)
         self.assertGreaterEqual((dash.get("route_history") or {}).get("count", 0), 1)
         html = tdash.dashboard_page_html()
-        self.assertIn("Wave Y", html)
+        self.assertTrue("Wave Y" in html or "Wave Z" in html)
         self.assertIn("route ledger", html)
 
     def test_api_wave_y_payloads(self):

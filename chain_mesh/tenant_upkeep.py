@@ -1,4 +1,4 @@
-"""Wave Y — unified tenant upkeep (quorum, gossip, broadcast, route ledger)."""
+"""Wave Z — unified tenant upkeep (quorum, gossip, broadcast, route ledger, planetary)."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ def upkeep_tenant(*, force_quorum_apply: bool = False) -> Dict[str, Any]:
     from chain_mesh import tenant_broadcast as tb
     from chain_mesh import tenant_fleet_quorum as tquorum
     from chain_mesh import tenant_manifest_gossip as tmgossip
+    from chain_mesh import tenant_planetary_quorum as tplanetary
     from chain_mesh import tenant_route_ledger as tledger
 
     quorum = tquorum.update_quorum_state()
@@ -26,6 +27,7 @@ def upkeep_tenant(*, force_quorum_apply: bool = False) -> Dict[str, Any]:
     registry_sync = tb.sync_registry_tenants()
     manifest_snaps = tmgossip.build_manifest_snapshots()
     route_snaps = tledger.build_route_gossip_snapshots()
+    planetary = tplanetary.update_tenant_planetary_quorum()
     result = {
         "ok": True,
         "format": UPKEEP_FORMAT,
@@ -35,6 +37,7 @@ def upkeep_tenant(*, force_quorum_apply: bool = False) -> Dict[str, Any]:
         "registry_synced": registry_sync.get("indexed", 0),
         "manifest_gossip": len(manifest_snaps),
         "route_gossip": len(route_snaps),
+        "planetary": planetary,
         "assignments_total": tledger.status_payload().get("assignments_total", 0),
         "at": _now(),
     }

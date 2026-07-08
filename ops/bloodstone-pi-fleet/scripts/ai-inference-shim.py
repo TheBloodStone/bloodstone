@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wave Y — tenant route ledger hints + Hailo/Coral NPU execution delegates."""
+"""Wave Z — tenant sovereign mesh + Hailo/Coral NPU execution delegates."""
 
 from __future__ import annotations
 
@@ -352,7 +352,7 @@ class InferenceHandler(BaseHTTPRequestHandler):
                     "npu_runtimes": _npu_runtime_prefs(),
                     "npu_hardware": (_npu_hardware().get("hardware") or {}),
                     "tenant_npu_resolve": f"{os.environ.get('BLOODSTONE_PUBLIC_ROOT', 'http://127.0.0.1:8887')}/api/convergence/tenant/npu/resolve",
-                    "wave": "Y",
+                    "wave": "Z",
                 },
             )
             return

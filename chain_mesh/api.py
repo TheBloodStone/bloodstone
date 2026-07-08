@@ -1369,6 +1369,38 @@ def convergence_tenant_upkeep_run_payload() -> Dict[str, Any]:
     return tup.upkeep_tenant()
 
 
+def convergence_tenant_planetary_status_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_planetary_quorum as tplanetary
+
+    return tplanetary.status_payload()
+
+
+def convergence_tenant_planetary_snapshots_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_planetary_quorum as tplanetary
+
+    snaps = tplanetary.build_planetary_gossip_snapshots()
+    return {
+        "ok": True,
+        "format": tplanetary.TENANT_PLANETARY_FORMAT,
+        "count": len(snaps),
+        "snapshots": snaps,
+    }
+
+
+def convergence_tenant_sovereign_status_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_sovereign as tsov
+
+    return tsov.status_payload()
+
+
+def convergence_tenant_sovereign_reconcile_payload(
+    *, force_quorum_apply: bool = False
+) -> Dict[str, Any]:
+    from chain_mesh import tenant_sovereign as tsov
+
+    return tsov.reconcile_sovereign_mesh(force_quorum_apply=force_quorum_apply)
+
+
 def convergence_tenant_dashboard_page_payload() -> str:
     from chain_mesh import tenant_dashboard as tdash
 

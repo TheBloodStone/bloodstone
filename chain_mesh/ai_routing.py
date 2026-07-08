@@ -1011,6 +1011,25 @@ def coordinator_dispatch_job(
     if job.get("job_type") != "inference":
         raise ValueError("job_type must be inference")
 
+    from chain_mesh import tenant_ai_route as troute
+    from chain_mesh import tenant_submit_gate as tgate
+
+    tenant_route = body.get("tenant_route")
+    if not isinstance(tenant_route, dict) or not tenant_route:
+        tenant_route = troute.resolve_job_inference_spec(job)
+    gate = tgate.check_submit_allowed(
+        tenant_id=str(job.get("tenant_id") or ""),
+        blurt_author=str(job.get("blurt_author") or ""),
+        stone_address=str(job.get("stone_address") or ""),
+    )
+    if not gate.get("allowed"):
+        return {
+            "ok": False,
+            "error": gate.get("reason") or "submit gate blocked",
+            "submit_gate": gate,
+            "job_id": jid,
+        }
+
     cb = (callback_url or body.get("callback_url") or "").strip()
     origin = (origin_node_id or body.get("origin_node_id") or "").strip()
 
@@ -1019,15 +1038,32 @@ def coordinator_dispatch_job(
         provider_id=COORDINATOR_AI_ID,
         route_status="running",
         reason="coordinator_dispatch",
-        route_json={"origin_node_id": origin, "callback_url": cb},
+        route_json={
+            "origin_node_id": origin,
+            "callback_url": cb,
+            "tenant_route": tenant_route,
+        },
     )
 
     ensure_coordinator_ai_provider()
     provider = aip.get_ai_provider(provider_id=COORDINATOR_AI_ID) or {}
     dispatch: Dict[str, Any] = {"ok": False, "error": "inference unreachable", "skipped": True}
     if _inference_reachable(provider):
-        dispatch = dispatch_inference_job(job_id=jid, provider=provider)
+        dispatch = dispatch_inference_job(
+            job_id=jid, provider=provider, tenant_spec=tenant_route
+        )
     if dispatch.get("ok"):
+        try:
+            from chain_mesh import tenant_route_ledger as tledger
+
+            tledger.record_assignment(
+                job=job,
+                provider=provider,
+                tenant_spec=tenant_route,
+                route_status=str(dispatch.get("route_status") or "completed"),
+            )
+        except Exception:
+            pass
         if dispatch.get("async"):
             if cb:
                 post_ai_callback_remote(
@@ -1042,6 +1078,7 @@ def coordinator_dispatch_job(
                 "job_id": jid,
                 "route_status": "running",
                 "provider_id": COORDINATOR_AI_ID,
+                "tenant_route": tenant_route,
                 "dispatch": dispatch,
                 "callback": bool(cb),
             }
@@ -1059,6 +1096,7 @@ def coordinator_dispatch_job(
             "job_id": jid,
             "route_status": "completed",
             "provider_id": COORDINATOR_AI_ID,
+            "tenant_route": tenant_route,
             "dispatch": dispatch,
             "callback": bool(cb),
         }
@@ -1625,7 +1663,7 @@ def status_payload(*, include_uplink: bool = True) -> Dict[str, Any]:
         "uplink": uplink,
         "providers_count": providers_count,
         "last_upkeep": dict(_LAST_UPKEEP),
-        "wave": "Y",
+        "wave": "Z",
         "coordinator_dispatch": AI_COORDINATOR_DISPATCH_ENABLE,
         "coordinator_node": _is_coordinator_node(),
         "gossip_sign": _gossip_sign_status(),

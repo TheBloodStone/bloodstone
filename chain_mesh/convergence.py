@@ -23,6 +23,12 @@ from chain_mesh import spatial_manifest as spatial
 from chain_mesh import storage_credits as credits
 
 
+def _tenant_sovereign_status() -> Dict[str, Any]:
+    from chain_mesh import tenant_sovereign as tsov
+
+    return tsov.status_payload()
+
+
 def layer_status() -> List[Dict[str, Any]]:
     public = os.environ.get("BLOODSTONE_PUBLIC_ROOT", "https://bloodstonewallet.mytunnel.org")
     return [
@@ -101,7 +107,7 @@ def status_payload() -> Dict[str, Any]:
         "ok": True,
         "vision": "Sovereign Mesh 2030 — Blurt trust anchor + Bloodstone memory fabric",
         "tagline": "Autonomous, self-healing nervous system — identity owns truth, hardware owns the network",
-        "roadmap": "Wave A–X ✓ · Wave Y: route ledger + coordinator tenant dispatch + unified upkeep ✓",
+        "roadmap": "Wave A–Y ✓ · Wave Z: tenant planetary quorum + sovereign mesh reconcile ✓",
         "layers": layer_status(),
         "mesh_v2": {
             "spec": v2_sys.get("spec"),
@@ -136,6 +142,7 @@ def status_payload() -> Dict[str, Any]:
         "mesh_anchor_id": blurt_reg.CUSTOM_JSON_ID,
         "dtn": dtn.status_payload(),
         "planetary_quorum": planetary.status_payload(),
+        "tenant_sovereign": _tenant_sovereign_status(),
         "bridge_swap": bridge.status_payload(),
         "ai_routing": ai.status_payload(include_uplink=False),
         "condenser_offline": coff.status_payload(),

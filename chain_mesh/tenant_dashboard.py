@@ -41,6 +41,7 @@ def dashboard_payload(
     from chain_mesh import tenant_ai_route as troute
     from chain_mesh import tenant_npu_models as tnpu
     from chain_mesh import tenant_route_ledger as tledger
+    from chain_mesh import tenant_sovereign as tsov
     from chain_mesh import tenant_submit_gate as tgate
 
     quorum = tgate.quorum_for_author(tenant_id=tid, blurt_author=author) if author else {}
@@ -66,6 +67,7 @@ def dashboard_payload(
         if author
         else {}
     )
+    sovereign = tsov.sovereign_summary()
     return {
         "ok": True,
         "format": DASHBOARD_FORMAT,
@@ -87,6 +89,7 @@ def dashboard_payload(
         "submit_gate": submit_gate,
         "ai_route": ai_route,
         "route_history": route_history,
+        "sovereign": sovereign,
     }
 
 
@@ -179,8 +182,8 @@ def dashboard_page_html() -> str:
 </head>
 <body>
   <main>
-    <h1>Tenant Dashboard <span class="badge">Wave Y</span></h1>
-    <p class="meta">Per-author caps, quorum, NPU models, route ledger, and upkeep.</p>
+    <h1>Tenant Dashboard <span class="badge">Wave Z</span></h1>
+    <p class="meta">Per-author caps, quorum, NPU models, route ledger, sovereign mesh, and upkeep.</p>
     <div>
       <input id="author" placeholder="blurt author" />
       <input id="stone" placeholder="STONE address (optional)" />
@@ -193,7 +196,9 @@ def dashboard_page_html() -> str:
     <div class="card" id="submit" style="margin-top:0.75rem;display:none"></div>
     <div class="card" id="route" style="margin-top:0.75rem;display:none"></div>
     <div class="card" id="history" style="margin-top:0.75rem;display:none"></div>
+    <div class="card" id="sovereign" style="margin-top:0.75rem"></div>
     <p class="meta"><a href="{public}/api/convergence/tenant/status">API status</a> ·
+      <a href="{public}/api/convergence/tenant/sovereign/status">Sovereign</a> ·
       <a href="{public}/api/convergence/status">Convergence</a></p>
   </main>
   <script>
@@ -260,6 +265,12 @@ def dashboard_page_html() -> str:
             ' · ' + (h.route_status || '') + '</div>'
           ).join('');
         }} else {{ hEl.style.display = 'none'; }}
+        const sov = data.sovereign || {{}};
+        document.getElementById('sovereign').innerHTML =
+          '<h2>sovereign mesh</h2><div>pairs ' + (sov.pairs_satisfied || 0) + '/' +
+          (sov.pairs_tracked || 0) + ' · regions ' + (sov.regions_satisfied || 0) + '/' +
+          (sov.regions_total || 0) + ' · assignments ' + (sov.assignments_total || 0) +
+          (sov.planetary_satisfied ? ' · planetary ✓' : '') + '</div>';
       }}).catch(e => document.getElementById('status').textContent = String(e));
     }};
   </script>
