@@ -133,6 +133,18 @@ curl -X POST http://127.0.0.1:8887/api/convergence/dtn/gossip/round
 
 Gossip runs automatically during DTN upkeep when `DTN_GOSSIP_ENABLE=1` (default).
 
+### Starlink handoff bridge (Wave I)
+
+When a brief satellite uplink appears (Starlink, LTE failover, etc.), the bridge probes the coordinator and flushes queued DTN bundles **outside** scheduled UTC flush windows:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/dtn/starlink/status | jq .
+curl -fsS http://127.0.0.1:8887/api/convergence/dtn/starlink/probe | jq .connected,.latency_ms
+curl -X POST http://127.0.0.1:8887/api/convergence/dtn/starlink/handoff
+```
+
+Set `DTN_STARLINK_INTERFACE=eth1` on Pi nodes wired through a Starlink dish router. Handoff runs automatically in DTN upkeep when `DTN_STARLINK_ENABLE=1`.
+
 ### Manual peer register
 
 ```bash

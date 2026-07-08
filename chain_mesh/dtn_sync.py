@@ -1399,6 +1399,14 @@ def upkeep_dtn(*, force_flush: bool = False) -> Dict[str, Any]:
             gossip = gossip_mod.gossip_round()
     except Exception as exc:
         gossip = {"ok": False, "error": str(exc)}
+    starlink = None
+    try:
+        from chain_mesh import dtn_starlink as starlink_mod
+
+        if starlink_mod.STARLINK_ENABLE:
+            starlink = starlink_mod.starlink_handoff()
+    except Exception as exc:
+        starlink = {"ok": False, "error": str(exc)}
     quorum = update_region_quorum()
     alerts = check_forward_alerts()
     heal = None
@@ -1415,6 +1423,7 @@ def upkeep_dtn(*, force_flush: bool = False) -> Dict[str, Any]:
         "compact": compact,
         "peers": {"discovered": peers.get("discovered", 0), "count": len(peers.get("peers") or [])},
         "gossip": gossip,
+        "starlink": starlink,
         "quorum": {
             "chunks_checked": quorum.get("chunks_checked"),
             "chunks_satisfied": quorum.get("chunks_satisfied"),
@@ -1559,6 +1568,22 @@ def _gossip_status_brief() -> Dict[str, Any]:
         return {"enabled": False, "error": str(exc)}
 
 
+def _starlink_status_brief() -> Dict[str, Any]:
+    try:
+        from chain_mesh import dtn_starlink as starlink
+
+        st = starlink.status_payload()
+        return {
+            "enabled": st.get("enabled"),
+            "format": st.get("format"),
+            "last_connected": st.get("last_connected"),
+            "last_handoff_delivered": st.get("last_handoff_delivered"),
+            "probe_streak": st.get("probe_streak"),
+        }
+    except Exception as exc:
+        return {"enabled": False, "error": str(exc)}
+
+
 def status_payload() -> Dict[str, Any]:
     from chain_mesh import dtn_tls as tls
 
@@ -1573,7 +1598,7 @@ def status_payload() -> Dict[str, Any]:
     fw = flush_window_status()
     return {
         "ok": True,
-        "wave": "H",
+        "wave": "I",
         "hardened": True,
         "use_case": "off_grid_dtn_mesh",
         "format": DTN_BUNDLE_FORMAT,
@@ -1599,6 +1624,7 @@ def status_payload() -> Dict[str, Any]:
         },
         "mdns": _mdns_status_brief(),
         "gossip": _gossip_status_brief(),
+        "starlink": _starlink_status_brief(),
         "watermarks": [dict(r) for r in wm],
         "apis": {
             "export": f"{public}/api/convergence/dtn/export",
@@ -1617,6 +1643,9 @@ def status_payload() -> Dict[str, Any]:
             "gossip_exchange": f"{public}/api/convergence/dtn/gossip/exchange",
             "gossip_round": f"{public}/api/convergence/dtn/gossip/round",
             "gossip_status": f"{public}/api/convergence/dtn/gossip/status",
+            "starlink_status": f"{public}/api/convergence/dtn/starlink/status",
+            "starlink_probe": f"{public}/api/convergence/dtn/starlink/probe",
+            "starlink_handoff": f"{public}/api/convergence/dtn/starlink/handoff",
         },
     }
 

@@ -11,6 +11,7 @@ from chain_mesh import blog_manifest as blog
 from chain_mesh import compute_job as cjobs
 from chain_mesh import depin_credits as depin
 from chain_mesh import dtn_gossip as gossip
+from chain_mesh import dtn_starlink as starlink
 from chain_mesh import dtn_sync as dtn
 from chain_mesh import mesh_providers as providers
 from chain_mesh import mesh_v2_lite as v2
@@ -42,7 +43,10 @@ def layer_status() -> List[Dict[str, Any]]:
             "layer": 2,
             "name": "Memory Fabric + DTN sync",
             "status": "beta",
-            "detail": f"RFC {blurt_reg.RFC_VERSION} chunks + DTN portable bundles (72h window)",
+            "detail": (
+                f"RFC {blurt_reg.RFC_VERSION} chunks + DTN bundles + "
+                f"{starlink.HANDOFF_FORMAT} satellite handoff"
+            ),
             "api": f"{public}/api/chain-mesh/v2/manifest",
             "dtn_export": f"{public}/api/convergence/dtn/export",
             "dtn_import": f"{public}/api/convergence/dtn/import",
@@ -86,7 +90,7 @@ def status_payload() -> Dict[str, Any]:
         "ok": True,
         "vision": "Sovereign Mesh 2030 — Blurt trust anchor + Bloodstone memory fabric",
         "tagline": "Autonomous, self-healing nervous system — identity owns truth, hardware owns the network",
-        "roadmap": "Wave A–G ✓ · Wave H: DTN gossip peer rumor exchange ✓",
+        "roadmap": "Wave A–H ✓ · Wave I: Starlink handoff bridge ✓",
         "layers": layer_status(),
         "mesh_v2": {
             "spec": v2_sys.get("spec"),

@@ -64,6 +64,7 @@ def main() -> int:
         "dtn_alerts=" + str(len((dtn_upkeep.get("alerts") or {}).get("active") or [])),
         "dtn_heal=" + str((dtn_upkeep.get("heal") or {}).get("heal_queued", 0)),
         "dtn_gossip=" + str((dtn_upkeep.get("gossip") or {}).get("exchanged", 0)),
+        "dtn_starlink=" + str((dtn_upkeep.get("starlink") or {}).get("delivered", 0)),
     )
     return 0
 

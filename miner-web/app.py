@@ -2591,6 +2591,38 @@ def api_convergence_dtn_gossip_round():
     return jsonify(cm.convergence_dtn_gossip_round_payload(limit=limit))
 
 
+@app.route("/api/convergence/dtn/starlink/status")
+@app.route("/mining/api/convergence/dtn/starlink/status")
+def api_convergence_dtn_starlink_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_dtn_starlink_status_payload())
+
+
+@app.route("/api/convergence/dtn/starlink/probe", methods=["GET", "POST"])
+@app.route("/mining/api/convergence/dtn/starlink/probe", methods=["GET", "POST"])
+def api_convergence_dtn_starlink_probe():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    url = str(payload.get("url") or request.args.get("url") or "").strip()
+    return jsonify(cm.convergence_dtn_starlink_probe_payload(url=url))
+
+
+@app.route("/api/convergence/dtn/starlink/handoff", methods=["POST"])
+@app.route("/mining/api/convergence/dtn/starlink/handoff", methods=["POST"])
+def api_convergence_dtn_starlink_handoff():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    force = payload.get("force") in (True, "1", 1) or request.args.get("force") in ("1", "true", "yes")
+    try:
+        limit = int(payload.get("limit") or request.args.get("limit") or 0)
+    except (TypeError, ValueError):
+        limit = 0
+    return jsonify(cm.convergence_dtn_starlink_handoff_payload(force=bool(force), limit=limit))
+
+
 @app.route("/api/convergence/spatial/manifest", methods=["GET", "POST"])
 @app.route("/mining/api/convergence/spatial/manifest", methods=["GET", "POST"])
 def api_convergence_spatial_manifest():

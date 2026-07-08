@@ -1226,6 +1226,24 @@ def convergence_dtn_gossip_round_payload(*, limit: int = 0) -> Dict[str, Any]:
     return gossip.gossip_round(limit=limit)
 
 
+def convergence_dtn_starlink_status_payload() -> Dict[str, Any]:
+    from chain_mesh import dtn_starlink as starlink
+
+    return starlink.status_payload()
+
+
+def convergence_dtn_starlink_probe_payload(*, url: str = "") -> Dict[str, Any]:
+    from chain_mesh import dtn_starlink as starlink
+
+    return starlink.probe_uplink(url=url)
+
+
+def convergence_dtn_starlink_handoff_payload(*, force: bool = False, limit: int = 0) -> Dict[str, Any]:
+    from chain_mesh import dtn_starlink as starlink
+
+    return starlink.starlink_handoff(force=force, limit=limit)
+
+
 def convergence_dtn_replication_heal_payload(
     *,
     region: str = "",
