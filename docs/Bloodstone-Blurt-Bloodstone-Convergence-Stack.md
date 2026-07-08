@@ -9,14 +9,48 @@
 
 | Layer | Name | Status | API |
 |-------|------|--------|-----|
-| 0 | Sovereign Identity (Blurt keys) | Live | Partner token + `required_posting_auths` |
+| 0 | Sovereign Identity (human + AI agents) | Beta | `POST /api/convergence/agent/register` · `GET /api/convergence/agent/verify` |
 | 1 | Trust Anchor (provenance + blogging) | Beta | `POST /api/convergence/provenance/anchor` · `GET /api/convergence/provenance/verify` |
 | 2 | Sharded Media (Chain Mesh) | Live | `GET /api/chain-mesh/v2/manifest` |
-| 3 | Edge Serving (Pi/Android fleet) | Live | `POST /api/chain-mesh/v2/providers` |
-| 4 | Economic Alignment (BLURT→STONE credits) | Beta | `GET /api/convergence/storage/quota` |
+| 3 | Edge DePIN (storage + compute + bandwidth) | Beta | `POST /api/chain-mesh/v2/providers` (roles) |
+| 4 | Circulatory Economy (memo rails) | Beta | `GET /api/convergence/depin/quota` · storage/compute/bandwidth |
 | 5 | Local Condenser UI | Beta | `GET /api/convergence/condenser/embed` · `/convergence/embed/{author}/{post_id}` |
 
 **Stack status:** `GET /api/convergence/status`
+
+---
+
+## Layer 0 — AI agent identity
+
+Blurt `custom_json` id: `bloodstone_agent/v1`
+
+Machine identity manifest: Blurt author + STONE payout address + capability tags (`publish`, `compute`, `storage`, `bandwidth`, `sensor`, `provenance`, `relay`).
+
+```bash
+curl -s -X POST https://bloodstonewallet.mytunnel.org/api/convergence/agent/register \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "blurt_author":"megadrive",
+    "stone_address":"STONE1YourAddressHere",
+    "agent_id":"field-reporter-01",
+    "capabilities":["publish","compute","provenance"],
+    "display_name":"Field Reporter Bot"
+  }'
+```
+
+Verify indexed agent:
+
+```bash
+curl -s 'https://bloodstonewallet.mytunnel.org/api/convergence/agent/verify?agent_id=field-reporter-01'
+```
+
+Autonomous publish scaffold (agent + blog manifest + memo rail hints):
+
+```bash
+curl -s -X POST https://bloodstonewallet.mytunnel.org/api/convergence/agent/publish-flow \
+  -H 'Content-Type: application/json' \
+  -d '{"blurt_author":"megadrive","stone_address":"STONE1...","post_id":"agent-dispatch-01","title":"Autonomous dispatch"}'
+```
 
 ---
 
@@ -98,6 +132,38 @@ Set `STORAGE_CREDIT_ENFORCE=1` to require credits on partner publish.
 
 ---
 
+## Layer 4 — DePIN compute + bandwidth memo rails
+
+Send BLURT to `@bloodstone-depin` (configurable via `BLURT_DEPIN_OUTPOST_ACCOUNT`):
+
+**Compute** — credits FLOPS from BLURT amount (`COMPUTE_FLOPS_PER_BLURT`, default 1 GFLOP/BLURT):
+
+```
+compute:<STONE_ADDRESS>:<job_id>
+```
+
+Example: `compute:STONE1abc...xyz:inference-batch-42`
+
+**Bandwidth** — credits relay bytes directly:
+
+```
+bandwidth:<STONE_ADDRESS>:<bytes>
+```
+
+Example: `bandwidth:STONE1abc...xyz:1073741824` (1 GiB relay quota)
+
+Check combined DePIN quota:
+
+```bash
+curl -s 'https://bloodstonewallet.mytunnel.org/api/convergence/depin/quota?stone_address=YOUR_STONE_ADDRESS'
+```
+
+Per-rail endpoints: `/api/convergence/compute/quota` and `/api/convergence/bandwidth/quota`.
+
+Provider registry supports roles: `storage`, `compute`, `bandwidth`, `sensor`, `coordinator`.
+
+---
+
 ## Condenser embed (Layer 5)
 
 **API** — mesh embed fragment + Pi-hostable page:
@@ -127,7 +193,9 @@ Supports HTTP Range — HTML5 `<video>` compatible.
 `/root/sync-blurt-convergence.py` runs on upkeep cycle:
 - Blurt registry sync (`chain_mesh_anchor` scan)
 - Provenance anchor sync (`bloodstone_provenance/v1` scan)
-- Storage outpost transfer scan
+- Agent identity sync (`bloodstone_agent/v1` scan)
+- Storage outpost transfer scan (`@bloodstone-storage`)
+- DePIN outpost transfer scan (`@bloodstone-depin` — compute + bandwidth memos)
 
 ---
 

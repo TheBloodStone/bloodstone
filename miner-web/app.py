@@ -2105,6 +2105,106 @@ def api_convergence_provenance_sync():
     return jsonify(cm.convergence_provenance_sync_payload())
 
 
+@app.route("/api/convergence/agent/register", methods=["GET", "POST"])
+@app.route("/mining/api/convergence/agent/register", methods=["GET", "POST"])
+def api_convergence_agent_register():
+    import chain_mesh.api as cm
+
+    if request.method == "GET":
+        payload = {
+            "blurt_author": request.args.get("blurt_author") or request.args.get("author") or "",
+            "stone_address": request.args.get("stone_address") or "",
+            "agent_id": request.args.get("agent_id") or "",
+            "display_name": request.args.get("display_name") or "",
+            "pubkey_hint": request.args.get("pubkey_hint") or "",
+            "capabilities": [
+                c.strip()
+                for c in (request.args.get("capabilities") or "").split(",")
+                if c.strip()
+            ],
+        }
+    else:
+        payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_agent_register_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/agent/verify")
+@app.route("/mining/api/convergence/agent/verify")
+def api_convergence_agent_verify():
+    import chain_mesh.api as cm
+
+    return jsonify(
+        cm.convergence_agent_verify_payload(
+            agent_id=(request.args.get("agent_id") or "").strip(),
+            blurt_author=(request.args.get("blurt_author") or request.args.get("author") or "").strip(),
+        )
+    )
+
+
+@app.route("/api/convergence/agent/sync", methods=["POST"])
+@app.route("/mining/api/convergence/agent/sync", methods=["POST"])
+def api_convergence_agent_sync():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_agent_sync_payload())
+
+
+@app.route("/api/convergence/agent/publish-flow", methods=["POST"])
+@app.route("/mining/api/convergence/agent/publish-flow", methods=["POST"])
+def api_convergence_agent_publish_flow():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_agent_publish_flow_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/compute/quota")
+@app.route("/mining/api/convergence/compute/quota")
+def api_convergence_compute_quota():
+    import chain_mesh.api as cm
+
+    stone = (request.args.get("stone_address") or request.args.get("address") or "").strip()
+    if not stone:
+        return jsonify({"ok": False, "error": "stone_address required"}), 400
+    return jsonify(cm.convergence_compute_quota_payload(stone))
+
+
+@app.route("/api/convergence/bandwidth/quota")
+@app.route("/mining/api/convergence/bandwidth/quota")
+def api_convergence_bandwidth_quota():
+    import chain_mesh.api as cm
+
+    stone = (request.args.get("stone_address") or request.args.get("address") or "").strip()
+    if not stone:
+        return jsonify({"ok": False, "error": "stone_address required"}), 400
+    return jsonify(cm.convergence_bandwidth_quota_payload(stone))
+
+
+@app.route("/api/convergence/depin/quota")
+@app.route("/mining/api/convergence/depin/quota")
+def api_convergence_depin_quota():
+    import chain_mesh.api as cm
+
+    stone = (request.args.get("stone_address") or request.args.get("address") or "").strip()
+    if not stone:
+        return jsonify({"ok": False, "error": "stone_address required"}), 400
+    return jsonify(cm.convergence_depin_quota_payload(stone))
+
+
+@app.route("/api/convergence/depin/sync", methods=["POST"])
+@app.route("/mining/api/convergence/depin/sync", methods=["POST"])
+def api_convergence_depin_sync():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_depin_sync_payload())
+
+
 @app.route("/api/chain-mesh/v2/blurt/sync", methods=["POST"])
 @admin_api_required
 def api_chain_mesh_v2_blurt_sync():
