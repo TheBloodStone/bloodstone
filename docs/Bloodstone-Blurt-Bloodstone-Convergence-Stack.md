@@ -11,7 +11,7 @@
 |-------|------|--------|-----|
 | 0 | Sovereign Identity (human + AI agents) | Beta | `POST /api/convergence/agent/register` · `GET /api/convergence/agent/verify` |
 | 1 | Trust Anchor (provenance + blogging) | Beta | `POST /api/convergence/provenance/anchor` · `GET /api/convergence/provenance/verify` |
-| 2 | Sharded Media (Chain Mesh) | Live | `GET /api/chain-mesh/v2/manifest` |
+| 2 | Memory Fabric + DTN sync | Beta | `GET /api/convergence/dtn/export` · `POST /api/convergence/dtn/import` |
 | 3 | Edge DePIN (storage + compute + bandwidth) | Beta | `POST /api/chain-mesh/v2/providers` (roles) |
 | 4 | Circulatory Economy (memo rails) | Beta | `GET /api/convergence/depin/quota` · storage/compute/bandwidth |
 | 5 | Local Condenser UI | Beta | `GET /api/convergence/condenser/embed` · `/convergence/embed/{author}/{post_id}` |
@@ -97,6 +97,53 @@ curl -s -X POST https://bloodstonewallet.mytunnel.org/api/convergence/blog/manif
 ```
 
 Response includes `blurt_custom_json` for Blurt backend broadcast + `embed_html` for Condenser.
+
+---
+
+## Layer 2 — DTN sync bundles (Wave C)
+
+Format: `bloodstone-dtn-bundle-v1` — portable capsule with Blurt anchor diffs + optional mesh chunks.
+
+Default sync window: **72 hours** (`DTN_SYNC_WINDOW_SEC`). Pi nodes run offline, queue bundles, flush on brief uplink.
+
+**Export** (metadata + optional base64 for small bundles):
+
+```bash
+curl -s 'https://bloodstonewallet.mytunnel.org/api/convergence/dtn/export?node_id=pi-edge-01&include_chunks=1'
+```
+
+**Download zip:**
+
+```
+/api/convergence/dtn/export/download?node_id=pi-edge-01
+```
+
+**Import** (coordinator or peer):
+
+```bash
+curl -s -X POST https://bloodstonewallet.mytunnel.org/api/convergence/dtn/import \
+  -H 'Content-Type: application/json' \
+  -d '{"data_b64":"<zip-bytes-base64>"}'
+```
+
+**Store-and-forward** (no continuous uplink):
+
+```bash
+# Queue bundle from peer
+curl -s -X POST .../api/convergence/dtn/forward/submit -d '{"data_b64":"...","from_node_id":"pi-edge-02"}'
+
+# Flush pending bundles when uplink returns
+curl -s -X POST .../api/convergence/dtn/forward/flush
+```
+
+**Regional replication quorum** (N-of-M scaffold):
+
+```bash
+curl -s -X POST .../api/convergence/dtn/replication/check -d '{"region":"eu-west"}'
+curl -s '.../api/convergence/dtn/replication/status?region=eu-west'
+```
+
+Bundle contents: `blurt-anchors.json`, `provenance-anchors.json`, `agent-identities.json`, optional `chunks/`.
 
 ---
 
@@ -196,6 +243,7 @@ Supports HTTP Range — HTML5 `<video>` compatible.
 - Agent identity sync (`bloodstone_agent/v1` scan)
 - Storage outpost transfer scan (`@bloodstone-storage`)
 - DePIN outpost transfer scan (`@bloodstone-depin` — compute + bandwidth memos)
+- DTN forward flush when `DTN_AUTO_FLUSH=1` (store-and-forward uplink window)
 
 ---
 

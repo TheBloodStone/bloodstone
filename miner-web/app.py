@@ -2205,6 +2205,170 @@ def api_convergence_depin_sync():
     return jsonify(cm.convergence_depin_sync_payload())
 
 
+@app.route("/api/convergence/dtn/status")
+@app.route("/mining/api/convergence/dtn/status")
+def api_convergence_dtn_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_dtn_status_payload())
+
+
+@app.route("/api/convergence/dtn/export", methods=["GET", "POST"])
+@app.route("/mining/api/convergence/dtn/export", methods=["GET", "POST"])
+def api_convergence_dtn_export():
+    import chain_mesh.api as cm
+
+    if request.method == "POST":
+        payload = request.get_json(silent=True) or {}
+    else:
+        payload = {
+            "node_id": request.args.get("node_id") or "",
+            "region": request.args.get("region") or "",
+            "include_chunks": request.args.get("include_chunks", "1") not in ("0", "false", "no"),
+            "queue_forward": request.args.get("queue_forward") in ("1", "true", "yes"),
+        }
+        since = request.args.get("since")
+        if since:
+            try:
+                payload["since"] = int(since)
+            except (TypeError, ValueError):
+                return jsonify({"ok": False, "error": "invalid since"}), 400
+    try:
+        return jsonify(
+            cm.convergence_dtn_export_payload(
+                node_id=str(payload.get("node_id") or ""),
+                since=payload.get("since"),
+                include_chunks=bool(payload.get("include_chunks", True)),
+                region=str(payload.get("region") or ""),
+                queue_forward=bool(payload.get("queue_forward")),
+            )
+        )
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/dtn/export/download")
+@app.route("/mining/api/convergence/dtn/export/download")
+def api_convergence_dtn_export_download():
+    import chain_mesh.api as cm
+    from flask import Response
+
+    since = request.args.get("since")
+    since_val = None
+    if since:
+        try:
+            since_val = int(since)
+        except (TypeError, ValueError):
+            return jsonify({"ok": False, "error": "invalid since"}), 400
+    try:
+        blob, filename, _meta = cm.convergence_dtn_build_zip(
+            node_id=(request.args.get("node_id") or "").strip(),
+            since=since_val,
+            include_chunks=request.args.get("include_chunks", "1") not in ("0", "false", "no"),
+            region=(request.args.get("region") or "").strip(),
+        )
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    return Response(
+        blob,
+        mimetype="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.route("/api/convergence/dtn/import", methods=["POST"])
+@app.route("/mining/api/convergence/dtn/import", methods=["POST"])
+def api_convergence_dtn_import():
+    import chain_mesh.api as cm
+
+    upload = request.files.get("bundle_file")
+    if upload:
+        try:
+            from chain_mesh.dtn_sync import import_dtn_bundle
+
+            return jsonify(import_dtn_bundle(upload.read()))
+        except (ValueError, TypeError) as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_dtn_import_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/dtn/forward/pending")
+@app.route("/mining/api/convergence/dtn/forward/pending")
+def api_convergence_dtn_forward_pending():
+    import chain_mesh.api as cm
+
+    try:
+        limit = int(request.args.get("limit") or 20)
+    except (TypeError, ValueError):
+        limit = 20
+    return jsonify(cm.convergence_dtn_forward_pending_payload(limit=limit))
+
+
+@app.route("/api/convergence/dtn/forward/submit", methods=["POST"])
+@app.route("/mining/api/convergence/dtn/forward/submit", methods=["POST"])
+def api_convergence_dtn_forward_submit():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_dtn_forward_submit_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/dtn/forward/flush", methods=["POST"])
+@app.route("/mining/api/convergence/dtn/forward/flush", methods=["POST"])
+def api_convergence_dtn_forward_flush():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        limit = int(payload.get("limit") or request.args.get("limit") or 3)
+    except (TypeError, ValueError):
+        limit = 3
+    return jsonify(
+        cm.convergence_dtn_forward_flush_payload(
+            upstream_url=str(payload.get("upstream_url") or request.args.get("upstream_url") or ""),
+            limit=limit,
+        )
+    )
+
+
+@app.route("/api/convergence/dtn/replication/status")
+@app.route("/mining/api/convergence/dtn/replication/status")
+def api_convergence_dtn_replication_status():
+    import chain_mesh.api as cm
+
+    return jsonify(
+        cm.convergence_dtn_replication_status_payload(
+            region=(request.args.get("region") or "").strip()
+        )
+    )
+
+
+@app.route("/api/convergence/dtn/replication/check", methods=["POST"])
+@app.route("/mining/api/convergence/dtn/replication/check", methods=["POST"])
+def api_convergence_dtn_replication_check():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(
+            cm.convergence_dtn_replication_check_payload(
+                region=str(payload.get("region") or ""),
+                chunk_hashes=payload.get("chunk_hashes"),
+                quorum_n=int(payload.get("quorum_n") or 0),
+                quorum_m=int(payload.get("quorum_m") or 0),
+            )
+        )
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
 @app.route("/api/chain-mesh/v2/blurt/sync", methods=["POST"])
 @admin_api_required
 def api_chain_mesh_v2_blurt_sync():
