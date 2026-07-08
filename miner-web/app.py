@@ -1956,6 +1956,65 @@ def api_chain_mesh_v2_providers():
     return jsonify(cm.mesh_v2_list_providers_payload(tenant=tenant, role=role))
 
 
+@app.route("/api/convergence/status")
+@app.route("/mining/api/convergence/status")
+def api_convergence_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_status_payload())
+
+
+@app.route("/api/convergence/storage/quota")
+@app.route("/mining/api/convergence/storage/quota")
+def api_convergence_storage_quota():
+    import chain_mesh.api as cm
+
+    stone = (request.args.get("stone_address") or request.args.get("address") or "").strip()
+    if not stone:
+        return jsonify({"ok": False, "error": "stone_address required"}), 400
+    return jsonify(cm.convergence_storage_quota_payload(stone))
+
+
+@app.route("/api/convergence/storage/sync", methods=["POST"])
+@app.route("/mining/api/convergence/storage/sync", methods=["POST"])
+def api_convergence_storage_sync():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_storage_sync_payload())
+
+
+@app.route("/api/convergence/blog/manifest", methods=["GET", "POST"])
+@app.route("/mining/api/convergence/blog/manifest", methods=["GET", "POST"])
+def api_convergence_blog_manifest():
+    import chain_mesh.api as cm
+
+    if request.method == "GET":
+        payload = {
+            "post_id": request.args.get("post_id") or "",
+            "author": request.args.get("author") or "",
+            "asset_keys": [k.strip() for k in (request.args.get("asset_keys") or "").split(",") if k.strip()],
+            "title": request.args.get("title") or "",
+            "permlink": request.args.get("permlink") or "",
+            "filename": request.args.get("filename") or "",
+            "mime_type": request.args.get("mime_type") or "",
+        }
+    else:
+        payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_blog_manifest_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/blog/publish-flow", methods=["POST"])
+@app.route("/mining/api/convergence/blog/publish-flow", methods=["POST"])
+def api_convergence_blog_publish_flow():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    return jsonify(cm.convergence_blog_publish_flow_payload(payload))
+
+
 @app.route("/api/chain-mesh/v2/blurt/sync", methods=["POST"])
 @admin_api_required
 def api_chain_mesh_v2_blurt_sync():

@@ -703,6 +703,13 @@ def api_exchange():
     return jsonify(exchange_listing())
 
 
+@app.route("/api/convergence/status")
+def api_convergence_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_status_payload())
+
+
 @app.route("/api/quasar/status")
 def api_quasar_status():
     try:

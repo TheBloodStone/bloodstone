@@ -12,7 +12,7 @@
 
 static UniValue ReadBraidExport()
 {
-    const fs::path path = GetDataDir() / "indexes" / "braid" / "rpc-export.json";
+    const fs::path path = fsbridge::AbsPathJoin(gArgs.GetDataDirNet(), "indexes/braid/rpc-export.json");
     std::ifstream file{path};
     if (!file.good()) {
         UniValue empty(UniValue::VOBJ);
@@ -65,7 +65,7 @@ static RPCHelpMan getquasaractivation()
         ret.pushKV("version_bit", 3);
         ret.pushKV("state", gArgs.GetArg("-quasarbraidfork", "defined"));
         ret.pushKV("enforcement_mode", gArgs.GetArg("-quasarenforce", "policy"));
-        ret.pushKV("epoch_blocks", gArgs.GetIntArg("-quasarepochblocks", 10));
+        ret.pushKV("epoch_blocks", gArgs.GetArg("-quasarepochblocks", int64_t{10}));
         ret.pushKV("window_blocks", 2016);
         ret.pushKV("threshold_mainnet", 1815);
         ret.pushKV("threshold_testnet", 1512);
