@@ -1,0 +1,11 @@
+[Unit]
+Description=Blurt-Bloodstone convergence upkeep (registry + memo rails)
+After=network-online.target bloodstone-portal.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root
+Environment=PYTHONPATH=/root
+EnvironmentFile=-/etc/bloodstone/convergence.env
+ExecStart=/root/bloodstone-portal/venv/bin/python3 /root/sync-blurt-convergence.py

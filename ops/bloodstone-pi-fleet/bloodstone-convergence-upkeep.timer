@@ -1,0 +1,11 @@
+[Unit]
+Description=Run convergence upkeep every 5 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=30
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,19 @@
+[Unit]
+Description=Bloodstone DTN mDNS broadcaster (_bloodstone-dtn._tcp)
+After=network-online.target bloodstone-portal.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root
+Environment=PYTHONPATH=/root
+EnvironmentFile=-/etc/bloodstone/convergence.env
+Environment=DTN_LAN_WEB_PORT=8887
+Environment=DTN_MDNS_INTERVAL_SEC=30
+ExecStart=/root/bloodstone-portal/venv/bin/python3 /root/bloodstone-dtn-mdns.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

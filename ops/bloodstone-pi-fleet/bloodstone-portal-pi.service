@@ -1,0 +1,18 @@
+[Unit]
+Description=Bloodstone Portal (Pi DTN edge node)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/bloodstone-portal
+Environment=PYTHONPATH=/root
+EnvironmentFile=-/etc/bloodstone/convergence.env
+Environment=BLOODSTONE_PUBLIC_ROOT=https://bloodstonewallet.mytunnel.org
+ExecStart=/root/bloodstone-portal/venv/bin/gunicorn --bind 127.0.0.1:8887 --workers 1 --threads 4 --timeout 120 app:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

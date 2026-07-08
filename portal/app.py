@@ -886,6 +886,8 @@ def api_convergence_compute_job_submit():
     payload = request.get_json(silent=True) or {}
     try:
         return jsonify(cm.convergence_compute_job_submit_payload(payload))
+    except PermissionError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 403
     except (ValueError, TypeError) as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 
@@ -953,6 +955,7 @@ def api_convergence_dtn_export():
         payload = {
             "node_id": request.args.get("node_id") or "",
             "region": request.args.get("region") or "",
+            "stone_address": request.args.get("stone_address") or "",
             "include_chunks": request.args.get("include_chunks", "1") not in ("0", "false", "no"),
             "queue_forward": request.args.get("queue_forward") in ("1", "true", "yes"),
         }
@@ -970,8 +973,11 @@ def api_convergence_dtn_export():
                 include_chunks=bool(payload.get("include_chunks", True)),
                 region=str(payload.get("region") or ""),
                 queue_forward=bool(payload.get("queue_forward")),
+                stone_address=str(payload.get("stone_address") or ""),
             )
         )
+    except PermissionError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 403
     except (ValueError, TypeError) as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
 
@@ -994,7 +1000,10 @@ def api_convergence_dtn_export_download():
             since=since_val,
             include_chunks=request.args.get("include_chunks", "1") not in ("0", "false", "no"),
             region=(request.args.get("region") or "").strip(),
+            stone_address=(request.args.get("stone_address") or "").strip(),
         )
+    except PermissionError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 403
     except (ValueError, TypeError) as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
     return Response(
