@@ -2240,6 +2240,40 @@ def api_convergence_compute_quota():
     return jsonify(cm.convergence_compute_quota_payload(stone))
 
 
+@app.route("/api/convergence/compute/tenant/quota")
+@app.route("/mining/api/convergence/compute/tenant/quota")
+def api_convergence_compute_tenant_quota():
+    import chain_mesh.api as cm
+
+    return jsonify(
+        cm.convergence_compute_tenant_quota_payload(
+            tenant_id=str(request.args.get("tenant_id") or ""),
+            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            stone_address=str(request.args.get("stone_address") or ""),
+        )
+    )
+
+
+@app.route("/api/convergence/compute/tenant/status")
+@app.route("/mining/api/convergence/compute/tenant/status")
+def api_convergence_compute_tenant_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_compute_tenant_status_payload())
+
+
+@app.route("/api/convergence/compute/tenant/bind", methods=["POST"])
+@app.route("/mining/api/convergence/compute/tenant/bind", methods=["POST"])
+def api_convergence_compute_tenant_bind():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_compute_tenant_bind_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
 @app.route("/api/convergence/compute/job/status")
 @app.route("/mining/api/convergence/compute/job/status")
 def api_convergence_compute_job_status():
@@ -2972,6 +3006,14 @@ def api_convergence_ai_gossip_sign_status():
     import chain_mesh.api as cm
 
     return jsonify(cm.convergence_ai_gossip_sign_status_payload())
+
+
+@app.route("/api/convergence/ai/provider/sync", methods=["POST"])
+@app.route("/mining/api/convergence/ai/provider/sync", methods=["POST"])
+def api_convergence_ai_provider_sync():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_ai_provider_sync_payload())
 
 
 @app.route("/api/convergence/spatial/manifest", methods=["GET", "POST"])

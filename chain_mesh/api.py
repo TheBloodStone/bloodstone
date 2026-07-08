@@ -1037,6 +1037,44 @@ def convergence_compute_quota_payload(stone_address: str) -> Dict[str, Any]:
     return depin.compute_quota(stone_address)
 
 
+def convergence_compute_tenant_quota_payload(
+    *,
+    tenant_id: str = "",
+    blurt_author: str = "",
+    stone_address: str = "",
+) -> Dict[str, Any]:
+    from chain_mesh import compute_tenant_quota as tenant
+
+    return tenant.tenant_quota(
+        tenant_id=tenant_id,
+        blurt_author=blurt_author,
+        stone_address=stone_address,
+    )
+
+
+def convergence_compute_tenant_bind_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh import compute_tenant_quota as tenant
+
+    return tenant.bind_tenant_author(
+        tenant_id=str(payload.get("tenant_id") or ""),
+        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+        stone_address=str(payload.get("stone_address") or ""),
+        flops_cap=int(payload.get("flops_cap") or 0),
+    )
+
+
+def convergence_compute_tenant_status_payload() -> Dict[str, Any]:
+    from chain_mesh import compute_tenant_quota as tenant
+
+    return tenant.status_payload()
+
+
+def convergence_ai_provider_sync_payload() -> Dict[str, Any]:
+    from chain_mesh import ai_provider as aip
+
+    return aip.sync_registry_providers()
+
+
 def convergence_compute_job_submit_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import compute_job as cjobs
 

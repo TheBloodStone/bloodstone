@@ -205,6 +205,18 @@ Run llama.cpp on `:8081` for local dispatch. AI provider discovery uses `_bloods
 
 Design doc: `bloodstone-docs/Wave-M-On-Device-AI-Routing-Design.md`
 
+### Multi-tenant compute quota (Wave P)
+
+Pi fleets can cap FLOPS per Blurt author on shared edge hardware. Bind authors to STONE pools and enforce at submit/route time:
+
+```bash
+curl -X POST http://127.0.0.1:8887/api/convergence/compute/tenant/bind \
+  -H 'Content-Type: application/json' \
+  -d '{"tenant_id":"bloodstone","blurt_author":"megadrive","stone_address":"STONE...","flops_cap":5000000000}'
+curl -fsS 'http://127.0.0.1:8887/api/convergence/compute/tenant/quota?blurt_author=megadrive' | jq .
+curl -X POST http://127.0.0.1:8887/api/convergence/ai/provider/sync
+```
+
 ### Signed gossip + NPU detect (Wave O)
 
 AI provider gossip snapshots are HMAC-signed (`bloodstone_ai_gossip_snapshot/v1`). Hailo/Coral devices are auto-detected via `/dev` probe on discover/upkeep:

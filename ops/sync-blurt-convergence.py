@@ -8,7 +8,9 @@ sys.path.insert(0, "/root")
 import os
 
 from chain_mesh import agent_identity as agent
+from chain_mesh import ai_provider as aip
 from chain_mesh import ai_routing as ai
+from chain_mesh import compute_tenant_quota as tenant
 from chain_mesh import bridge_swap as bridge
 from chain_mesh import condenser_offline as coff
 from chain_mesh import blurt_registry_v2 as br
@@ -50,6 +52,8 @@ def main() -> int:
     )
     offline_index = coff.index_offline_feed(sync_blurt=os.environ.get("CONDENSER_OFFLINE_SYNC_BLURT", "1") == "1")
     bridge_sync = bridge.sync_bridge_transfers()
+    tenant_sync = tenant.sync_bindings_from_jobs()
+    ai_provider_sync = aip.sync_registry_providers()
     ai_upkeep = ai.upkeep_ai()
     dtn_upkeep = dtn.upkeep_dtn(
         force_flush=os.environ.get("DTN_AUTO_FLUSH", "0").strip() in ("1", "true", "yes")
@@ -76,6 +80,8 @@ def main() -> int:
         "bridge_funded=" + str(bridge_sync.get("funded", 0)),
         "ai_providers=" + str(ai_upkeep.get("discovered", 0)),
         "ai_routed=" + str(ai_upkeep.get("routed", 0)),
+        "tenant_bound=" + str(tenant_sync.get("bound", 0)),
+        "ai_providers_synced=" + str(ai_provider_sync.get("indexed", 0)),
     )
     return 0
 

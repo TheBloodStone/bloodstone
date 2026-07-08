@@ -322,3 +322,88 @@ def provider_health_payload(*, provider_id: str = "") -> Dict[str, Any]:
         "load_ratio": round(load, 4),
         "runtimes": json.loads((provider or {}).get("runtimes") or "[]"),
     }
+
+
+def _parse_provider_op(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if str(data.get("v") or "") != "1":
+        return None
+    pid = str(data.get("provider_id") or "").strip()[:64]
+    if not pid:
+        return None
+    runtimes = data.get("runtimes") or []
+    if isinstance(runtimes, str):
+        runtimes = [r.strip() for r in runtimes.split(",") if r.strip()]
+    data["runtimes"] = [
+        str(r).strip().lower()
+        for r in runtimes
+        if str(r).strip().lower() in VALID_RUNTIMES
+    ]
+    if not data["runtimes"]:
+        data["runtimes"] = ["cpu-inference"]
+    return data
+
+
+def _blurt_rpc(method: str, params: List[Any]) -> Any:
+    import requests
+
+    from chain_mesh import blurt_registry_v2 as blurt_reg
+
+    last_err = None
+    for node in blurt_reg.BLURT_RPC_NODES:
+        try:
+            resp = requests.post(
+                node,
+                json={"jsonrpc": "2.0", "method": method, "params": params, "id": 1},
+                timeout=20,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+            if payload.get("error"):
+                raise RuntimeError(payload["error"])
+            return payload.get("result")
+        except Exception as exc:
+            last_err = exc
+    raise RuntimeError(f"Blurt RPC failed: {last_err}")
+
+
+def sync_account_providers(account: str, *, limit: int = 200) -> Dict[str, Any]:
+    from chain_mesh import blurt_registry_v2 as blurt_reg
+
+    init_ai_provider_db()
+    acct = (account or "").lstrip("@").lower()
+    history = _blurt_rpc(
+        "database_api.get_account_history",
+        [acct, -1, limit, 1000000000],
+    )
+    indexed = 0
+    for item in history or []:
+        op = (item.get("op") or [])[1] if isinstance(item.get("op"), list) else {}
+        if not isinstance(op, dict) or op.get("id") != AI_PROVIDER_ID:
+            continue
+        try:
+            data = json.loads(op.get("json") or "{}")
+        except json.JSONDecodeError:
+            continue
+        body = _parse_provider_op(data)
+        if not body:
+            continue
+        register_ai_provider(
+            provider_id=str(body.get("provider_id") or ""),
+            source="blurt_registry",
+            body=body,
+        )
+        indexed += 1
+    return {"ok": True, "account": acct, "indexed": indexed}
+
+
+def sync_registry_providers() -> Dict[str, Any]:
+    from chain_mesh import blurt_registry_v2 as blurt_reg
+
+    results = []
+    for acct in blurt_reg.REGISTRY_ACCOUNTS:
+        try:
+            results.append(sync_account_providers(acct))
+        except Exception as exc:
+            results.append({"ok": False, "account": acct, "error": str(exc)})
+    total = sum(int(r.get("indexed") or 0) for r in results if r.get("ok"))
+    return {"ok": True, "accounts": results, "indexed": total}

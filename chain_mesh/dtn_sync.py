@@ -1720,7 +1720,7 @@ def status_payload() -> Dict[str, Any]:
     fw = flush_window_status()
     return {
         "ok": True,
-        "wave": "O",
+        "wave": "P",
         "hardened": True,
         "use_case": "off_grid_dtn_mesh",
         "format": DTN_BUNDLE_FORMAT,

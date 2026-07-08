@@ -273,6 +273,7 @@ def submit_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         body["stone_address"],
         flops_budget=int(body.get("flops_budget") or 0),
         job_id=str(body.get("job_id") or ""),
+        blurt_author=str(body.get("blurt_author") or ""),
     )
     if not quota_check.get("allowed"):
         raise PermissionError(quota_check.get("reason") or "compute quota exceeded")
@@ -346,6 +347,15 @@ def verify_payload(*, job_id: str = "", stone_address: str = "") -> Dict[str, An
     }
 
 
+def _tenant_status() -> Dict[str, Any]:
+    try:
+        from chain_mesh import compute_tenant_quota as tenant
+
+        return tenant.status_payload()
+    except Exception:
+        return {"ok": False}
+
+
 def status_payload() -> Dict[str, Any]:
     init_compute_job_db()
     with _conn() as conn:
@@ -369,11 +379,15 @@ def status_payload() -> Dict[str, Any]:
         "running": int(running),
         "memo_format": "compute:<STONE_ADDRESS>:<job_id>",
         "enforce_quota": depin.ENFORCE_COMPUTE,
+        "tenant_quota": _tenant_status(),
         "apis": {
             "submit": f"{public}/api/convergence/compute/job/submit",
             "verify": f"{public}/api/convergence/compute/job/verify",
             "list": f"{public}/api/convergence/compute/jobs",
             "quota": f"{public}/api/convergence/compute/quota",
+            "tenant_quota": f"{public}/api/convergence/compute/tenant/quota",
+            "tenant_bind": f"{public}/api/convergence/compute/tenant/bind",
+            "ai_provider_sync": f"{public}/api/convergence/ai/provider/sync",
         },
     }
 

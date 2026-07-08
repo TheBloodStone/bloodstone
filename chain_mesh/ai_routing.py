@@ -653,7 +653,12 @@ def debit_compute_job(*, job_id: str, stone_address: str, flops_budget: int) -> 
             (jid, addr, flops, _now()),
         )
     if flops > 0:
-        depin.record_compute_usage(addr, delta_flops=flops)
+        job = cjobs.get_compute_job(job_id=jid)
+        depin.record_compute_usage(
+            addr,
+            delta_flops=flops,
+            blurt_author=str((job or {}).get("blurt_author") or ""),
+        )
     return {"ok": True, "job_id": jid, "flops_debited": flops}
 
 
@@ -1214,6 +1219,7 @@ def route_inference_job(*, job_id: str, force: bool = False) -> Dict[str, Any]:
         str(job.get("stone_address") or ""),
         flops_budget=int(job.get("flops_budget") or 0),
         job_id=str(job.get("job_id") or ""),
+        blurt_author=str(job.get("blurt_author") or ""),
     )
     if not quota.get("allowed"):
         raise PermissionError(quota.get("reason") or "compute quota exceeded")
@@ -1536,7 +1542,7 @@ def status_payload(*, include_uplink: bool = True) -> Dict[str, Any]:
         "uplink": uplink,
         "providers_count": providers_count,
         "last_upkeep": dict(_LAST_UPKEEP),
-        "wave": "O",
+        "wave": "P",
         "coordinator_dispatch": AI_COORDINATOR_DISPATCH_ENABLE,
         "coordinator_node": _is_coordinator_node(),
         "gossip_sign": _gossip_sign_status(),
