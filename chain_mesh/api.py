@@ -1376,6 +1376,65 @@ def convergence_bridge_sync_payload() -> Dict[str, Any]:
     return bridge.sync_bridge_transfers()
 
 
+def convergence_ai_status_payload() -> Dict[str, Any]:
+    from chain_mesh import ai_routing as ai
+
+    return ai.status_payload()
+
+
+def convergence_ai_providers_payload(
+    *,
+    runtime: str = "",
+    region: str = "",
+    limit: int = 50,
+) -> Dict[str, Any]:
+    from chain_mesh import ai_provider as aip
+
+    return aip.list_ai_providers(runtime=runtime, region=region, limit=limit)
+
+
+def convergence_ai_register_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh import ai_routing as ai
+
+    return ai.register_local_provider(
+        provider_id=str(payload.get("provider_id") or ""),
+        node_id=str(payload.get("node_id") or ""),
+        display_name=str(payload.get("display_name") or ""),
+        runtimes=payload.get("runtimes"),
+        region=str(payload.get("region") or ""),
+        offline_capable=payload.get("offline_capable", True) not in (False, "0", 0),
+        endpoints=payload.get("endpoints"),
+        models=payload.get("models"),
+        flops_per_sec=int(payload.get("flops_per_sec") or 0),
+        max_concurrent=int(payload.get("max_concurrent") or 2),
+        source=str(payload.get("source") or "manual"),
+    )
+
+
+def convergence_ai_route_payload(*, job_id: str = "", force: bool = False) -> Dict[str, Any]:
+    from chain_mesh import ai_routing as ai
+
+    return ai.route_inference_job(job_id=job_id, force=bool(force))
+
+
+def convergence_ai_submit_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh import ai_routing as ai
+
+    return ai.submit_inference_payload(payload)
+
+
+def convergence_ai_provider_health_payload(*, provider_id: str = "") -> Dict[str, Any]:
+    from chain_mesh import ai_provider as aip
+
+    return aip.provider_health_payload(provider_id=provider_id)
+
+
+def convergence_ai_discover_payload() -> Dict[str, Any]:
+    from chain_mesh import ai_routing as ai
+
+    return ai.discover_ai_providers()
+
+
 def convergence_dtn_replication_heal_payload(
     *,
     region: str = "",

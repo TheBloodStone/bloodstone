@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 MDNS_DTN_SERVICE_TYPE = "_bloodstone-dtn._tcp.local."
 MDNS_LAN_SERVICE_TYPE = "_bloodstone-lan._tcp.local."
+MDNS_AI_SERVICE_TYPE = "_bloodstone-ai._tcp.local."
 MDNS_BROWSE_SEC = float(os.environ.get("DTN_MDNS_BROWSE_SEC", "3.0"))
 MDNS_ENABLED = os.environ.get("DTN_MDNS_ENABLE", "1").strip() not in ("0", "false", "no")
 
@@ -337,6 +338,93 @@ def _browse_avahi() -> List[Dict[str, Any]]:
             }
         )
     return found
+
+
+def _browse_avahi_ai() -> List[Dict[str, Any]]:
+    try:
+        proc = subprocess.run(
+            ["avahi-browse", "-art", "_bloodstone-ai._tcp"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return []
+
+    found: List[Dict[str, Any]] = []
+    seen = set()
+    for line in (proc.stdout or "").splitlines():
+        if not line.startswith("="):
+            continue
+        parts = line.split(";")
+        if len(parts) < 8:
+            continue
+        host = parts[7].strip()
+        try:
+            port = int(parts[8].strip())
+        except (IndexError, ValueError):
+            continue
+        props_raw = parts[9].strip() if len(parts) > 9 else ""
+        props: Dict[str, str] = {}
+        for chunk in re.split(r"[\t\s]+", props_raw):
+            if "=" in chunk:
+                k, v = chunk.split("=", 1)
+                props[k.strip()] = v.strip().strip('"')
+        key = f"{host}:{port}"
+        if key in seen:
+            continue
+        seen.add(key)
+        runtimes = [r.strip() for r in props.get("runtimes", "cpu-inference").split(",") if r.strip()]
+        inference_port = int(props.get("inference_port") or port or 8081)
+        health_port = int(props.get("health_port") or _web_port())
+        health_path = props.get("health_path") or "/api/convergence/ai/provider/health"
+        found.append(
+            {
+                "host": host,
+                "port": port,
+                "node_id": props.get("node_id") or host,
+                "provider_id": props.get("provider_id") or f"{props.get('node_id') or host}-ai",
+                "region": props.get("region") or "global",
+                "runtimes": runtimes,
+                "offline_capable": props.get("offline", "1") in ("1", "true", "yes"),
+                "inference_port": inference_port,
+                "endpoints": {
+                    "inference_url": f"http://{host}:{inference_port}/v1/completions",
+                    "health_url": f"http://{host}:{health_port}{health_path}",
+                },
+                "source": "mdns",
+            }
+        )
+    return found
+
+
+def discover_mdns_ai_providers(*, register: bool = True) -> Dict[str, Any]:
+    """Browse _bloodstone-ai._tcp and register AI providers."""
+    from chain_mesh import ai_provider as aip
+
+    if not MDNS_ENABLED:
+        return {"ok": True, "skipped": True, "registered": 0}
+    services = _browse_avahi_ai()
+    registered = 0
+    local_id = _node_id()
+    for svc in services:
+        nid = str(svc.get("node_id") or "")
+        if nid == local_id:
+            continue
+        if register:
+            aip.register_ai_provider(
+                provider_id=str(svc.get("provider_id") or f"{nid}-ai"),
+                source="mdns",
+                body=svc,
+            )
+            registered += 1
+    return {
+        "ok": True,
+        "service_type": MDNS_AI_SERVICE_TYPE,
+        "services_found": len(services),
+        "registered": registered,
+    }
 
 
 def discover_mdns_dtn_peers(*, register: bool = True) -> Dict[str, Any]:

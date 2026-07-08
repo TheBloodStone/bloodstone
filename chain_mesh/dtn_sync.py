@@ -340,6 +340,48 @@ def _import_post_manifests(rows: List[Dict[str, Any]]) -> int:
     return coff.import_post_manifest_rows(rows)
 
 
+def _collect_ai_providers(*, since: int) -> List[Dict[str, Any]]:
+    try:
+        from chain_mesh import ai_provider as aip
+
+        aip.init_ai_provider_db()
+        with _conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT provider_id, peer_id, node_id, stone_address, agent_id,
+                       display_name, runtimes, models_json, hardware_json,
+                       endpoints_json, region, offline_capable, max_concurrent,
+                       flops_per_sec, load_ratio, source, provider_json,
+                       last_seen, created_at
+                FROM bloodstone_ai_providers
+                WHERE last_seen >= ?
+                ORDER BY last_seen ASC
+                """,
+                (since,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+def _import_ai_providers(rows: List[Dict[str, Any]]) -> int:
+    from chain_mesh import ai_provider as aip
+
+    imported = 0
+    for row in rows or []:
+        pid = str(row.get("provider_id") or "").strip()
+        if not pid:
+            continue
+        existing = aip.get_ai_provider(provider_id=pid)
+        last_seen = int(row.get("last_seen") or _now())
+        if existing and existing.get("source") in ("local", "mdns", "lan"):
+            if int(existing.get("last_seen") or 0) >= last_seen:
+                continue
+        aip.register_ai_provider(provider_id=pid, source="dtn", merge=True, body=row)
+        imported += 1
+    return imported
+
+
 def _collect_agent_identities(*, since: int) -> List[Dict[str, Any]]:
     agents.init_agent_db()
     with _conn() as conn:
@@ -439,6 +481,7 @@ def build_dtn_bundle(
     spatial_rows = _collect_spatial_manifests(since=watermark)
     compute_rows = _collect_compute_jobs(since=watermark)
     post_rows = _collect_post_manifests(since=watermark)
+    ai_provider_rows = _collect_ai_providers(since=watermark)
     chunk_hashes = _chunk_hashes_from_anchors(blurt_anchors)
 
     meta = {
@@ -455,6 +498,7 @@ def build_dtn_bundle(
         "spatial_count": len(spatial_rows),
         "compute_job_count": len(compute_rows),
         "post_manifest_count": len(post_rows),
+        "ai_provider_count": len(ai_provider_rows),
         "chunk_count": len(chunk_hashes),
         "include_chunks": bool(include_chunks),
         "use_case": "off_grid_dtn_mesh",
@@ -472,6 +516,7 @@ def build_dtn_bundle(
         zf.writestr("spatial-manifests.json", json.dumps(spatial_rows, indent=2))
         zf.writestr("compute-jobs.json", json.dumps(compute_rows, indent=2))
         zf.writestr("post-manifests.json", json.dumps(post_rows, indent=2))
+        zf.writestr("ai-providers.json", json.dumps(ai_provider_rows, indent=2))
         zf.writestr(
             "README.txt",
             "Bloodstone DTN sync bundle (Wave C+)\n"
@@ -665,6 +710,9 @@ def import_dtn_bundle(raw: bytes, *, skip_dedup: bool = False) -> Dict[str, Any]
         post_rows: List[Dict[str, Any]] = []
         if "post-manifests.json" in zf.namelist():
             post_rows = json.loads(zf.read("post-manifests.json").decode("utf-8"))
+        ai_provider_rows: List[Dict[str, Any]] = []
+        if "ai-providers.json" in zf.namelist():
+            ai_provider_rows = json.loads(zf.read("ai-providers.json").decode("utf-8"))
         for name in zf.namelist():
             if not name.startswith("chunks/") or not name.endswith(".bin"):
                 continue
@@ -687,6 +735,7 @@ def import_dtn_bundle(raw: bytes, *, skip_dedup: bool = False) -> Dict[str, Any]
     spatial_imported = _import_spatial(spatial_rows)
     compute_imported = _import_compute_jobs(compute_rows)
     post_imported = _import_post_manifests(post_rows)
+    ai_providers_imported = _import_ai_providers(ai_provider_rows)
 
     node_id = str(meta.get("node_id") or "imported")
     bundle_id = str(meta.get("bundle_id") or "")
@@ -715,6 +764,7 @@ def import_dtn_bundle(raw: bytes, *, skip_dedup: bool = False) -> Dict[str, Any]
         "spatial_imported": spatial_imported,
         "compute_jobs_imported": compute_imported,
         "post_manifests_imported": post_imported,
+        "ai_providers_imported": ai_providers_imported,
         "chunks_stored": stored_chunks,
         "total_chunks_in_bundle": len(chunk_pairs),
     }
@@ -1607,6 +1657,22 @@ def _gossip_status_brief() -> Dict[str, Any]:
         return {"enabled": False, "error": str(exc)}
 
 
+def _ai_routing_status_brief() -> Dict[str, Any]:
+    try:
+        from chain_mesh import ai_routing as ai
+
+        st = ai.status_payload()
+        return {
+            "enabled": ai.AI_ROUTING_ENABLE,
+            "format": ai.AI_ROUTING_FORMAT,
+            "providers_count": st.get("providers_count"),
+            "uplink_stable": (st.get("uplink") or {}).get("uplink_stable"),
+            "last_upkeep": st.get("last_upkeep") or {},
+        }
+    except Exception as exc:
+        return {"enabled": False, "error": str(exc)}
+
+
 def _planetary_status_brief() -> Dict[str, Any]:
     try:
         from chain_mesh import planetary_quorum as planetary
@@ -1654,7 +1720,7 @@ def status_payload() -> Dict[str, Any]:
     fw = flush_window_status()
     return {
         "ok": True,
-        "wave": "K",
+        "wave": "M",
         "hardened": True,
         "use_case": "off_grid_dtn_mesh",
         "format": DTN_BUNDLE_FORMAT,
@@ -1682,6 +1748,7 @@ def status_payload() -> Dict[str, Any]:
         "gossip": _gossip_status_brief(),
         "starlink": _starlink_status_brief(),
         "planetary": _planetary_status_brief(),
+        "ai_routing": _ai_routing_status_brief(),
         "watermarks": [dict(r) for r in wm],
         "apis": {
             "export": f"{public}/api/convergence/dtn/export",

@@ -6,6 +6,7 @@ import os
 from typing import Any, Dict, List
 
 from chain_mesh import agent_identity as agents
+from chain_mesh import ai_routing as ai
 from chain_mesh import bridge_swap as bridge
 from chain_mesh import blurt_registry_v2 as blurt_reg
 from chain_mesh import blog_manifest as blog
@@ -59,7 +60,10 @@ def layer_status() -> List[Dict[str, Any]]:
             "layer": 3,
             "name": "Edge DePIN (storage + compute + bandwidth)",
             "status": "beta",
-            "detail": f"Provider roles + {cjobs.COMPUTE_JOB_ID} + DTN gossip ({gossip.GOSSIP_FORMAT})",
+            "detail": (
+                f"Provider roles + {cjobs.COMPUTE_JOB_ID} + DTN gossip ({gossip.GOSSIP_FORMAT}) + "
+                f"{ai.AI_ROUTING_FORMAT} on-device AI routing"
+            ),
             "api": f"{public}/api/chain-mesh/v2/providers",
             "compute_quota_api": f"{public}/api/convergence/compute/quota",
             "compute_job_api": f"{public}/api/convergence/compute/job/submit",
@@ -97,7 +101,7 @@ def status_payload() -> Dict[str, Any]:
         "ok": True,
         "vision": "Sovereign Mesh 2030 — Blurt trust anchor + Bloodstone memory fabric",
         "tagline": "Autonomous, self-healing nervous system — identity owns truth, hardware owns the network",
-        "roadmap": "Wave A–K ✓ · Wave L: BLURT↔STONE bridge + atomic swaps ✓",
+        "roadmap": "Wave A–L ✓ · Wave M: on-device AI routing ✓",
         "layers": layer_status(),
         "mesh_v2": {
             "spec": v2_sys.get("spec"),
@@ -133,6 +137,7 @@ def status_payload() -> Dict[str, Any]:
         "dtn": dtn.status_payload(),
         "planetary_quorum": planetary.status_payload(),
         "bridge_swap": bridge.status_payload(),
+        "ai_routing": ai.status_payload(),
         "condenser_offline": coff.status_payload(),
         "spatial_manifest_id": spatial.SPATIAL_MANIFEST_ID,
         "spatial_asset_prefix": "assets/spatial/",

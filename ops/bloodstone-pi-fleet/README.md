@@ -188,6 +188,23 @@ curl -X POST http://127.0.0.1:8887/api/convergence/bridge/claim \
 
 Bridge lock transfers sync automatically during convergence upkeep when `BRIDGE_SWAP_ENABLE=1`.
 
+### On-device AI routing (Wave M)
+
+Route `inference` compute jobs to local llama.cpp / ONNX / TFLite providers when uplink is down:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/ai/status | jq .
+curl -fsS http://127.0.0.1:8887/api/convergence/ai/providers | jq .
+curl -X POST http://127.0.0.1:8887/api/convergence/ai/discover
+curl -X POST http://127.0.0.1:8887/api/convergence/ai/submit \
+  -H 'Content-Type: application/json' \
+  -d '{"stone_address":"STONE...","job_type":"inference","flops_budget":1000000000,"ai_spec":{"runtime":"llama.cpp","model_id":"llama-3.2-1b-q4","prefer_offline":true}}'
+```
+
+Run llama.cpp on `:8081` for local dispatch. AI provider discovery uses `_bloodstone-ai._tcp` mDNS and gossip `ai_provider_snapshots`. Upkeep runs automatically when `AI_ROUTING_ENABLE=1`.
+
+Design doc: `bloodstone-docs/Wave-M-On-Device-AI-Routing-Design.md`
+
 ### Manual peer register
 
 ```bash

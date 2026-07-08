@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
+from chain_mesh import ai_provider as aip
 from chain_mesh import blurt_registry_v2 as blurt_reg
 from chain_mesh import depin_credits as depin
 
@@ -95,6 +96,7 @@ def build_compute_job_manifest(
     region: str = "global",
     provider_id: str = "",
     notes: str = "",
+    ai_spec: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Layer 3 DePIN — portable compute job manifest for mesh dispatch."""
     addr = (stone_address or "").strip()
@@ -109,6 +111,13 @@ def build_compute_job_manifest(
         raise ValueError(f"status must be one of: {sorted(VALID_STATUSES)}")
 
     inputs = [str(k).strip() for k in (input_asset_keys or []) if str(k).strip()]
+    normalized_ai = aip.validate_ai_spec(ai_spec, job_type=jtype)
+    if normalized_ai:
+        prompt_key = normalized_ai.get("prompt_asset_key") or ""
+        if prompt_key and prompt_key not in inputs:
+            inputs.insert(0, prompt_key)
+        elif prompt_key and inputs and inputs[0] != prompt_key:
+            raise ValueError("input_asset_keys must include ai_spec.prompt_asset_key")
     body: Dict[str, Any] = {
         "v": "1",
         "job_id": jid,
@@ -127,6 +136,8 @@ def build_compute_job_manifest(
         "notes": (notes or "").strip()[:512],
         "created_at": _now(),
     }
+    if normalized_ai:
+        body["ai_spec"] = normalized_ai
     auth = body["blurt_author"]
     posting = [auth] if auth else []
     return {
@@ -255,6 +266,7 @@ def submit_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         region=str(payload.get("region") or ""),
         provider_id=str(payload.get("provider_id") or ""),
         notes=str(payload.get("notes") or ""),
+        ai_spec=payload.get("ai_spec"),
     )
     body = custom["body"]
     quota_check = depin.check_compute_allowed(

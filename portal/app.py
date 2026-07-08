@@ -1476,6 +1476,87 @@ def api_convergence_bridge_sync():
     return jsonify(cm.convergence_bridge_sync_payload())
 
 
+@app.route("/api/convergence/ai/status")
+def api_convergence_ai_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_ai_status_payload())
+
+
+@app.route("/api/convergence/ai/providers")
+def api_convergence_ai_providers():
+    import chain_mesh.api as cm
+
+    try:
+        limit = int(request.args.get("limit") or 50)
+    except (TypeError, ValueError):
+        limit = 50
+    return jsonify(
+        cm.convergence_ai_providers_payload(
+            runtime=str(request.args.get("runtime") or ""),
+            region=str(request.args.get("region") or ""),
+            limit=limit,
+        )
+    )
+
+
+@app.route("/api/convergence/ai/providers/register", methods=["POST"])
+def api_convergence_ai_register():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_ai_register_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/ai/route", methods=["POST"])
+def api_convergence_ai_route():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    force = payload.get("force") in (True, "1", 1) or request.args.get("force") in ("1", "true", "yes")
+    try:
+        return jsonify(
+            cm.convergence_ai_route_payload(
+                job_id=str(payload.get("job_id") or request.args.get("job_id") or ""),
+                force=bool(force),
+            )
+        )
+    except (ValueError, TypeError, PermissionError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/ai/submit", methods=["POST"])
+def api_convergence_ai_submit():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_ai_submit_payload(payload))
+    except (ValueError, TypeError, PermissionError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/ai/discover", methods=["POST"])
+def api_convergence_ai_discover():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_ai_discover_payload())
+
+
+@app.route("/api/convergence/ai/provider/health")
+def api_convergence_ai_provider_health():
+    import chain_mesh.api as cm
+
+    return jsonify(
+        cm.convergence_ai_provider_health_payload(
+            provider_id=str(request.args.get("provider_id") or "")
+        )
+    )
+
+
 @app.route("/api/convergence/spatial/manifest", methods=["GET", "POST"])
 def api_convergence_spatial_manifest():
     import chain_mesh.api as cm

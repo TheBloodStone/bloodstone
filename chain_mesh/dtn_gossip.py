@@ -124,6 +124,15 @@ def build_exchange_payload() -> Dict[str, Any]:
     except Exception:
         pass
 
+    ai_provider_snapshots: List[Dict[str, Any]] = []
+    try:
+        from chain_mesh import ai_routing as ai
+
+        if ai.AI_ROUTING_ENABLE:
+            ai_provider_snapshots = ai.build_gossip_snapshots()
+    except Exception:
+        pass
+
     return {
         "ok": True,
         "format": GOSSIP_FORMAT,
@@ -133,6 +142,7 @@ def build_exchange_payload() -> Dict[str, Any]:
         "peers": peers_out,
         "bundle_hints": bundle_hints,
         "quorum_snapshots": quorum_snapshots,
+        "ai_provider_snapshots": ai_provider_snapshots,
         "max_hops": GOSSIP_MAX_HOPS,
         "rumor_ttl_sec": GOSSIP_RUMOR_TTL_SEC,
     }
@@ -252,6 +262,21 @@ def ingest_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:
         pass
 
+    ai_votes = 0
+    try:
+        from chain_mesh import ai_routing as ai
+
+        if ai.AI_ROUTING_ENABLE:
+            snaps = [
+                row
+                for row in (payload.get("ai_provider_snapshots") or [])
+                if isinstance(row, dict)
+            ]
+            ingest_a = ai.ingest_gossip_snapshots(snaps)
+            ai_votes = int(ingest_a.get("recorded") or 0)
+    except Exception:
+        pass
+
     return {
         "ok": True,
         "format": GOSSIP_FORMAT,
@@ -260,6 +285,7 @@ def ingest_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "peers_skipped": peers_skipped,
         "bundle_hints_recorded": bundle_hints_recorded,
         "quorum_votes_recorded": quorum_votes,
+        "ai_providers_recorded": ai_votes,
         "reply": build_exchange_payload(),
     }
 
