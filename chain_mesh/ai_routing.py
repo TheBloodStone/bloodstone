@@ -1579,7 +1579,7 @@ def status_payload(*, include_uplink: bool = True) -> Dict[str, Any]:
         "uplink": uplink,
         "providers_count": providers_count,
         "last_upkeep": dict(_LAST_UPKEEP),
-        "wave": "R",
+        "wave": "S",
         "coordinator_dispatch": AI_COORDINATOR_DISPATCH_ENABLE,
         "coordinator_node": _is_coordinator_node(),
         "gossip_sign": _gossip_sign_status(),

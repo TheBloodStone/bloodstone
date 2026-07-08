@@ -1117,6 +1117,50 @@ def convergence_ai_provider_sync_payload() -> Dict[str, Any]:
     return aip.sync_registry_providers()
 
 
+def convergence_ai_provider_broadcast_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh import ai_provider as aip
+
+    return aip.broadcast_provider_payload(payload)
+
+
+def convergence_tenant_dashboard_payload(
+    *,
+    tenant_id: str = "",
+    blurt_author: str = "",
+    stone_address: str = "",
+) -> Dict[str, Any]:
+    from chain_mesh import tenant_dashboard as tdash
+
+    return tdash.dashboard_payload(
+        tenant_id=tenant_id,
+        blurt_author=blurt_author,
+        stone_address=stone_address,
+    )
+
+
+def convergence_tenant_bind_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh import tenant_dashboard as tdash
+
+    return tdash.bind_all_rails(
+        tenant_id=str(payload.get("tenant_id") or ""),
+        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+        stone_address=str(payload.get("stone_address") or ""),
+        flops_cap=int(payload.get("flops_cap") or 0),
+        bandwidth_bytes_cap=int(
+            payload.get("bandwidth_bytes_cap") or payload.get("bytes_cap_bandwidth") or 0
+        ),
+        storage_bytes_cap=int(
+            payload.get("storage_bytes_cap") or payload.get("bytes_cap_storage") or 0
+        ),
+    )
+
+
+def convergence_tenant_status_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_dashboard as tdash
+
+    return tdash.status_payload()
+
+
 def convergence_compute_job_submit_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import compute_job as cjobs
 

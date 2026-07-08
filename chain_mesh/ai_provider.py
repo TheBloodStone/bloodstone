@@ -407,3 +407,122 @@ def sync_registry_providers() -> Dict[str, Any]:
             results.append({"ok": False, "account": acct, "error": str(exc)})
     total = sum(int(r.get("indexed") or 0) for r in results if r.get("ok"))
     return {"ok": True, "accounts": results, "indexed": total}
+
+
+def build_provider_broadcast_manifest(
+    *,
+    provider_id: str = "",
+    blurt_author: str = "",
+    body: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Layer 3 — Blurt custom_json payload for AI provider broadcast."""
+    pid = (provider_id or "").strip()[:64]
+    src_body = dict(body or {})
+    if pid and not src_body.get("provider_id"):
+        existing = get_ai_provider(provider_id=pid)
+        if existing:
+            try:
+                src_body = json.loads(existing.get("provider_json") or "{}")
+            except json.JSONDecodeError:
+                src_body = {}
+            src_body.setdefault("provider_id", pid)
+            src_body.setdefault("node_id", existing.get("node_id"))
+            src_body.setdefault("runtimes", json.loads(existing.get("runtimes") or "[]"))
+            src_body.setdefault("endpoints", json.loads(existing.get("endpoints_json") or "{}"))
+            src_body.setdefault("region", existing.get("region"))
+            src_body.setdefault("flops_per_sec", existing.get("flops_per_sec"))
+    if not src_body.get("provider_id"):
+        nid = (os.environ.get("DTN_NODE_ID") or "pi-edge").strip()[:64]
+        pid = pid or f"{nid}-ai"
+        manifest = build_ai_provider_manifest(provider_id=pid, node_id=nid)
+        src_body = manifest["body"]
+    if str(src_body.get("v") or "") != "1":
+        manifest = build_ai_provider_manifest(
+            provider_id=str(src_body.get("provider_id") or pid),
+            node_id=str(src_body.get("node_id") or ""),
+            peer_id=str(src_body.get("peer_id") or ""),
+            stone_address=str(src_body.get("stone_address") or ""),
+            agent_id=str(src_body.get("agent_id") or ""),
+            display_name=str(src_body.get("display_name") or ""),
+            runtimes=src_body.get("runtimes"),
+            models=src_body.get("models"),
+            hardware=src_body.get("hardware"),
+            endpoints=src_body.get("endpoints"),
+            region=str(src_body.get("region") or ""),
+            offline_capable=bool(src_body.get("offline_capable", True)),
+            max_concurrent=int(src_body.get("max_concurrent") or 1),
+            flops_per_sec=int(src_body.get("flops_per_sec") or 0),
+        )
+        src_body = manifest["body"]
+    parsed = _parse_provider_op(src_body)
+    if not parsed:
+        raise ValueError("invalid provider manifest body")
+    parsed["updated_at"] = _now()
+    auth = (blurt_author or parsed.get("blurt_author") or "").lstrip("@").lower()
+    posting = [auth] if auth else []
+    return {
+        "id": AI_PROVIDER_ID,
+        "required_posting_auths": posting,
+        "json": json.dumps(parsed, separators=(",", ":")),
+        "body": parsed,
+    }
+
+
+def broadcast_provider_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Register provider locally and return Blurt broadcast instructions."""
+    pid = str(payload.get("provider_id") or "").strip()
+    manifest = build_provider_broadcast_manifest(
+        provider_id=pid,
+        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+        body=payload if payload.get("provider_id") or payload.get("runtimes") else None,
+    )
+    body = manifest["body"]
+    register_ai_provider(
+        provider_id=str(body.get("provider_id") or pid),
+        source="local",
+        body=body,
+    )
+    public = os.environ.get(
+        "BLOODSTONE_PUBLIC_ROOT", "https://bloodstonewallet.mytunnel.org"
+    ).rstrip("/")
+    return {
+        "ok": True,
+        "layer": 3,
+        "use_case": "autonomous_ai_creator_economy",
+        "provider_id": AI_PROVIDER_ID,
+        "blurt_custom_json": {
+            "id": manifest["id"],
+            "required_posting_auths": manifest.get("required_posting_auths") or [],
+            "json": manifest["json"],
+        },
+        "body": body,
+        "verify_url": f"{public}/api/convergence/ai/providers?provider_id={body.get('provider_id')}",
+        "next_steps": [
+            f"Broadcast {AI_PROVIDER_ID} custom_json on Blurt",
+            "Peers sync via /api/convergence/ai/provider/sync or DTN gossip",
+            f"Dispatch inference: POST {public}/api/convergence/ai/submit",
+        ],
+    }
+
+
+def list_local_broadcast_candidates(*, limit: int = 10) -> Dict[str, Any]:
+    init_ai_provider_db()
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT provider_id FROM bloodstone_ai_providers
+            WHERE source IN ('local', 'mdns', 'lan', 'coordinator')
+            ORDER BY last_seen DESC
+            LIMIT ?
+            """,
+            (max(1, int(limit)),),
+        ).fetchall()
+    manifests = []
+    for row in rows:
+        try:
+            manifests.append(
+                build_provider_broadcast_manifest(provider_id=str(row["provider_id"]))
+            )
+        except Exception:
+            continue
+    return {"ok": True, "count": len(manifests), "manifests": manifests[:limit]}

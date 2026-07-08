@@ -276,6 +276,37 @@ curl -fsS http://127.0.0.1:8887/api/convergence/dtn/status | jq '.wave'
 curl -fsS 'http://127.0.0.1:8887/api/convergence/dtn/export?include_chunks=0' | jq '.meta.ai_route_count'
 ```
 
+### Wave S — tenant dashboard + Blurt AI broadcast + ONNX/TFLite delegates
+
+**Unified tenant dashboard** — one view across compute, bandwidth, and storage caps:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/tenant/status | jq .
+curl -fsS 'http://127.0.0.1:8887/api/convergence/tenant/dashboard?blurt_author=megadrive' | jq .
+curl -X POST http://127.0.0.1:8887/api/convergence/tenant/bind \
+  -H 'Content-Type: application/json' \
+  -d '{"blurt_author":"megadrive","stone_address":"STONE...","flops_cap":5e9,"bandwidth_bytes_cap":1e8,"storage_bytes_cap":5e9}'
+```
+
+**Blurt broadcast of AI providers** — publish `bloodstone_ai_provider/v1` to Layer 1:
+
+```bash
+curl -X POST http://127.0.0.1:8887/api/convergence/ai/provider/broadcast \
+  -H 'Content-Type: application/json' \
+  -d '{"provider_id":"pi-shed-01-ai","blurt_author":"megadrive"}'
+# Response includes blurt_custom_json — sign and broadcast on Blurt
+curl -X POST http://127.0.0.1:8887/api/convergence/ai/provider/sync
+```
+
+**ONNX / TFLite inference delegates** — shim routes by `runtime` or model prefix:
+
+```bash
+curl -fsS http://127.0.0.1:8081/v1/runtimes | jq .
+curl -X POST http://127.0.0.1:8081/v1/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"runtime":"onnx","model":"onnx:gemma","prompt":"hello edge","max_tokens":32}'
+```
+
 ### Coordinator AI dispatch (Wave N)
 
 When no local provider matches and uplink is stable, edge nodes HTTP-dispatch to the coordinator instead of queue-only fallback:
