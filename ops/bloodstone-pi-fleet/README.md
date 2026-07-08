@@ -307,6 +307,24 @@ curl -X POST http://127.0.0.1:8081/v1/completions \
   -d '{"runtime":"onnx","model":"onnx:gemma","prompt":"hello edge","max_tokens":32}'
 ```
 
+### Wave T — tenant fleet sync + broadcast queue
+
+**Tenant bindings propagate** across Pi fleet via DTN bundles (`tenant-bindings.json`) and gossip (`tenant_snapshots`):
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/tenant/fleet/status | jq .
+curl -fsS http://127.0.0.1:8887/api/convergence/tenant/fleet/snapshots | jq '.count'
+curl -X POST http://127.0.0.1:8887/api/convergence/dtn/gossip/round
+```
+
+**AI broadcast queue** — upkeep prepares Blurt `custom_json` manifests for local providers:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/ai/provider/broadcast/queue | jq .
+```
+
+Compute/AI submit auto-resolves `tenant_id` from `DTN_DEFAULT_TENANT` when omitted.
+
 ### Coordinator AI dispatch (Wave N)
 
 When no local provider matches and uplink is stable, edge nodes HTTP-dispatch to the coordinator instead of queue-only fallback:

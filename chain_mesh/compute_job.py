@@ -269,11 +269,19 @@ def submit_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         ai_spec=payload.get("ai_spec"),
     )
     body = custom["body"]
+    from chain_mesh import tenant_dashboard as tdash
+
+    tctx = tdash.resolve_tenant_context(
+        blurt_author=str(body.get("blurt_author") or ""),
+        tenant_id=str(payload.get("tenant_id") or ""),
+        stone_address=body["stone_address"],
+    )
     quota_check = depin.check_compute_allowed(
         body["stone_address"],
         flops_budget=int(body.get("flops_budget") or 0),
         job_id=str(body.get("job_id") or ""),
-        blurt_author=str(body.get("blurt_author") or ""),
+        blurt_author=tctx["blurt_author"],
+        tenant_id=tctx["tenant_id"],
     )
     if not quota_check.get("allowed"):
         raise PermissionError(quota_check.get("reason") or "compute quota exceeded")

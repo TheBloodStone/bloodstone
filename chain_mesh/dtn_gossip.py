@@ -133,6 +133,14 @@ def build_exchange_payload() -> Dict[str, Any]:
     except Exception:
         pass
 
+    tenant_snapshots: List[Dict[str, Any]] = []
+    try:
+        from chain_mesh import tenant_fleet_sync as tfleet
+
+        tenant_snapshots = tfleet.collect_tenant_snapshots(limit=20)
+    except Exception:
+        pass
+
     return {
         "ok": True,
         "format": GOSSIP_FORMAT,
@@ -143,6 +151,7 @@ def build_exchange_payload() -> Dict[str, Any]:
         "bundle_hints": bundle_hints,
         "quorum_snapshots": quorum_snapshots,
         "ai_provider_snapshots": ai_provider_snapshots,
+        "tenant_snapshots": tenant_snapshots,
         "max_hops": GOSSIP_MAX_HOPS,
         "rumor_ttl_sec": GOSSIP_RUMOR_TTL_SEC,
     }
@@ -277,6 +286,18 @@ def ingest_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:
         pass
 
+    tenant_votes = 0
+    try:
+        from chain_mesh import tenant_fleet_sync as tfleet
+
+        snaps = [
+            row for row in (payload.get("tenant_snapshots") or []) if isinstance(row, dict)
+        ]
+        ingest_t = tfleet.ingest_tenant_snapshots(snaps)
+        tenant_votes = int(ingest_t.get("recorded") or 0)
+    except Exception:
+        pass
+
     return {
         "ok": True,
         "format": GOSSIP_FORMAT,
@@ -286,6 +307,7 @@ def ingest_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "bundle_hints_recorded": bundle_hints_recorded,
         "quorum_votes_recorded": quorum_votes,
         "ai_providers_recorded": ai_votes,
+        "tenant_bindings_recorded": tenant_votes,
         "reply": build_exchange_payload(),
     }
 

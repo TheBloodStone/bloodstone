@@ -101,6 +101,21 @@ def bind_all_rails(
     }
 
 
+def resolve_tenant_context(
+    *,
+    blurt_author: str = "",
+    tenant_id: str = "",
+    stone_address: str = "",
+) -> Dict[str, str]:
+    from chain_mesh import tenant_fleet_sync as fleet
+
+    return fleet.resolve_tenant_context(
+        blurt_author=blurt_author,
+        tenant_id=tenant_id,
+        stone_address=stone_address,
+    )
+
+
 def status_payload() -> Dict[str, Any]:
     from chain_mesh import bandwidth_tenant_quota as bw
     from chain_mesh import compute_tenant_quota as compute

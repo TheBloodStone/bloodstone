@@ -505,6 +505,41 @@ def broadcast_provider_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def prepare_broadcast_queue(*, limit: int = 10) -> Dict[str, Any]:
+    """Upkeep helper — manifests ready for Blurt custom_json broadcast."""
+    if os.environ.get("AI_PROVIDER_BROADCAST_PREPARE", "1").strip().lower() in (
+        "0",
+        "false",
+        "no",
+    ):
+        return {"ok": True, "skipped": True, "reason": "AI_PROVIDER_BROADCAST_PREPARE off"}
+    result = list_local_broadcast_candidates(limit=limit)
+    queue = []
+    for manifest in result.get("manifests") or []:
+        body = manifest.get("body") or {}
+        queue.append(
+            {
+                "provider_id": body.get("provider_id"),
+                "node_id": body.get("node_id"),
+                "runtimes": body.get("runtimes"),
+                "blurt_custom_json": {
+                    "id": manifest.get("id"),
+                    "required_posting_auths": manifest.get("required_posting_auths") or [],
+                    "json": manifest.get("json"),
+                },
+            }
+        )
+    return {
+        "ok": True,
+        "count": len(queue),
+        "queue": queue[:limit],
+        "next_steps": [
+            f"Broadcast {AI_PROVIDER_ID} custom_json on Blurt for each queue entry",
+            "POST /api/convergence/ai/provider/sync to pull peer broadcasts",
+        ],
+    }
+
+
 def list_local_broadcast_candidates(*, limit: int = 10) -> Dict[str, Any]:
     init_ai_provider_db()
     with _conn() as conn:

@@ -979,6 +979,20 @@ def api_convergence_tenant_bind():
         return jsonify({"ok": False, "error": str(exc)}), 400
 
 
+@app.route("/api/convergence/tenant/fleet/status")
+def api_convergence_tenant_fleet_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_fleet_status_payload())
+
+
+@app.route("/api/convergence/tenant/fleet/snapshots")
+def api_convergence_tenant_fleet_snapshots():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_fleet_snapshots_payload())
+
+
 @app.route("/api/convergence/compute/job/status")
 def api_convergence_compute_job_status():
     import chain_mesh.api as cm
@@ -1749,6 +1763,13 @@ def api_convergence_ai_provider_broadcast():
         return jsonify(cm.convergence_ai_provider_broadcast_payload(payload))
     except (ValueError, TypeError) as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/ai/provider/broadcast/queue")
+def api_convergence_ai_provider_broadcast_queue():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_ai_provider_broadcast_queue_payload())
 
 
 @app.route("/api/convergence/spatial/manifest", methods=["GET", "POST"])

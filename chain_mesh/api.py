@@ -1161,6 +1161,25 @@ def convergence_tenant_status_payload() -> Dict[str, Any]:
     return tdash.status_payload()
 
 
+def convergence_tenant_fleet_status_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_fleet_sync as tfleet
+
+    return tfleet.status_payload()
+
+
+def convergence_tenant_fleet_snapshots_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_fleet_sync as tfleet
+
+    snaps = tfleet.collect_tenant_snapshots()
+    return {"ok": True, "format": tfleet.SYNC_FORMAT, "count": len(snaps), "snapshots": snaps}
+
+
+def convergence_ai_provider_broadcast_queue_payload() -> Dict[str, Any]:
+    from chain_mesh import ai_provider as aip
+
+    return aip.prepare_broadcast_queue()
+
+
 def convergence_compute_job_submit_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import compute_job as cjobs
 

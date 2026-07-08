@@ -58,6 +58,7 @@ def main() -> int:
     bwtenant_sync = bwtenant.sync_bindings_from_jobs()
     stenant_sync = stenant.sync_bindings_from_jobs()
     ai_provider_sync = aip.sync_registry_providers()
+    ai_broadcast_queue = aip.prepare_broadcast_queue()
     ai_upkeep = ai.upkeep_ai()
     dtn_upkeep = dtn.upkeep_dtn(
         force_flush=os.environ.get("DTN_AUTO_FLUSH", "0").strip() in ("1", "true", "yes")
@@ -88,6 +89,7 @@ def main() -> int:
         "bwtenant_bound=" + str(bwtenant_sync.get("bound", 0)),
         "stenant_bound=" + str(stenant_sync.get("bound", 0)),
         "ai_providers_synced=" + str(ai_provider_sync.get("indexed", 0)),
+        "ai_broadcast_queue=" + str(ai_broadcast_queue.get("count", 0)),
     )
     return 0
 

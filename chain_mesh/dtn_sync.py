@@ -518,6 +518,13 @@ def build_dtn_bundle(
             ai_route_rows = _collect_ai_route_assignments(since=watermark)
     except Exception:
         ai_route_rows = []
+    tenant_rows: List[Dict[str, Any]] = []
+    try:
+        from chain_mesh import tenant_fleet_sync as tfleet
+
+        tenant_rows = tfleet.collect_tenant_snapshots()
+    except Exception:
+        tenant_rows = []
     chunk_hashes = _chunk_hashes_from_anchors(blurt_anchors)
 
     meta = {
@@ -536,6 +543,7 @@ def build_dtn_bundle(
         "post_manifest_count": len(post_rows),
         "ai_provider_count": len(ai_provider_rows),
         "ai_route_count": len(ai_route_rows),
+        "tenant_snapshot_count": len(tenant_rows),
         "chunk_count": len(chunk_hashes),
         "include_chunks": bool(include_chunks),
         "use_case": "off_grid_dtn_mesh",
@@ -556,6 +564,8 @@ def build_dtn_bundle(
         zf.writestr("ai-providers.json", json.dumps(ai_provider_rows, indent=2))
         if ai_route_rows:
             zf.writestr("ai-route-assignments.json", json.dumps(ai_route_rows, indent=2, default=str))
+        if tenant_rows:
+            zf.writestr("tenant-bindings.json", json.dumps(tenant_rows, indent=2, default=str))
         zf.writestr(
             "README.txt",
             "Bloodstone DTN sync bundle (Wave C+)\n"
@@ -755,6 +765,9 @@ def import_dtn_bundle(raw: bytes, *, skip_dedup: bool = False) -> Dict[str, Any]
         ai_route_rows: List[Dict[str, Any]] = []
         if "ai-route-assignments.json" in zf.namelist():
             ai_route_rows = json.loads(zf.read("ai-route-assignments.json").decode("utf-8"))
+        tenant_rows: List[Dict[str, Any]] = []
+        if "tenant-bindings.json" in zf.namelist():
+            tenant_rows = json.loads(zf.read("tenant-bindings.json").decode("utf-8"))
         for name in zf.namelist():
             if not name.startswith("chunks/") or not name.endswith(".bin"):
                 continue
@@ -779,6 +792,14 @@ def import_dtn_bundle(raw: bytes, *, skip_dedup: bool = False) -> Dict[str, Any]
     post_imported = _import_post_manifests(post_rows)
     ai_providers_imported = _import_ai_providers(ai_provider_rows)
     ai_routes_imported = _import_ai_route_assignments(ai_route_rows)
+    tenant_imported = 0
+    try:
+        from chain_mesh import tenant_fleet_sync as tfleet
+
+        tenant_result = tfleet.ingest_tenant_snapshots(tenant_rows)
+        tenant_imported = int(tenant_result.get("recorded") or 0)
+    except Exception:
+        tenant_imported = 0
 
     node_id = str(meta.get("node_id") or "imported")
     bundle_id = str(meta.get("bundle_id") or "")
@@ -809,6 +830,7 @@ def import_dtn_bundle(raw: bytes, *, skip_dedup: bool = False) -> Dict[str, Any]
         "post_manifests_imported": post_imported,
         "ai_providers_imported": ai_providers_imported,
         "ai_routes_imported": ai_routes_imported,
+        "tenant_bindings_imported": tenant_imported,
         "chunks_stored": stored_chunks,
         "total_chunks_in_bundle": len(chunk_pairs),
     }
@@ -1764,7 +1786,7 @@ def status_payload() -> Dict[str, Any]:
     fw = flush_window_status()
     return {
         "ok": True,
-        "wave": "S",
+        "wave": "T",
         "hardened": True,
         "use_case": "off_grid_dtn_mesh",
         "format": DTN_BUNDLE_FORMAT,
