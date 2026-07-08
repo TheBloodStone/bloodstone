@@ -62,7 +62,7 @@ def layer_status() -> List[Dict[str, Any]]:
             "status": "beta",
             "detail": (
                 f"Provider roles + {cjobs.COMPUTE_JOB_ID} + DTN gossip ({gossip.GOSSIP_FORMAT}) + "
-                f"{ai.AI_ROUTING_FORMAT} on-device AI routing + coordinator dispatch"
+                f"{ai.AI_ROUTING_FORMAT} on-device AI routing + signed gossip + NPU detect"
             ),
             "api": f"{public}/api/chain-mesh/v2/providers",
             "compute_quota_api": f"{public}/api/convergence/compute/quota",
@@ -101,7 +101,7 @@ def status_payload() -> Dict[str, Any]:
         "ok": True,
         "vision": "Sovereign Mesh 2030 — Blurt trust anchor + Bloodstone memory fabric",
         "tagline": "Autonomous, self-healing nervous system — identity owns truth, hardware owns the network",
-        "roadmap": "Wave A–M ✓ · Wave N: coordinator AI dispatch ✓",
+        "roadmap": "Wave A–N ✓ · Wave O: signed gossip + NPU detect ✓",
         "layers": layer_status(),
         "mesh_v2": {
             "spec": v2_sys.get("spec"),
@@ -137,7 +137,7 @@ def status_payload() -> Dict[str, Any]:
         "dtn": dtn.status_payload(),
         "planetary_quorum": planetary.status_payload(),
         "bridge_swap": bridge.status_payload(),
-        "ai_routing": ai.status_payload(),
+        "ai_routing": ai.status_payload(include_uplink=False),
         "condenser_offline": coff.status_payload(),
         "spatial_manifest_id": spatial.SPATIAL_MANIFEST_ID,
         "spatial_asset_prefix": "assets/spatial/",

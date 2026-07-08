@@ -1440,8 +1440,11 @@ def convergence_ai_discover_payload() -> Dict[str, Any]:
 def convergence_ai_dispatch_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import ai_routing as ai
 
+    job_id = str(payload.get("job_id") or "").strip()
+    if not job_id:
+        raise ValueError("job_id required")
     return ai.coordinator_dispatch_job(
-        job_id=str(payload.get("job_id") or ""),
+        job_id=job_id,
         callback_url=str(payload.get("callback_url") or ""),
         origin_node_id=str(payload.get("origin_node_id") or ""),
         payload=payload,
@@ -1451,7 +1454,22 @@ def convergence_ai_dispatch_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 def convergence_ai_callback_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import ai_routing as ai
 
-    return ai.ingest_ai_callback(payload)
+    job_id = str(payload.get("job_id") or "").strip()
+    if not job_id:
+        raise ValueError("job_id required")
+    return ai.ingest_ai_callback({**payload, "job_id": job_id})
+
+
+def convergence_ai_npu_status_payload() -> Dict[str, Any]:
+    from chain_mesh import ai_npu_detect as npu
+
+    return npu.detect_npu_hardware()
+
+
+def convergence_ai_gossip_sign_status_payload() -> Dict[str, Any]:
+    from chain_mesh import ai_gossip_sign as gsign
+
+    return gsign.status_payload()
 
 
 def convergence_dtn_replication_heal_payload(

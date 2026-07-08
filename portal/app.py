@@ -1579,6 +1579,20 @@ def api_convergence_ai_callback():
         return jsonify({"ok": False, "error": str(exc)}), 400
 
 
+@app.route("/api/convergence/ai/npu/status")
+def api_convergence_ai_npu_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_ai_npu_status_payload())
+
+
+@app.route("/api/convergence/ai/gossip/sign/status")
+def api_convergence_ai_gossip_sign_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_ai_gossip_sign_status_payload())
+
+
 @app.route("/api/convergence/spatial/manifest", methods=["GET", "POST"])
 def api_convergence_spatial_manifest():
     import chain_mesh.api as cm

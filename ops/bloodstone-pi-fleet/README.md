@@ -205,6 +205,17 @@ Run llama.cpp on `:8081` for local dispatch. AI provider discovery uses `_bloods
 
 Design doc: `bloodstone-docs/Wave-M-On-Device-AI-Routing-Design.md`
 
+### Signed gossip + NPU detect (Wave O)
+
+AI provider gossip snapshots are HMAC-signed (`bloodstone_ai_gossip_snapshot/v1`). Hailo/Coral devices are auto-detected via `/dev` probe on discover/upkeep:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/ai/npu/status | jq .
+curl -fsS http://127.0.0.1:8887/api/convergence/ai/gossip/sign/status | jq .
+```
+
+Set `AI_GOSSIP_SIGNING_KEY` on Pi fleet nodes for shared verification. Unsigned snapshots are still accepted while `AI_GOSSIP_ALLOW_UNSIGNED=1` (beta default).
+
 ### Coordinator AI dispatch (Wave N)
 
 When no local provider matches and uplink is stable, edge nodes HTTP-dispatch to the coordinator instead of queue-only fallback:

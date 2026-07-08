@@ -1,4 +1,4 @@
-"""Wave M/N — on-device AI routing for inference compute jobs."""
+"""Wave M/N/O — on-device AI routing for inference compute jobs."""
 
 from __future__ import annotations
 
@@ -53,6 +53,10 @@ AI_COORDINATOR_STUB = os.environ.get("AI_COORDINATOR_STUB", "1").strip() not in 
 AI_COORDINATOR_DISPATCH_LIMIT = max(
     1, int(os.environ.get("AI_COORDINATOR_DISPATCH_LIMIT", "5"))
 )
+AI_UPLINK_CACHE_SEC = max(5, int(os.environ.get("AI_UPLINK_CACHE_SEC", "30")))
+AI_UPLINK_PROBE_TIMEOUT_SEC = max(
+    1, int(os.environ.get("AI_UPLINK_PROBE_TIMEOUT_SEC", "3"))
+)
 
 COORDINATOR_AI_ID = "bloodstone-coordinator-v1-ai"
 COORDINATOR_NODE_IDS = frozenset(
@@ -77,6 +81,9 @@ _ROUTE_TO_JOB_STATUS = {
 }
 
 _LAST_UPKEEP: Dict[str, Any] = {}
+_LAST_UPLINK: Dict[str, Any] = {}
+_LAST_UPLINK_AT = 0
+_UPLINK_PROBING = False
 
 
 def _now() -> int:
@@ -129,21 +136,62 @@ def init_ai_routing_db() -> None:
         )
 
 
-def uplink_available() -> Dict[str, Any]:
+def _uplink_probe_url() -> str:
     from chain_mesh import dtn_starlink as starlink
 
-    probe_url = AI_UPLINK_PROBE_URL or starlink.PROBE_URL
-    probe = starlink.probe_uplink(url=probe_url)
-    streak = int(probe.get("probe_streak") or 0)
-    connected = bool(probe.get("connected"))
-    return {
-        "connected": connected,
-        "latency_ms": probe.get("latency_ms"),
-        "probe_url": probe.get("probe_url"),
-        "probe_streak": streak,
-        "source": "starlink" if connected else "none",
-        "uplink_stable": connected and streak >= starlink.PROBE_STREAK_REQUIRED,
-    }
+    if AI_UPLINK_PROBE_URL:
+        return AI_UPLINK_PROBE_URL
+    if _is_coordinator_node():
+        lan_port = int(os.environ.get("DTN_LAN_WEB_PORT", "8887"))
+        return f"http://127.0.0.1:{lan_port}/health"
+    return starlink.PROBE_URL
+
+
+def uplink_available(*, use_cache: bool = False) -> Dict[str, Any]:
+    global _LAST_UPLINK_AT, _UPLINK_PROBING
+    from chain_mesh import dtn_starlink as starlink
+
+    now = _now()
+    if use_cache and _LAST_UPLINK and (now - _LAST_UPLINK_AT) < AI_UPLINK_CACHE_SEC:
+        cached = dict(_LAST_UPLINK)
+        cached["cached"] = True
+        cached["cache_age_sec"] = now - _LAST_UPLINK_AT
+        return cached
+
+    if _UPLINK_PROBING:
+        return {
+            "connected": True,
+            "latency_ms": None,
+            "probe_url": _uplink_probe_url(),
+            "probe_streak": 0,
+            "source": "recursion_guard",
+            "uplink_stable": False,
+            "recursion_guard": True,
+        }
+
+    _UPLINK_PROBING = True
+    try:
+        probe_url = _uplink_probe_url()
+        probe = starlink.probe_uplink(
+            url=probe_url,
+            timeout_sec=AI_UPLINK_PROBE_TIMEOUT_SEC,
+        )
+        streak = int(probe.get("probe_streak") or 0)
+        connected = bool(probe.get("connected"))
+        result = {
+            "connected": connected,
+            "latency_ms": probe.get("latency_ms"),
+            "probe_url": probe.get("probe_url"),
+            "probe_streak": streak,
+            "source": "starlink" if connected else "none",
+            "uplink_stable": connected and streak >= starlink.PROBE_STREAK_REQUIRED,
+        }
+        _LAST_UPLINK.clear()
+        _LAST_UPLINK.update(result)
+        _LAST_UPLINK_AT = now
+        return result
+    finally:
+        _UPLINK_PROBING = False
 
 
 def _job_ai_spec(job: Dict[str, Any]) -> Dict[str, Any]:
@@ -370,7 +418,21 @@ def register_local_provider(
 def discover_ai_providers() -> Dict[str, Any]:
     init_ai_routing_db()
     ensure_coordinator_ai_provider()
-    register_local_provider()
+    npu_info: Dict[str, Any] = {}
+    try:
+        from chain_mesh import ai_npu_detect as npu
+
+        npu_info = npu.detect_npu_hardware()
+        if npu_info.get("runtimes"):
+            register_local_provider(
+                runtimes=npu_info.get("runtimes"),
+                flops_per_sec=npu.suggested_flops_per_sec(npu_info.get("hardware") or {}),
+                endpoints=None,
+            )
+        else:
+            register_local_provider()
+    except Exception:
+        register_local_provider()
     discovered = 0
 
     try:
@@ -445,7 +507,12 @@ def discover_ai_providers() -> Dict[str, Any]:
         pass
 
     total = aip.list_ai_providers(limit=200).get("count") or 0
-    return {"ok": True, "discovered": discovered, "total": total}
+    return {
+        "ok": True,
+        "discovered": discovered,
+        "total": total,
+        "npu": npu_info,
+    }
 
 
 def probe_ai_provider_health(provider: Dict[str, Any]) -> Dict[str, Any]:
@@ -901,17 +968,17 @@ def coordinator_dispatch_job(
     if not AI_ROUTING_ENABLE:
         return {"ok": True, "skipped": True, "reason": "AI_ROUTING_ENABLE off"}
 
+    jid = (job_id or "").strip()
+    if not jid:
+        raise ValueError("job_id required")
+
     init_ai_routing_db()
     body = dict(payload or {})
-    body["job_id"] = (job_id or body.get("job_id") or "").strip()
+    body["job_id"] = jid
     if body.get("job") or body.get("prompt_text"):
         ingest = _ingest_remote_dispatch_job(body)
         if not ingest.get("ok"):
             return ingest
-
-    jid = body["job_id"]
-    if not jid:
-        raise ValueError("job_id required")
 
     job = cjobs.get_compute_job(job_id=jid)
     if not job:
@@ -1358,6 +1425,8 @@ def submit_inference_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def build_gossip_snapshots() -> List[Dict[str, Any]]:
+    from chain_mesh import ai_gossip_sign as gsign
+
     init_ai_routing_db()
     snaps: List[Dict[str, Any]] = []
     for row in aip.list_ai_providers(limit=20).get("providers") or []:
@@ -1372,20 +1441,38 @@ def build_gossip_snapshots() -> List[Dict[str, Any]]:
                 "last_seen": int(row.get("last_seen") or 0),
             }
         )
-    return snaps
+    return gsign.sign_snapshots(snaps)
 
 
 def ingest_gossip_snapshots(snapshots: List[Dict[str, Any]]) -> Dict[str, Any]:
+    from chain_mesh import ai_gossip_sign as gsign
+
+    accepted, rejected = gsign.filter_verified_snapshots(snapshots)
     recorded = 0
-    for snap in snapshots or []:
-        if not isinstance(snap, dict):
-            continue
+    skipped = 0
+    for snap in accepted:
         pid = str(snap.get("provider_id") or "").strip()
         if not pid:
+            skipped += 1
             continue
+        existing = aip.get_ai_provider(provider_id=pid)
+        if existing:
+            src = str(existing.get("source") or "")
+            if src in ("local", "mdns", "lan", "coordinator"):
+                ex_seen = int(existing.get("last_seen") or 0)
+                snap_seen = int(snap.get("last_seen") or snap.get("signed_at") or 0)
+                if ex_seen >= snap_seen:
+                    skipped += 1
+                    continue
         aip.register_ai_provider(provider_id=pid, source="gossip", merge=True, body=snap)
         recorded += 1
-    return {"ok": True, "recorded": recorded}
+    return {
+        "ok": True,
+        "recorded": recorded,
+        "skipped": skipped,
+        "rejected": len(rejected),
+        "rejections": rejected[:5],
+    }
 
 
 def upkeep_ai() -> Dict[str, Any]:
@@ -1410,9 +1497,31 @@ def upkeep_ai() -> Dict[str, Any]:
     return result
 
 
-def status_payload() -> Dict[str, Any]:
+def _gossip_sign_status() -> Dict[str, Any]:
+    try:
+        from chain_mesh import ai_gossip_sign as gsign
+
+        return gsign.status_payload()
+    except Exception:
+        return {"ok": False}
+
+
+def _npu_detect_status() -> Dict[str, Any]:
+    try:
+        from chain_mesh import ai_npu_detect as npu
+
+        return npu.detect_npu_hardware()
+    except Exception:
+        return {"ok": False}
+
+
+def status_payload(*, include_uplink: bool = True) -> Dict[str, Any]:
     init_ai_routing_db()
-    uplink = uplink_available()
+    uplink = (
+        uplink_available(use_cache=True)
+        if include_uplink
+        else {"skipped": True, "reason": "nested_convergence_status"}
+    )
     providers_count = aip.list_ai_providers(limit=1).get("count") or 0
     public = os.environ.get(
         "BLOODSTONE_PUBLIC_ROOT", "https://bloodstonewallet.mytunnel.org"
@@ -1427,9 +1536,11 @@ def status_payload() -> Dict[str, Any]:
         "uplink": uplink,
         "providers_count": providers_count,
         "last_upkeep": dict(_LAST_UPKEEP),
-        "wave": "N",
+        "wave": "O",
         "coordinator_dispatch": AI_COORDINATOR_DISPATCH_ENABLE,
         "coordinator_node": _is_coordinator_node(),
+        "gossip_sign": _gossip_sign_status(),
+        "npu_detect": _npu_detect_status(),
         "apis": {
             "status": f"{public}/api/convergence/ai/status",
             "providers": f"{public}/api/convergence/ai/providers",
@@ -1437,6 +1548,7 @@ def status_payload() -> Dict[str, Any]:
             "submit": f"{public}/api/convergence/ai/submit",
             "dispatch": f"{public}/api/convergence/ai/dispatch",
             "callback": f"{public}/api/convergence/ai/callback",
+            "npu_status": f"{public}/api/convergence/ai/npu/status",
             "provider_health": f"{public}/api/convergence/ai/provider/health",
         },
     }

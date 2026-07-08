@@ -19,7 +19,7 @@ PROBE_URL = (
         "DTN_UPSTREAM_URL",
         os.environ.get("BLOODSTONE_PUBLIC_ROOT", "https://bloodstonewallet.mytunnel.org"),
     ).rstrip("/")
-    + "/api/convergence/status"
+    + "/health"
 )
 PROBE_TIMEOUT_SEC = max(3, int(os.environ.get("DTN_STARLINK_PROBE_TIMEOUT_SEC", "12")))
 PROBE_MAX_LATENCY_MS = max(500, int(os.environ.get("DTN_STARLINK_MAX_LATENCY_MS", "8000")))
@@ -129,10 +129,11 @@ def _interface_status(name: str) -> Dict[str, Any]:
     }
 
 
-def probe_uplink(*, url: str = "") -> Dict[str, Any]:
+def probe_uplink(*, url: str = "", timeout_sec: Optional[int] = None) -> Dict[str, Any]:
     """Probe coordinator reachability — models brief Starlink / satellite windows."""
     init_starlink_db()
     target = (url or PROBE_URL).strip()
+    timeout = max(1, int(timeout_sec if timeout_sec is not None else PROBE_TIMEOUT_SEC))
     iface = _interface_status(STARLINK_INTERFACE)
     if STARLINK_INTERFACE and not iface.get("up"):
         result = {
@@ -154,7 +155,7 @@ def probe_uplink(*, url: str = "") -> Dict[str, Any]:
     err = ""
     payload: Dict[str, Any] = {}
     try:
-        resp = requests.get(target, timeout=PROBE_TIMEOUT_SEC)
+        resp = requests.get(target, timeout=timeout)
         latency_ms = round((time.time() - started) * 1000.0, 1)
         if resp.status_code == 200:
             payload = resp.json()
