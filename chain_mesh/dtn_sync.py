@@ -1428,11 +1428,28 @@ def upkeep_dtn(*, force_flush: bool = False) -> Dict[str, Any]:
     except Exception as exc:
         starlink = {"ok": False, "error": str(exc)}
     quorum = update_region_quorum()
+    planetary = None
+    try:
+        from chain_mesh import planetary_quorum as planetary_mod
+
+        if planetary_mod.PLANETARY_ENABLE:
+            planetary = planetary_mod.update_planetary_quorum()
+    except Exception as exc:
+        planetary = {"ok": False, "error": str(exc)}
     alerts = check_forward_alerts()
     heal = None
     auto_heal = os.environ.get("DTN_AUTO_HEAL", "1").strip() not in ("0", "false", "no")
     if auto_heal:
         heal = replication_heal(region=DTN_DEFAULT_REGION)
+    planetary_heal = None
+    if auto_heal:
+        try:
+            from chain_mesh import planetary_quorum as planetary_mod
+
+            if planetary_mod.PLANETARY_ENABLE and planetary and not planetary.get("planetary_satisfied"):
+                planetary_heal = planetary_mod.planetary_heal()
+        except Exception as exc:
+            planetary_heal = {"ok": False, "error": str(exc)}
     flush = None
     auto = os.environ.get("DTN_AUTO_FLUSH", "0").strip() in ("1", "true", "yes")
     if force_flush or auto:
@@ -1448,7 +1465,9 @@ def upkeep_dtn(*, force_flush: bool = False) -> Dict[str, Any]:
             "chunks_checked": quorum.get("chunks_checked"),
             "chunks_satisfied": quorum.get("chunks_satisfied"),
         },
+        "planetary": planetary,
         "heal": heal,
+        "planetary_heal": planetary_heal,
         "alerts": alerts,
         "flush": flush,
         "flush_window": flush_window_status(),
@@ -1588,6 +1607,23 @@ def _gossip_status_brief() -> Dict[str, Any]:
         return {"enabled": False, "error": str(exc)}
 
 
+def _planetary_status_brief() -> Dict[str, Any]:
+    try:
+        from chain_mesh import planetary_quorum as planetary
+
+        st = planetary.status_payload()
+        rollup = st.get("rollup") or {}
+        return {
+            "enabled": planetary.PLANETARY_ENABLE,
+            "format": planetary.PLANETARY_FORMAT,
+            "planetary_satisfied": rollup.get("planetary_satisfied"),
+            "regions_total": rollup.get("regions_total"),
+            "regions_under_quorum": rollup.get("regions_under_quorum"),
+        }
+    except Exception as exc:
+        return {"enabled": False, "error": str(exc)}
+
+
 def _starlink_status_brief() -> Dict[str, Any]:
     try:
         from chain_mesh import dtn_starlink as starlink
@@ -1618,7 +1654,7 @@ def status_payload() -> Dict[str, Any]:
     fw = flush_window_status()
     return {
         "ok": True,
-        "wave": "J",
+        "wave": "K",
         "hardened": True,
         "use_case": "off_grid_dtn_mesh",
         "format": DTN_BUNDLE_FORMAT,
@@ -1645,6 +1681,7 @@ def status_payload() -> Dict[str, Any]:
         "mdns": _mdns_status_brief(),
         "gossip": _gossip_status_brief(),
         "starlink": _starlink_status_brief(),
+        "planetary": _planetary_status_brief(),
         "watermarks": [dict(r) for r in wm],
         "apis": {
             "export": f"{public}/api/convergence/dtn/export",
@@ -1666,6 +1703,10 @@ def status_payload() -> Dict[str, Any]:
             "starlink_status": f"{public}/api/convergence/dtn/starlink/status",
             "starlink_probe": f"{public}/api/convergence/dtn/starlink/probe",
             "starlink_handoff": f"{public}/api/convergence/dtn/starlink/handoff",
+            "planetary_status": f"{public}/api/convergence/dtn/planetary/status",
+            "planetary_regions": f"{public}/api/convergence/dtn/planetary/regions",
+            "planetary_heal": f"{public}/api/convergence/dtn/planetary/heal",
+            "planetary_exchange": f"{public}/api/convergence/dtn/planetary/exchange",
         },
     }
 

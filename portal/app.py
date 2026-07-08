@@ -1330,6 +1330,62 @@ def api_convergence_dtn_starlink_handoff():
     return jsonify(cm.convergence_dtn_starlink_handoff_payload(force=bool(force), limit=limit))
 
 
+@app.route("/api/convergence/dtn/planetary/status")
+def api_convergence_dtn_planetary_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_dtn_planetary_status_payload())
+
+
+@app.route("/api/convergence/dtn/planetary/regions")
+def api_convergence_dtn_planetary_regions():
+    import chain_mesh.api as cm
+
+    try:
+        limit = int(request.args.get("limit") or 50)
+    except (TypeError, ValueError):
+        limit = 50
+    return jsonify(cm.convergence_dtn_planetary_regions_payload(limit=limit))
+
+
+@app.route("/api/convergence/dtn/planetary/heal", methods=["POST"])
+def api_convergence_dtn_planetary_heal():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    regions = payload.get("regions")
+    if isinstance(regions, str):
+        regions = [r.strip() for r in regions.split(",") if r.strip()]
+    try:
+        limit = int(payload.get("limit") or request.args.get("limit") or 0)
+    except (TypeError, ValueError):
+        limit = 0
+    return jsonify(cm.convergence_dtn_planetary_heal_payload(limit=limit, regions=regions))
+
+
+@app.route("/api/convergence/dtn/planetary/exchange", methods=["POST"])
+def api_convergence_dtn_planetary_exchange():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_dtn_planetary_exchange_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/dtn/planetary/round", methods=["POST"])
+def api_convergence_dtn_planetary_round():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        limit = int(payload.get("limit") or request.args.get("limit") or 0)
+    except (TypeError, ValueError):
+        limit = 0
+    return jsonify(cm.convergence_dtn_planetary_round_payload(limit=limit))
+
+
 @app.route("/api/convergence/spatial/manifest", methods=["GET", "POST"])
 def api_convergence_spatial_manifest():
     import chain_mesh.api as cm

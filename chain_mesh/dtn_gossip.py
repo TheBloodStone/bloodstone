@@ -113,6 +113,17 @@ def build_exchange_payload() -> Dict[str, Any]:
             break
 
     bundle_hints = _recent_bundle_hints()
+    quorum_snapshots: List[Dict[str, Any]] = []
+    try:
+        from chain_mesh import planetary_quorum as planetary
+
+        if planetary.PLANETARY_ENABLE:
+            snap = planetary.build_quorum_snapshot()
+            if snap:
+                quorum_snapshots.append(snap)
+    except Exception:
+        pass
+
     return {
         "ok": True,
         "format": GOSSIP_FORMAT,
@@ -121,6 +132,7 @@ def build_exchange_payload() -> Dict[str, Any]:
         "self": peers_out[0] if peers_out else _peer_record(node_id=_node_id(), base_url=self_url or ""),
         "peers": peers_out,
         "bundle_hints": bundle_hints,
+        "quorum_snapshots": quorum_snapshots,
         "max_hops": GOSSIP_MAX_HOPS,
         "rumor_ttl_sec": GOSSIP_RUMOR_TTL_SEC,
     }
@@ -225,6 +237,21 @@ def ingest_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
             )
         bundle_hints_recorded += 1
 
+    quorum_votes = 0
+    try:
+        from chain_mesh import planetary_quorum as planetary
+
+        if planetary.PLANETARY_ENABLE:
+            snaps = [
+                row
+                for row in (payload.get("quorum_snapshots") or [])
+                if isinstance(row, dict)
+            ]
+            ingest_q = planetary.ingest_quorum_snapshots(snaps)
+            quorum_votes = int(ingest_q.get("votes_recorded") or 0)
+    except Exception:
+        pass
+
     return {
         "ok": True,
         "format": GOSSIP_FORMAT,
@@ -232,6 +259,7 @@ def ingest_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "peers_registered": peers_registered,
         "peers_skipped": peers_skipped,
         "bundle_hints_recorded": bundle_hints_recorded,
+        "quorum_votes_recorded": quorum_votes,
         "reply": build_exchange_payload(),
     }
 

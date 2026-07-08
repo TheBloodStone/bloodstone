@@ -157,6 +157,19 @@ curl -X POST http://127.0.0.1:8887/api/convergence/condenser/offline/index
 
 DTN bundles now include `post-manifests.json` for offline feed sync.
 
+### Planetary quorum (Wave K)
+
+Roll up regional replication quorum across DTN peers and coordinate cross-region heal:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/dtn/planetary/status | jq '.rollup.planetary_satisfied, .regions'
+curl -fsS http://127.0.0.1:8887/api/convergence/dtn/planetary/regions | jq .
+curl -X POST http://127.0.0.1:8887/api/convergence/dtn/planetary/heal
+curl -X POST http://127.0.0.1:8887/api/convergence/dtn/planetary/round
+```
+
+Gossip exchange (`bloodstone_dtn_gossip/v1`) now carries `quorum_snapshots` for peer votes. Planetary rollup runs automatically in DTN upkeep when `DTN_PLANETARY_ENABLE=1`.
+
 ### Manual peer register
 
 ```bash

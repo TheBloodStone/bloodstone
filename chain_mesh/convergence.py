@@ -14,6 +14,7 @@ from chain_mesh import depin_credits as depin
 from chain_mesh import dtn_gossip as gossip
 from chain_mesh import dtn_starlink as starlink
 from chain_mesh import dtn_sync as dtn
+from chain_mesh import planetary_quorum as planetary
 from chain_mesh import mesh_providers as providers
 from chain_mesh import mesh_v2_lite as v2
 from chain_mesh import spatial_manifest as spatial
@@ -46,7 +47,8 @@ def layer_status() -> List[Dict[str, Any]]:
             "status": "beta",
             "detail": (
                 f"RFC {blurt_reg.RFC_VERSION} chunks + DTN bundles + "
-                f"{starlink.HANDOFF_FORMAT} satellite handoff"
+                f"{starlink.HANDOFF_FORMAT} satellite handoff + "
+                f"{planetary.PLANETARY_FORMAT} planetary quorum"
             ),
             "api": f"{public}/api/chain-mesh/v2/manifest",
             "dtn_export": f"{public}/api/convergence/dtn/export",
@@ -91,7 +93,7 @@ def status_payload() -> Dict[str, Any]:
         "ok": True,
         "vision": "Sovereign Mesh 2030 — Blurt trust anchor + Bloodstone memory fabric",
         "tagline": "Autonomous, self-healing nervous system — identity owns truth, hardware owns the network",
-        "roadmap": "Wave A–I ✓ · Wave J: offline-first Condenser fork ✓",
+        "roadmap": "Wave A–J ✓ · Wave K: planetary DTN quorum ✓",
         "layers": layer_status(),
         "mesh_v2": {
             "spec": v2_sys.get("spec"),
@@ -125,6 +127,7 @@ def status_payload() -> Dict[str, Any]:
         "provenance_id": "bloodstone_provenance/v1",
         "mesh_anchor_id": blurt_reg.CUSTOM_JSON_ID,
         "dtn": dtn.status_payload(),
+        "planetary_quorum": planetary.status_payload(),
         "condenser_offline": coff.status_payload(),
         "spatial_manifest_id": spatial.SPATIAL_MANIFEST_ID,
         "spatial_asset_prefix": "assets/spatial/",

@@ -1276,6 +1276,48 @@ def convergence_dtn_starlink_handoff_payload(*, force: bool = False, limit: int 
     return starlink.starlink_handoff(force=force, limit=limit)
 
 
+def convergence_dtn_planetary_status_payload() -> Dict[str, Any]:
+    from chain_mesh import planetary_quorum as planetary
+
+    return planetary.status_payload()
+
+
+def convergence_dtn_planetary_regions_payload(*, limit: int = 50) -> Dict[str, Any]:
+    from chain_mesh import planetary_quorum as planetary
+
+    return planetary.list_regions(limit=limit)
+
+
+def convergence_dtn_planetary_heal_payload(
+    *,
+    limit: int = 0,
+    regions: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    from chain_mesh import planetary_quorum as planetary
+
+    return planetary.planetary_heal(limit=limit, regions=regions)
+
+
+def convergence_dtn_planetary_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh import planetary_quorum as planetary
+
+    result = planetary.ingest_exchange_payload(payload)
+    reply = result.pop("reply", None) or {
+        "ok": True,
+        "format": planetary.PLANETARY_FORMAT,
+        "node_id": payload.get("node_id") or "",
+        "quorum_snapshots": [planetary.build_quorum_snapshot()],
+    }
+    result["reply"] = reply
+    return result
+
+
+def convergence_dtn_planetary_round_payload(*, limit: int = 0) -> Dict[str, Any]:
+    from chain_mesh import planetary_quorum as planetary
+
+    return planetary.planetary_exchange_round(limit=limit)
+
+
 def convergence_dtn_replication_heal_payload(
     *,
     region: str = "",
