@@ -412,11 +412,24 @@ export function updateDeviceNetworkPanel(info) {
   }
 }
 
+async function refreshQuasarHud() {
+  const hud = document.getElementById("quasar-hud");
+  if (!hud || !isAndroidAppContext()) return;
+  try {
+    const { fetchQuasarStatus, renderQuasarHud } = await import("./quasar-client.js");
+    const data = await fetchQuasarStatus();
+    renderQuasarHud(data, hud);
+  } catch (_) {
+    /* ignore */
+  }
+}
+
 export async function refreshDeviceNetworkPanel() {
   if (!isAndroidAppContext()) return null;
   updateMineTargetsPanel(null);
   const info = await fetchDeviceNetworkInfo();
   updateDeviceNetworkPanel(info);
+  void refreshQuasarHud();
   return info;
 }
 

@@ -2235,6 +2235,9 @@ exposeMinerCoreGlobals();
 document.addEventListener("DOMContentLoaded", () => {
   if (isAndroidAppContext()) {
     initAndroidUpdateOptions();
+    import("./quasar-client.js")
+      .then((q) => q.startQuasarBackgroundSync(120000))
+      .catch(() => {});
   } else {
     startChainMeshPeer();
   }

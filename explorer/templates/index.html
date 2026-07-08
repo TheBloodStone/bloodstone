@@ -70,6 +70,21 @@
         {% else %}—{% endif %}
       </div>
     </div>
+    <div class="quasar-stat">
+      <div class="stat-label">Witness quorum</div>
+      <div class="stat-value mono small" id="quasar-witness">
+        {{ quasar.witness.quorum_depth|default(0) }}/{{ quasar.witness.required_quorum|default(3) }}
+        · {{ quasar.witness.status|default('awaiting') }}
+      </div>
+    </div>
+    <div class="quasar-stat">
+      <div class="stat-label">LAN echo</div>
+      <div class="stat-value mono small" id="quasar-lan-echo">{{ quasar.lan_echo.quorum_label|default(quasar.lan_echo.status|default('—')) }}</div>
+    </div>
+    <div class="quasar-stat">
+      <div class="stat-label">Tripwire</div>
+      <div class="stat-value mono small" id="quasar-tripwire">{{ 'ACTIVE' if quasar.tripwire.active else 'clear' }}</div>
+    </div>
     <div class="quasar-stat wide">
       <div class="stat-label">Policy</div>
       <div class="stat-value small" id="quasar-policy-reason">{{ quasar.confirmations.reason|default('Loading braid policy…') }}</div>

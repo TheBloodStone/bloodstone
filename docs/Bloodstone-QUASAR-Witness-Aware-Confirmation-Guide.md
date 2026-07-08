@@ -1,7 +1,7 @@
 # Bloodstone QUASAR — Witness-Aware Confirmation Guide
 
 **Audience:** CEX integrators, custody engineers, GleecDEX / AtomicDEX operators  
-**Phase:** QUASAR 1 (live) — braid policy + exchange API; witness capsules Phase 2  
+**Phase:** QUASAR 2 (live) — braid policy, witness capsules, LAN echo quorum, anomaly tripwires
 **Updated:** July 2026
 
 ---
@@ -21,7 +21,10 @@ QUASAR Phase 1 adds a **software policy layer** so exchanges do not credit depos
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/exchange` | Listing pack — coin metadata, seeds, ElectrumX, **embedded `quasar` block** |
-| `GET /api/quasar/status` | Live braid vector, status, recommended confirmations |
+| `GET /api/quasar/status` | Live braid vector, witness quorum, LAN echo, tripwires, confirmations |
+| `POST /api/quasar/witness/submit` | Ingest signed witness capsule (`bloodstone/witness-capsule/v1`) |
+| `POST /api/quasar/lan-echo` | Submit LAN echo packet (`bloodstone/lan-echo/v1`) |
+| `GET /api/quasar/alerts` | Active anomaly tripwire alerts |
 
 Poll both every **60–120 seconds** (or on each deposit detection). Cache TTL on the server is ~45s.
 
@@ -101,21 +104,34 @@ This is **policy**, not consensus — your node still follows most-work chain ru
 
 ---
 
-## 6. Witness-aware confirmations (Phase 2 — preview)
+## 6. Witness-aware confirmations (Phase 2 — live)
 
-Mesh **Witness Capsules** (`bloodstone/witness-capsule/v1`) will publish signed tip attestations via Chain Mesh. When live:
+Mesh **Witness Capsules** (`bloodstone/witness-capsule/v1`) publish signed tip attestations via Chain Mesh under `assets/witness/YYYY-MM/`. Android full/pruned nodes and the VPS coordinator emit capsules automatically.
 
 ```
-confirmations_effective = base_confirmations + witness_quorum_depth
+confirmations_effective = base_confirmations + witness_bonus
+witness_bonus = max(0, 3 - witness_quorum_depth)   # when quorum < 3
 ```
 
 | Witness signal | Policy |
 |----------------|--------|
-| Quorum ≥ 3 agreeing on tip | Standard braid policy applies |
-| Quorum &lt; 3 | Add +1 confirm per missing signer (cap 20) |
-| Capsules disagree (`witness_status: split`) | **Halt deposits** — manual review |
+| `live` — quorum ≥ 3 on tip | Standard braid policy applies |
+| `pending` / `awaiting` — quorum &lt; 3 | `witness_pending` — add bonus confirms (cap 20) |
+| `split` — disagreeing tip hashes | **Halt deposits** (`halt_deposits`) |
 
-Phase 1 returns `witness.status: "not_live"` and `quorum_depth: 0`. Your integration should read these fields now so Phase 2 is a config-only upgrade.
+### LAN Echo Quorum (LEQ)
+
+Phones on the same public IP echo their observed tip via `POST /api/quasar/lan-echo`. Status appears in `/api/quasar/status` → `lan_echo`:
+
+| `lan_echo.status` | Meaning |
+|-------------------|---------|
+| `quorum` | Majority of LAN echoes agree with pool tip |
+| `disagree` | LAN fleet disagrees with pool — delay deposits |
+| `split_brain` | Multiple tip hashes on same LAN — manual review |
+
+### Anomaly tripwires (AT)
+
+`GET /api/quasar/alerts` evaluates pool share velocity and orphan shadow rules. When `tripwire.active` is true, `/api/exchange` bumps `confirmations_deposit_recommended` via `tripwire_bump` policy. Alerts also publish to `assets/alerts/quasar/YYYY-MM/latest.json` on mesh.
 
 ---
 

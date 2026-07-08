@@ -3034,6 +3034,86 @@ def api_chain_mesh_pending_shares():
         return jsonify({"error": str(exc)}), 400
 
 
+def _quasar_public_ip() -> str:
+    public_ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "").split(",")[0].strip()
+    return public_ip
+
+
+@app.route("/api/quasar/status")
+@app.route("/mining/api/quasar/status")
+def api_quasar_status():
+    import bloodstone_quasar_api as qapi
+    import node_rpc
+
+    try:
+        return jsonify(qapi.status_payload(node_rpc.rpc))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 503
+
+
+@app.route("/api/quasar/witness/submit", methods=["POST"])
+@app.route("/mining/api/quasar/witness/submit", methods=["POST"])
+def api_quasar_witness_submit():
+    import bloodstone_quasar_api as qapi
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(qapi.witness_submit(payload))
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/quasar/witness/capsules")
+@app.route("/mining/api/quasar/witness/capsules")
+def api_quasar_witness_capsules():
+    import bloodstone_quasar_api as qapi
+
+    tip_hash = (request.args.get("tip_hash") or "").strip()
+    limit = int(request.args.get("limit", 50))
+    offset = int(request.args.get("offset", 0))
+    return jsonify(qapi.witness_list(tip_hash=tip_hash, limit=limit, offset=offset))
+
+
+@app.route("/api/quasar/lan-echo", methods=["POST"])
+@app.route("/mining/api/quasar/lan-echo", methods=["POST"])
+def api_quasar_lan_echo():
+    import bloodstone_quasar_api as qapi
+    import node_rpc
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(
+            qapi.lan_echo_submit(payload, public_ip=_quasar_public_ip(), rpc=node_rpc.rpc)
+        )
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/quasar/lan-echo/status")
+@app.route("/mining/api/quasar/lan-echo/status")
+def api_quasar_lan_echo_status():
+    import bloodstone_quasar_api as qapi
+    import node_rpc
+
+    public_ip = (request.args.get("public_ip") or _quasar_public_ip()).strip()
+    try:
+        return jsonify(qapi.lan_echo_status_payload(public_ip=public_ip, rpc=node_rpc.rpc))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 503
+
+
+@app.route("/api/quasar/alerts")
+@app.route("/mining/api/quasar/alerts")
+def api_quasar_alerts():
+    import bloodstone_quasar_api as qapi
+    import node_rpc
+
+    try:
+        return jsonify(qapi.alerts_payload(node_rpc.rpc))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 503
+
+
 @app.route("/api/pool/dual-stats")
 def api_pool_dual_stats():
     """Per-chain dual-mining share/block counts (24h window by default)."""

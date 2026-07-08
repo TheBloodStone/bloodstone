@@ -368,6 +368,13 @@ dt { color: var(--muted); }
 dd { margin: 0; word-break: break-all; }
 .copy-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .device-lan-mining-panel strong { margin-right: 0.5rem; }
+
+.quasar-hud-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem 1rem;
+  margin-top: 0.35rem;
+}
 .mine-targets-panel {
   border: 1px solid #3d5a2a;
   background: linear-gradient(135deg, #152018 0%, #1a2410 100%);

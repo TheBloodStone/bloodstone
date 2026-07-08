@@ -62,6 +62,16 @@ function updateQuasarPanel(data) {
   }
   const reasonEl = document.getElementById("quasar-policy-reason");
   if (reasonEl) reasonEl.textContent = data.confirmations?.reason || "—";
+  const witnessEl = document.getElementById("quasar-witness");
+  if (witnessEl && data.witness) {
+    witnessEl.textContent = `${data.witness.quorum_depth || 0}/${data.witness.required_quorum || 3} · ${data.witness.status || "awaiting"}`;
+  }
+  const lanEl = document.getElementById("quasar-lan-echo");
+  if (lanEl && data.lan_echo) {
+    lanEl.textContent = data.lan_echo.quorum_label || data.lan_echo.status || "—";
+  }
+  const tripEl = document.getElementById("quasar-tripwire");
+  if (tripEl) tripEl.textContent = data.tripwire?.active ? "ACTIVE" : "clear";
   const updatedEl = document.getElementById("quasar-updated");
   if (updatedEl && data.updated_utc) {
     updatedEl.textContent = `Updated ${data.updated_utc}`;

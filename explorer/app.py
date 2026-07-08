@@ -220,7 +220,9 @@ def index():
         )
     quasar = {}
     try:
-        quasar = bloodstone_quasar.build_status(rpc)
+        import bloodstone_quasar_api as qapi
+
+        quasar = qapi.status_payload(rpc)
     except Exception:
         quasar = {"ok": False, "braid_status": "unknown"}
 
@@ -396,7 +398,9 @@ def search():
 @app.route("/api/quasar/status")
 def api_quasar_status():
     try:
-        return jsonify(bloodstone_quasar.build_status(rpc))
+        import bloodstone_quasar_api as qapi
+
+        return jsonify(qapi.status_payload(rpc))
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 503
 
