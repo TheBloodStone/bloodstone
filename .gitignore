@@ -1,0 +1,61 @@
+# Secrets & local config
+secrets.conf
+service-overrides.conf
+.env
+.env.*
+*.pem
+*.key
+id_*
+*_key
+*.keystore
+keystore.properties
+
+# Python
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+
+# Node / front-end
+node_modules/
+dist/
+out/
+.npm/
+.cache/
+
+# Android / Gradle
+.gradle/
+android/app/build/
+android/build/
+**/android/build/
+local.properties
+captures/
+.externalNativeBuild/
+
+# Autotools / C++ build
+autom4te.cache/
+Makefile
+src/config.*
+src/.deps/
+src/*.o
+src/*.a
+config.log
+config.status
+libtool
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs & artifacts
+*.log
+*.apk
+*.aab
+*.zip.sha256
+
+# Runtime data (never publish)
+.bloodstone/
