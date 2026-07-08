@@ -56,6 +56,14 @@ install_systemd_units() {
     >/etc/systemd/system/bloodstone-convergence-upkeep.service
   cp -f "$SCRIPT_DIR/bloodstone-convergence-upkeep.timer" \
     /etc/systemd/system/bloodstone-convergence-upkeep.timer
+  if [[ -f "$SCRIPT_DIR/bloodstone-ai-inference.service" ]]; then
+    chmod +x "$SCRIPT_DIR/scripts/ai-inference-shim.sh" 2>/dev/null || true
+    chmod +x "$SCRIPT_DIR/scripts/ai-inference-shim.py" 2>/dev/null || true
+    sed "s|/root|${ROOT}|g" "$SCRIPT_DIR/bloodstone-ai-inference.service" \
+      | sed "s|/root/ops|${ROOT}/ops|g" \
+      >/etc/systemd/system/bloodstone-ai-inference.service
+    systemctl enable --now bloodstone-ai-inference.service 2>/dev/null || true
+  fi
   systemctl daemon-reload
   systemctl enable --now bloodstone-portal.service bloodstone-dtn-mdns.service
   systemctl enable --now bloodstone-convergence-upkeep.timer

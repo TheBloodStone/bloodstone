@@ -267,7 +267,25 @@ def bandwidth_quota(stone_address: str) -> Dict[str, Any]:
     }
 
 
-def check_bandwidth_allowed(stone_address: str, byte_size: int) -> Dict[str, Any]:
+def check_bandwidth_allowed(
+    stone_address: str,
+    byte_size: int,
+    *,
+    blurt_author: str = "",
+    tenant_id: str = "",
+) -> Dict[str, Any]:
+    if (blurt_author or "").strip():
+        try:
+            from chain_mesh import bandwidth_tenant_quota as tenant
+
+            return tenant.check_tenant_bandwidth_allowed(
+                stone_address=stone_address,
+                byte_size=int(byte_size),
+                blurt_author=str(blurt_author or ""),
+                tenant_id=str(tenant_id or ""),
+            )
+        except Exception:
+            pass
     q = bandwidth_quota(stone_address)
     if not ENFORCE_BANDWIDTH or not stone_address:
         return {"ok": True, "allowed": True, "quota": q, "reason": "bandwidth enforcement off"}
@@ -379,11 +397,29 @@ def record_compute_usage(
     return {"ok": True, "stone_address": addr, "flops_used": used}
 
 
-def record_bandwidth_usage(stone_address: str, *, delta_bytes: int) -> Dict[str, Any]:
+def record_bandwidth_usage(
+    stone_address: str,
+    *,
+    delta_bytes: int,
+    blurt_author: str = "",
+    tenant_id: str = "",
+) -> Dict[str, Any]:
     init_depin_db()
     addr = (stone_address or "").strip()
     delta = int(delta_bytes)
     now = _now()
+    if (blurt_author or "").strip():
+        try:
+            from chain_mesh import bandwidth_tenant_quota as tenant
+
+            tenant.record_tenant_bandwidth_usage(
+                blurt_author=str(blurt_author),
+                stone_address=addr,
+                delta_bytes=delta,
+                tenant_id=str(tenant_id or ""),
+            )
+        except Exception:
+            pass
     with _conn() as conn:
         row = conn.execute(
             "SELECT bytes_used FROM bandwidth_usage WHERE stone_address = ?",

@@ -1120,6 +1120,38 @@ def convergence_bandwidth_quota_payload(stone_address: str) -> Dict[str, Any]:
     return depin.bandwidth_quota(stone_address)
 
 
+def convergence_bandwidth_tenant_quota_payload(
+    *,
+    tenant_id: str = "",
+    blurt_author: str = "",
+    stone_address: str = "",
+) -> Dict[str, Any]:
+    from chain_mesh import bandwidth_tenant_quota as tenant
+
+    return tenant.tenant_quota(
+        tenant_id=tenant_id,
+        blurt_author=blurt_author,
+        stone_address=stone_address,
+    )
+
+
+def convergence_bandwidth_tenant_bind_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh import bandwidth_tenant_quota as tenant
+
+    return tenant.bind_tenant_author(
+        tenant_id=str(payload.get("tenant_id") or ""),
+        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+        stone_address=str(payload.get("stone_address") or ""),
+        bytes_cap=int(payload.get("bytes_cap") or payload.get("cap") or 0),
+    )
+
+
+def convergence_bandwidth_tenant_status_payload() -> Dict[str, Any]:
+    from chain_mesh import bandwidth_tenant_quota as tenant
+
+    return tenant.status_payload()
+
+
 def convergence_depin_quota_payload(stone_address: str) -> Dict[str, Any]:
     from chain_mesh import depin_credits as depin
 
@@ -1146,6 +1178,8 @@ def convergence_dtn_export_payload(
     region: str = "",
     queue_forward: bool = False,
     stone_address: str = "",
+    blurt_author: str = "",
+    tenant_id: str = "",
 ) -> Dict[str, Any]:
     from chain_mesh import dtn_sync as dtn
 
@@ -1156,6 +1190,8 @@ def convergence_dtn_export_payload(
         region=region,
         queue_forward=queue_forward,
         stone_address=stone_address,
+        blurt_author=blurt_author,
+        tenant_id=tenant_id,
     )
 
 
@@ -1166,14 +1202,22 @@ def convergence_dtn_build_zip(
     include_chunks: bool = True,
     region: str = "",
     stone_address: str = "",
+    blurt_author: str = "",
+    tenant_id: str = "",
 ) -> tuple:
     from chain_mesh import depin_credits as depin
     from chain_mesh import dtn_sync as dtn
 
     addr = (stone_address or "").strip()
+    author = (blurt_author or "").strip()
     if depin.ENFORCE_BANDWIDTH and addr:
         est = int(os.environ.get("DTN_BANDWIDTH_ESTIMATE_BYTES", str(dtn.DTN_MAX_BUNDLE_BYTES)))
-        quota_check = depin.check_bandwidth_allowed(addr, est)
+        quota_check = depin.check_bandwidth_allowed(
+            addr,
+            est,
+            blurt_author=author,
+            tenant_id=tenant_id,
+        )
         if not quota_check.get("allowed"):
             raise PermissionError(quota_check.get("reason") or "bandwidth quota exceeded")
 
@@ -1184,7 +1228,12 @@ def convergence_dtn_build_zip(
         region=region,
     )
     if addr and len(blob) > 0:
-        depin.record_bandwidth_usage(addr, delta_bytes=len(blob))
+        depin.record_bandwidth_usage(
+            addr,
+            delta_bytes=len(blob),
+            blurt_author=author,
+            tenant_id=tenant_id,
+        )
     return blob, filename, meta
 
 

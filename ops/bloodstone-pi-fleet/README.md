@@ -228,6 +228,36 @@ curl -fsS http://127.0.0.1:8887/api/convergence/ai/gossip/sign/status | jq .
 
 Set `AI_GOSSIP_SIGNING_KEY` on Pi fleet nodes for shared verification. Unsigned snapshots are still accepted while `AI_GOSSIP_ALLOW_UNSIGNED=1` (beta default).
 
+### Wave Q — inference shim + bandwidth tenant + fleet gossip
+
+**llama.cpp inference shim** — OpenAI-compatible HTTP on `:8081`, self-registers with portal:
+
+```bash
+sudo systemctl enable --now bloodstone-ai-inference
+curl -fsS http://127.0.0.1:8081/health | jq .
+curl -X POST http://127.0.0.1:8081/v1/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"llama.cpp","prompt":"hello mesh","max_tokens":32}'
+```
+
+Set `LLAMA_SERVER_URL=http://127.0.0.1:8080` to proxy to a local `llama-server` instead of the beta stub.
+
+**Multi-tenant bandwidth quota** — per-author byte caps on DTN export:
+
+```bash
+curl -X POST http://127.0.0.1:8887/api/convergence/bandwidth/tenant/bind \
+  -H 'Content-Type: application/json' \
+  -d '{"tenant_id":"bloodstone","blurt_author":"megadrive","stone_address":"STONE...","bytes_cap":104857600}'
+curl -fsS 'http://127.0.0.1:8887/api/convergence/bandwidth/tenant/quota?blurt_author=megadrive' | jq .
+curl -fsS 'http://127.0.0.1:8887/api/convergence/dtn/export?stone_address=STONE...&blurt_author=megadrive' | jq .
+```
+
+**Fleet gossip enforcement** — when `AI_GOSSIP_SIGNING_KEY` is set, unsigned snapshots are rejected by default:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/ai/gossip/sign/status | jq '.fleet_key_configured,.enforcement_mode'
+```
+
 ### Coordinator AI dispatch (Wave N)
 
 When no local provider matches and uplink is stable, edge nodes HTTP-dispatch to the coordinator instead of queue-only fallback:
@@ -292,5 +322,7 @@ Coordinator runs the same convergence stack with `DTN_NODE_ID=coordinator-vps`.
 - `bloodstone-pi-fleet-setup.sh` — automated installer
 - `convergence.env.example` — memo rail + DTN env template
 - `bloodstone-portal-pi.service` — portal unit (LAN :8887)
+- `bloodstone-ai-inference.service` — llama.cpp inference shim (:8081)
+- `scripts/ai-inference-shim.sh` + `ai-inference-shim.py` — OpenAI-compatible proxy
 - `bloodstone-dtn-mdns.service` — mDNS broadcaster
 - `bloodstone-convergence-upkeep.service` + `.timer` — Blurt registry + credit sync

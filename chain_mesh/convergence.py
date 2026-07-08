@@ -62,7 +62,7 @@ def layer_status() -> List[Dict[str, Any]]:
             "status": "beta",
             "detail": (
                 f"Provider roles + {cjobs.COMPUTE_JOB_ID} + DTN gossip ({gossip.GOSSIP_FORMAT}) + "
-                f"{ai.AI_ROUTING_FORMAT} on-device AI routing + multi-tenant compute quota"
+                f"{ai.AI_ROUTING_FORMAT} on-device AI routing + multi-tenant compute/bandwidth quota"
             ),
             "api": f"{public}/api/chain-mesh/v2/providers",
             "compute_quota_api": f"{public}/api/convergence/compute/quota",
@@ -101,7 +101,7 @@ def status_payload() -> Dict[str, Any]:
         "ok": True,
         "vision": "Sovereign Mesh 2030 — Blurt trust anchor + Bloodstone memory fabric",
         "tagline": "Autonomous, self-healing nervous system — identity owns truth, hardware owns the network",
-        "roadmap": "Wave A–O ✓ · Wave P: multi-tenant quota + Blurt AI sync ✓",
+        "roadmap": "Wave A–P ✓ · Wave Q: inference shim + bandwidth tenant + fleet gossip ✓",
         "layers": layer_status(),
         "mesh_v2": {
             "spec": v2_sys.get("spec"),

@@ -25,8 +25,37 @@ def _verify_enable() -> bool:
     return _env_flag("AI_GOSSIP_VERIFY")
 
 
+def _explicit_signing_key() -> Optional[bytes]:
+    explicit = (os.environ.get("AI_GOSSIP_SIGNING_KEY") or "").strip()
+    if explicit:
+        return explicit.encode("utf-8")
+    path = (os.environ.get("AI_GOSSIP_SIGNING_KEY_FILE") or "").strip()
+    if path and os.path.isfile(path):
+        with open(path, "rb") as fh:
+            return fh.read().strip()
+    return None
+
+
+def _fleet_key_configured() -> bool:
+    return _explicit_signing_key() is not None
+
+
+def _require_fleet_key() -> bool:
+    if os.environ.get("AI_GOSSIP_REQUIRE_FLEET_KEY", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
+        return True
+    if _fleet_key_configured() and os.environ.get("AI_GOSSIP_ALLOW_UNSIGNED") is None:
+        return True
+    return False
+
+
 def _allow_unsigned() -> bool:
-    return _env_flag("AI_GOSSIP_ALLOW_UNSIGNED")
+    if _require_fleet_key():
+        return _env_flag("AI_GOSSIP_ALLOW_UNSIGNED", default="0")
+    return _env_flag("AI_GOSSIP_ALLOW_UNSIGNED", default="1")
 
 
 def _now() -> int:
@@ -38,13 +67,9 @@ def _node_id() -> str:
 
 
 def _signing_key() -> bytes:
-    explicit = (os.environ.get("AI_GOSSIP_SIGNING_KEY") or "").strip()
-    if explicit:
-        return explicit.encode("utf-8")
-    path = (os.environ.get("AI_GOSSIP_SIGNING_KEY_FILE") or "").strip()
-    if path and os.path.isfile(path):
-        with open(path, "rb") as fh:
-            return fh.read().strip()
+    key = _explicit_signing_key()
+    if key:
+        return key
     # Beta fallback — per-node derived secret (operators should set AI_GOSSIP_SIGNING_KEY)
     seed = f"{_node_id()}:bloodstone-ai-gossip:v1"
     return hashlib.sha256(seed.encode("utf-8")).digest()
@@ -76,6 +101,8 @@ def verify_snapshot(snapshot: Dict[str, Any]) -> Tuple[bool, str]:
         return False, "snapshot must be object"
     if not _verify_enable():
         return True, "verify disabled"
+    if _require_fleet_key() and not _fleet_key_configured():
+        return False, "fleet signing key not configured on node"
 
     signature = str(snapshot.get("signature") or "").strip().lower()
     if not signature:
@@ -131,6 +158,13 @@ def status_payload() -> Dict[str, Any]:
         "sign_enable": _sign_enable(),
         "verify": _verify_enable(),
         "allow_unsigned": _allow_unsigned(),
+        "fleet_key_configured": _fleet_key_configured(),
+        "require_fleet_key": _require_fleet_key(),
+        "enforcement_mode": (
+            "fleet_strict"
+            if _require_fleet_key() and not _allow_unsigned()
+            else "beta_permissive"
+        ),
         "max_age_sec": AI_GOSSIP_MAX_AGE_SEC,
         "node_id": _node_id(),
     }

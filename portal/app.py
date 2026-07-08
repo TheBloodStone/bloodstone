@@ -1011,6 +1011,37 @@ def api_convergence_bandwidth_quota():
     return jsonify(cm.convergence_bandwidth_quota_payload(stone))
 
 
+@app.route("/api/convergence/bandwidth/tenant/quota")
+def api_convergence_bandwidth_tenant_quota():
+    import chain_mesh.api as cm
+
+    return jsonify(
+        cm.convergence_bandwidth_tenant_quota_payload(
+            tenant_id=str(request.args.get("tenant_id") or ""),
+            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            stone_address=str(request.args.get("stone_address") or ""),
+        )
+    )
+
+
+@app.route("/api/convergence/bandwidth/tenant/status")
+def api_convergence_bandwidth_tenant_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_bandwidth_tenant_status_payload())
+
+
+@app.route("/api/convergence/bandwidth/tenant/bind", methods=["POST"])
+def api_convergence_bandwidth_tenant_bind():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_bandwidth_tenant_bind_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
 @app.route("/api/convergence/depin/quota")
 def api_convergence_depin_quota():
     import chain_mesh.api as cm
@@ -1046,6 +1077,8 @@ def api_convergence_dtn_export():
             "node_id": request.args.get("node_id") or "",
             "region": request.args.get("region") or "",
             "stone_address": request.args.get("stone_address") or "",
+            "blurt_author": request.args.get("blurt_author") or request.args.get("author") or "",
+            "tenant_id": request.args.get("tenant_id") or "",
             "include_chunks": request.args.get("include_chunks", "1") not in ("0", "false", "no"),
             "queue_forward": request.args.get("queue_forward") in ("1", "true", "yes"),
         }
@@ -1064,6 +1097,8 @@ def api_convergence_dtn_export():
                 region=str(payload.get("region") or ""),
                 queue_forward=bool(payload.get("queue_forward")),
                 stone_address=str(payload.get("stone_address") or ""),
+                blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+                tenant_id=str(payload.get("tenant_id") or ""),
             )
         )
     except PermissionError as exc:
@@ -1091,6 +1126,8 @@ def api_convergence_dtn_export_download():
             include_chunks=request.args.get("include_chunks", "1") not in ("0", "false", "no"),
             region=(request.args.get("region") or "").strip(),
             stone_address=(request.args.get("stone_address") or "").strip(),
+            blurt_author=(request.args.get("blurt_author") or request.args.get("author") or "").strip(),
+            tenant_id=(request.args.get("tenant_id") or "").strip(),
         )
     except PermissionError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 403

@@ -1,0 +1,17 @@
+[Unit]
+Description=Bloodstone AI inference shim (llama.cpp OpenAI-compatible)
+After=network-online.target bloodstone-portal.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root
+Environment=PYTHONPATH=/root
+EnvironmentFile=-/etc/bloodstone/convergence.env
+ExecStart=/root/ops/bloodstone-pi-fleet/scripts/ai-inference-shim.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

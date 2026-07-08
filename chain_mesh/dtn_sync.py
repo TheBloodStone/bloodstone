@@ -1720,7 +1720,7 @@ def status_payload() -> Dict[str, Any]:
     fw = flush_window_status()
     return {
         "ok": True,
-        "wave": "P",
+        "wave": "Q",
         "hardened": True,
         "use_case": "off_grid_dtn_mesh",
         "format": DTN_BUNDLE_FORMAT,
@@ -1786,13 +1786,21 @@ def export_payload(
     region: str = "",
     queue_forward: bool = False,
     stone_address: str = "",
+    blurt_author: str = "",
+    tenant_id: str = "",
 ) -> Dict[str, Any]:
     from chain_mesh import depin_credits as depin
 
     addr = (stone_address or "").strip()
+    author = (blurt_author or "").strip()
     if depin.ENFORCE_BANDWIDTH and addr:
         est = int(os.environ.get("DTN_BANDWIDTH_ESTIMATE_BYTES", str(DTN_MAX_BUNDLE_BYTES)))
-        quota_check = depin.check_bandwidth_allowed(addr, est)
+        quota_check = depin.check_bandwidth_allowed(
+            addr,
+            est,
+            blurt_author=author,
+            tenant_id=tenant_id,
+        )
         if not quota_check.get("allowed"):
             raise PermissionError(quota_check.get("reason") or "bandwidth quota exceeded")
 
@@ -1805,7 +1813,12 @@ def export_payload(
     import base64
 
     if addr and len(blob) > 0:
-        depin.record_bandwidth_usage(addr, delta_bytes=len(blob))
+        depin.record_bandwidth_usage(
+            addr,
+            delta_bytes=len(blob),
+            blurt_author=author,
+            tenant_id=tenant_id,
+        )
 
     result: Dict[str, Any] = {
         "ok": True,
