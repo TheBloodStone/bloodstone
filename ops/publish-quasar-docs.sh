@@ -29,6 +29,8 @@ FILES=(
   Bloodstone-QUASAR-Social-Thread.txt
   Bloodstone-QUASAR-Exchange-One-Pager.html
   Bloodstone-QUASAR-Witness-Aware-Confirmation-Guide.md
+  Bloodstone-QUASAR-Phase3-Braid-Finality-Proposal.md
+  Bloodstone-QUASAR-Attack-Budget-Appendix.md
 )
 
 for f in "${FILES[@]}"; do

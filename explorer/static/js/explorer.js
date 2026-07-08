@@ -72,9 +72,20 @@ function updateQuasarPanel(data) {
   }
   const tripEl = document.getElementById("quasar-tripwire");
   if (tripEl) tripEl.textContent = data.tripwire?.active ? "ACTIVE" : "clear";
+  const enforceEl = document.getElementById("quasar-enforcement");
+  if (enforceEl) enforceEl.textContent = data.enforcement_mode || "policy";
+  const indexEl = document.getElementById("quasar-braid-index");
+  if (indexEl && data.braid_index) {
+    const h = data.braid_index.synced_height;
+    const st = data.braid_index.braid_status || "—";
+    indexEl.textContent = h ? `h${h} · ${st}` : "not synced";
+  }
   const updatedEl = document.getElementById("quasar-updated");
-  if (updatedEl && data.updated_utc) {
-    updatedEl.textContent = `Updated ${data.updated_utc}`;
+  if (updatedEl) {
+    const phase = data.phase ? `Phase ${data.phase}` : "Phase 3";
+    updatedEl.textContent = data.updated_utc
+      ? `${phase} · ${data.updated_utc}`
+      : `${phase} · braid index + enforcement`;
   }
 }
 

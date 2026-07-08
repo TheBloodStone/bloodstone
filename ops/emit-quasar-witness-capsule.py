@@ -1,0 +1,54 @@
+#!/usr/bin/env python3
+"""Emit coordinator witness capsule + evaluate QUASAR tripwires (cron/upkeep)."""
+
+import os
+import sys
+
+sys.path.insert(0, "/root")
+
+import bloodstone_quasar_api as qapi
+
+
+def _rpc():
+    import requests
+
+    conf = os.environ.get("BLOODSTONE_CONF", "/root/.bloodstone/bloodstone.conf")
+    vals = {}
+    if os.path.isfile(conf):
+        with open(conf, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.split("=", 1)
+                    vals[k.strip()] = v.strip()
+    url = (
+        f"http://{vals.get('rpcuser', 'bloodstone')}:{vals.get('rpcpassword', '')}"
+        f"@127.0.0.1:{vals.get('rpcport', '18332')}/"
+    )
+
+    def call(method, params=None):
+        r = requests.post(
+            url,
+            json={"jsonrpc": "1.0", "id": "quasar-emit", "method": method, "params": params or []},
+            timeout=120,
+        )
+        r.raise_for_status()
+        data = r.json()
+        if data.get("error"):
+            raise RuntimeError(data["error"])
+        return data["result"]
+
+    return call
+
+
+def main() -> int:
+    rpc = _rpc()
+    witness = qapi.emit_coordinator_witness(rpc)
+    alerts = qapi.alerts_payload(rpc)
+    print("witness", witness.get("capsule", {}).get("capsule_id", "")[:16])
+    print("alerts", alerts.get("alert_count", 0), "active", alerts.get("active"))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

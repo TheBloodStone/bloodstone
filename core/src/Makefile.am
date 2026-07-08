@@ -377,6 +377,7 @@ libbitcoin_server_a_SOURCES = \
   rpc/auxpow_miner.cpp \
   rpc/blockchain.cpp \
   rpc/game.cpp \
+  rpc/quasar.cpp \
   rpc/mining.cpp \
   rpc/misc.cpp \
   rpc/names.cpp \

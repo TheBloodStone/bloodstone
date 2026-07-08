@@ -3114,6 +3114,41 @@ def api_quasar_alerts():
         return jsonify({"ok": False, "error": str(exc)}), 503
 
 
+@app.route("/api/quasar/braid-index")
+@app.route("/mining/api/quasar/braid-index")
+def api_quasar_braid_index():
+    import bloodstone_quasar_api as qapi
+    import node_rpc
+
+    sync = (request.args.get("sync") or "").strip().lower() in ("1", "true", "yes")
+    try:
+        return jsonify(qapi.braid_index_payload(sync=sync, rpc=node_rpc.rpc))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 503
+
+
+@app.route("/api/quasar/enforcement/check", methods=["POST"])
+@app.route("/mining/api/quasar/enforcement/check", methods=["POST"])
+def api_quasar_enforcement_check():
+    import bloodstone_quasar_api as qapi
+    import node_rpc
+
+    payload = request.get_json(silent=True) or {}
+    amount = float(payload.get("amount_stone") or payload.get("amount") or 0)
+    try:
+        return jsonify(qapi.enforcement_check(amount, node_rpc.rpc))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 503
+
+
+@app.route("/api/quasar/activation")
+@app.route("/mining/api/quasar/activation")
+def api_quasar_activation():
+    import bloodstone_quasar_api as qapi
+
+    return jsonify(qapi.activation_payload())
+
+
 @app.route("/api/pool/dual-stats")
 def api_pool_dual_stats():
     """Per-chain dual-mining share/block counts (24h window by default)."""

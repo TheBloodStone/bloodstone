@@ -767,6 +767,36 @@ def api_quasar_alerts():
         return jsonify({"ok": False, "error": str(exc)}), 503
 
 
+@app.route("/api/quasar/braid-index")
+def api_quasar_braid_index():
+    import bloodstone_quasar_api as qapi
+
+    sync = (request.args.get("sync") or "").strip().lower() in ("1", "true", "yes")
+    try:
+        return jsonify(qapi.braid_index_payload(sync=sync, rpc=rpc))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 503
+
+
+@app.route("/api/quasar/enforcement/check", methods=["POST"])
+def api_quasar_enforcement_check():
+    import bloodstone_quasar_api as qapi
+
+    payload = request.get_json(silent=True) or {}
+    amount = float(payload.get("amount_stone") or payload.get("amount") or 0)
+    try:
+        return jsonify(qapi.enforcement_check(amount, rpc))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 503
+
+
+@app.route("/api/quasar/activation")
+def api_quasar_activation():
+    import bloodstone_quasar_api as qapi
+
+    return jsonify(qapi.activation_payload())
+
+
 @app.route("/atomicdex/")
 def atomicdex():
     node_download = download_available(NODE_PKG)

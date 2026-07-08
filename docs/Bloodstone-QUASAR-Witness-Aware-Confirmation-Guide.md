@@ -1,7 +1,7 @@
 # Bloodstone QUASAR — Witness-Aware Confirmation Guide
 
 **Audience:** CEX integrators, custody engineers, GleecDEX / AtomicDEX operators  
-**Phase:** QUASAR 2 (live) — braid policy, witness capsules, LAN echo quorum, anomaly tripwires
+**Phase:** QUASAR 3 (live) — braid index, spend enforcement, witness capsules, LAN echo, tripwires
 **Updated:** July 2026
 
 ---
@@ -25,16 +25,21 @@ QUASAR Phase 1 adds a **software policy layer** so exchanges do not credit depos
 | `POST /api/quasar/witness/submit` | Ingest signed witness capsule (`bloodstone/witness-capsule/v1`) |
 | `POST /api/quasar/lan-echo` | Submit LAN echo packet (`bloodstone/lan-echo/v1`) |
 | `GET /api/quasar/alerts` | Active anomaly tripwire alerts |
+| `GET /api/quasar/braid-index` | Persistent epoch braid index (`?sync=1` to refresh) |
+| `POST /api/quasar/enforcement/check` | Spend policy gate — `{"amount_stone": N}` |
+| `GET /api/quasar/activation` | Soft-fork deployment descriptor (research) |
 
-Poll both every **60–120 seconds** (or on each deposit detection). Cache TTL on the server is ~45s.
+Poll status every **60–120 seconds** (or on each deposit detection). Cache TTL on the server is ~45s.
 
 ### Example `quasar` block inside `/api/exchange`
 
 ```json
 {
   "quasar": {
-    "version": "1.0",
-    "phase": 1,
+    "version": "3.0",
+    "phase": 3,
+    "enforcement_mode": "policy",
+    "braid_index_synced_height": 12450,
     "braid_status": "healthy",
     "braid_finality_epoch_blocks": 10,
     "confirmation_multiplier": 1.0,
@@ -135,7 +140,32 @@ Phones on the same public IP echo their observed tip via `POST /api/quasar/lan-e
 
 ---
 
-## 7. Operational checklist
+## 7. Braid index + spend enforcement (Phase 3 — live)
+
+Phase 3 persists epoch braid summaries under `{datadir}/indexes/braid/` and exposes them via `/api/quasar/braid-index`. The status payload includes `braid_index`, `enforcement_mode`, and `activation`.
+
+Before processing **large withdrawals**, call:
+
+```bash
+curl -s -X POST https://YOUR_HOST/api/quasar/enforcement/check \
+  -H 'Content-Type: application/json' \
+  -d '{"amount_stone": 5000}'
+```
+
+| `action` | Integrator response |
+|----------|---------------------|
+| `allow` | Proceed with standard confirmations |
+| `defer` | Queue withdrawal; retry after `retry_after_sec` |
+| `halt` | Manual review — do not auto-release |
+
+Node RPC (after braid index sync): `getquasarbraid`, `getquasaractivation`.
+
+Full proposal: `Bloodstone-QUASAR-Phase3-Braid-Finality-Proposal.md`  
+Attack budgets: `Bloodstone-QUASAR-Attack-Budget-Appendix.md`
+
+---
+
+## 8. Operational checklist
 
 1. Deploy **exchange node package** (`bloodstone-exchange-node-*-linux-x86_64.tar.gz`) with `txindex=1` and local hot wallet.
 2. Subscribe to ElectrumX (`ssl://…:50002`) as a sanity check against your node's tip.
@@ -146,7 +176,7 @@ Phones on the same public IP echo their observed tip via `POST /api/quasar/lan-e
 
 ---
 
-## 8. Support links
+## 9. Support links
 
 | Resource | URL |
 |----------|-----|
@@ -157,4 +187,4 @@ Phones on the same public IP echo their observed tip via `POST /api/quasar/lan-e
 
 ---
 
-*Bloodstone · QUASAR Witness-Aware Confirmation Guide v1.0 · July 2026*
+*Bloodstone · QUASAR Witness-Aware Confirmation Guide v3.0 · July 2026*

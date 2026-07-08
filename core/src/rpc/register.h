@@ -25,6 +25,8 @@ void RegisterSignerRPCCommands(CRPCTable &tableRPC);
 void RegisterNameRPCCommands(CRPCTable &tableRPC);
 /** Register SpaceXpanse game RPC commands */
 void RegisterGameRPCCommands(CRPCTable &tableRPC);
+/** Register QUASAR braid RPC commands */
+void RegisterQuasarRPCCommands(CRPCTable &tableRPC);
 
 static inline void RegisterAllCoreRPCCommands(CRPCTable &t)
 {
@@ -38,6 +40,7 @@ static inline void RegisterAllCoreRPCCommands(CRPCTable &t)
 #endif // ENABLE_EXTERNAL_SIGNER
     RegisterNameRPCCommands(t);
     RegisterGameRPCCommands(t);
+    RegisterQuasarRPCCommands(t);
 }
 
 #endif // BITCOIN_RPC_REGISTER_H
