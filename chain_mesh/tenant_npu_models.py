@@ -1,4 +1,4 @@
-"""Wave W — per-tenant NPU model bindings (ONNX/TFLite paths by blurt author)."""
+"""Wave W/X — per-tenant NPU model bindings + probe validation."""
 
 from __future__ import annotations
 
@@ -198,6 +198,48 @@ def npu_models_for_manifest(
     ]
 
 
+def probe_model(*, runtime: str = "", model_path: str = "") -> Dict[str, Any]:
+    rt = (runtime or "").strip().lower()
+    path = (model_path or "").strip()
+    if rt not in VALID_RUNTIMES:
+        return {"ok": False, "error": f"runtime must be one of: {sorted(VALID_RUNTIMES)}"}
+    if not path:
+        return {"ok": False, "error": "model_path required"}
+    if not os.path.isfile(path):
+        return {"ok": False, "error": "model file not found", "model_path": path}
+    loadable = False
+    detail = ""
+    if rt == "onnx":
+        try:
+            import onnxruntime as ort
+
+            session = ort.InferenceSession(path, providers=["CPUExecutionProvider"])
+            loadable = True
+            detail = f"inputs={len(session.get_inputs())}"
+        except Exception as exc:
+            detail = str(exc)
+    elif rt == "tflite":
+        try:
+            try:
+                from tflite_runtime.interpreter import Interpreter
+            except ImportError:
+                from tensorflow.lite import Interpreter  # type: ignore
+
+            interpreter = Interpreter(model_path=path)
+            interpreter.allocate_tensors()
+            loadable = True
+            detail = f"inputs={len(interpreter.get_input_details())}"
+        except Exception as exc:
+            detail = str(exc)
+    return {
+        "ok": loadable,
+        "runtime": rt,
+        "model_path": path,
+        "loadable": loadable,
+        "detail": detail,
+    }
+
+
 def status_payload() -> Dict[str, Any]:
     init_tenant_npu_db()
     with _conn() as conn:
@@ -214,5 +256,6 @@ def status_payload() -> Dict[str, Any]:
             "bind": f"{public}/api/convergence/tenant/npu/bind",
             "status": f"{public}/api/convergence/tenant/npu/status",
             "resolve": f"{public}/api/convergence/tenant/npu/resolve",
+            "probe": f"{public}/api/convergence/tenant/npu/probe",
         },
     }

@@ -38,11 +38,28 @@ def dashboard_payload(
     storage_q = storage.tenant_quota(
         tenant_id=tid, blurt_author=author, stone_address=addr
     )
+    from chain_mesh import tenant_ai_route as troute
     from chain_mesh import tenant_npu_models as tnpu
     from chain_mesh import tenant_submit_gate as tgate
 
     quorum = tgate.quorum_for_author(tenant_id=tid, blurt_author=author) if author else {}
     npu_models = tnpu.list_npu_models(tenant_id=tid, blurt_author=author) if author else []
+    submit_gate = (
+        tgate.check_submit_allowed(
+            tenant_id=tid,
+            blurt_author=author,
+            stone_address=addr,
+        )
+        if author
+        else {}
+    )
+    ai_route = (
+        troute.resolve_job_inference_spec(
+            {"blurt_author": author, "tenant_id": tid, "ai_spec": {}}
+        )
+        if author
+        else {}
+    )
     return {
         "ok": True,
         "format": DASHBOARD_FORMAT,
@@ -61,6 +78,8 @@ def dashboard_payload(
         },
         "quorum": quorum,
         "npu_models": npu_models,
+        "submit_gate": submit_gate,
+        "ai_route": ai_route,
     }
 
 
@@ -153,8 +172,8 @@ def dashboard_page_html() -> str:
 </head>
 <body>
   <main>
-    <h1>Tenant Dashboard <span class="badge">Wave W</span></h1>
-    <p class="meta">Per-author caps, fleet quorum, and NPU model bindings.</p>
+    <h1>Tenant Dashboard <span class="badge">Wave X</span></h1>
+    <p class="meta">Per-author caps, quorum, NPU models, and AI route hints.</p>
     <div>
       <input id="author" placeholder="blurt author" />
       <input id="stone" placeholder="STONE address (optional)" />
@@ -164,6 +183,8 @@ def dashboard_page_html() -> str:
     <div class="grid" id="rails"></div>
     <div class="card" id="quorum" style="margin-top:0.75rem;display:none"></div>
     <div class="card" id="npu" style="margin-top:0.75rem;display:none"></div>
+    <div class="card" id="submit" style="margin-top:0.75rem;display:none"></div>
+    <div class="card" id="route" style="margin-top:0.75rem;display:none"></div>
     <p class="meta"><a href="{public}/api/convergence/tenant/status">API status</a> ·
       <a href="{public}/api/convergence/status">Convergence</a></p>
   </main>
@@ -208,6 +229,20 @@ def dashboard_page_html() -> str:
             '<div>' + m.runtime + ': ' + (m.model_path || '(auto)') + ' [' + (m.hardware_kind || 'cpu') + ']</div>'
           ).join('');
         }} else {{ nEl.style.display = 'none'; }}
+        const sg = data.submit_gate || {{}};
+        const sEl = document.getElementById('submit');
+        if (sg.blurt_author) {{
+          sEl.style.display = 'block';
+          sEl.innerHTML = '<h2>submit gate</h2><div>' +
+            (sg.allowed ? 'allowed ✓' : 'blocked') + ' · ' + (sg.reason || '') + '</div>';
+        }} else {{ sEl.style.display = 'none'; }}
+        const ar = data.ai_route || {{}};
+        const rEl = document.getElementById('route');
+        if (ar.runtime) {{
+          rEl.style.display = 'block';
+          rEl.innerHTML = '<h2>AI route</h2><div>' + ar.runtime +
+            (ar.model_path ? ' · ' + ar.model_path : '') + ' [' + (ar.hardware_kind || 'cpu') + ']</div>';
+        }} else {{ rEl.style.display = 'none'; }}
       }}).catch(e => document.getElementById('status').textContent = String(e));
     }};
   </script>

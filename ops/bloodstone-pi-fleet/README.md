@@ -393,6 +393,30 @@ curl -X POST http://127.0.0.1:8081/v1/completions \
 
 Dashboard at `/convergence/tenant` shows quorum votes and NPU model rows per author.
 
+### Wave X — tenant AI routing + manifest gossip + NPU model probe
+
+**Tenant-aware AI routing** scores providers by NPU runtime/hardware match:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/tenant/ai/route/status | jq .
+curl -fsS 'http://127.0.0.1:8887/api/convergence/tenant/ai/route/resolve?blurt_author=meshops' | jq .
+```
+
+**Tenant manifest gossip** propagates Blurt manifests across Pi fleet:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/tenant/manifest/gossip/status | jq .
+curl -fsS http://127.0.0.1:8887/api/convergence/tenant/manifest/gossip/snapshots | jq '.count'
+```
+
+**NPU model probe** validates ONNX/TFLite paths before bind:
+
+```bash
+curl -X POST http://127.0.0.1:8887/api/convergence/tenant/npu/probe \
+  -H 'Content-Type: application/json' \
+  -d '{"runtime":"onnx","model_path":"/var/lib/bloodstone/models/edge.onnx"}'
+```
+
 ### Coordinator AI dispatch (Wave N)
 
 When no local provider matches and uplink is stable, edge nodes HTTP-dispatch to the coordinator instead of queue-only fallback:

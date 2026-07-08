@@ -1286,6 +1286,56 @@ def convergence_tenant_npu_resolve_payload(
     )
 
 
+def convergence_tenant_npu_probe_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh import tenant_npu_models as tnpu
+
+    return tnpu.probe_model(
+        runtime=str(payload.get("runtime") or ""),
+        model_path=str(payload.get("model_path") or ""),
+    )
+
+
+def convergence_tenant_ai_route_status_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_ai_route as troute
+
+    return troute.status_payload()
+
+
+def convergence_tenant_ai_route_resolve_payload(
+    *,
+    tenant_id: str = "",
+    blurt_author: str = "",
+    runtime: str = "",
+) -> Dict[str, Any]:
+    from chain_mesh import tenant_ai_route as troute
+
+    return troute.resolve_job_inference_spec(
+        {
+            "tenant_id": tenant_id,
+            "blurt_author": blurt_author,
+            "ai_spec": {"runtime": runtime} if runtime else {},
+        }
+    )
+
+
+def convergence_tenant_manifest_gossip_status_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_manifest_gossip as tmgossip
+
+    return tmgossip.status_payload()
+
+
+def convergence_tenant_manifest_gossip_snapshots_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_manifest_gossip as tmgossip
+
+    snaps = tmgossip.build_manifest_snapshots()
+    return {
+        "ok": True,
+        "format": tmgossip.MANIFEST_GOSSIP_FORMAT,
+        "count": len(snaps),
+        "snapshots": snaps,
+    }
+
+
 def convergence_tenant_dashboard_page_payload() -> str:
     from chain_mesh import tenant_dashboard as tdash
 

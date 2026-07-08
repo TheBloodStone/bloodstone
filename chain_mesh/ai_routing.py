@@ -331,6 +331,13 @@ def score_provider(
     score -= float(provider.get("load_ratio") or 0) * 50
     age = _now() - int(provider.get("last_seen") or 0)
     score -= age / 60
+    try:
+        from chain_mesh import tenant_ai_route as troute
+
+        hint = troute.resolve_job_inference_spec(job)
+        score += troute.tenant_route_bonus(provider, spec=hint)
+    except Exception:
+        pass
     return score
 
 
@@ -662,7 +669,12 @@ def debit_compute_job(*, job_id: str, stone_address: str, flops_budget: int) -> 
     return {"ok": True, "job_id": jid, "flops_debited": flops}
 
 
-def dispatch_inference_job(*, job_id: str, provider: Dict[str, Any]) -> Dict[str, Any]:
+def dispatch_inference_job(
+    *,
+    job_id: str,
+    provider: Dict[str, Any],
+    tenant_spec: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     job = cjobs.get_compute_job(job_id=job_id)
     if not job:
         return {"ok": False, "error": "job not found"}
@@ -691,15 +703,23 @@ def dispatch_inference_job(*, job_id: str, provider: Dict[str, Any]) -> Dict[str
         )
         return {"ok": False, "error": str(exc)}
 
-    payload = {
-        "model": spec.get("model_id") or "default",
-        "prompt": prompt_text,
-        "max_tokens": int(spec.get("max_tokens") or 256),
-        "temperature": float(spec.get("temperature") or 0.7),
-        "job_id": job_id,
-        "stone_address": job.get("stone_address"),
-        "stream": False,
-    }
+    from chain_mesh import tenant_ai_route as troute
+
+    payload = troute.build_dispatch_payload(
+        job,
+        spec=tenant_spec,
+        base_payload={
+            "model": spec.get("model_id") or "default",
+            "prompt": prompt_text,
+            "max_tokens": int(spec.get("max_tokens") or 256),
+            "temperature": float(spec.get("temperature") or 0.7),
+            "job_id": job_id,
+            "stone_address": job.get("stone_address"),
+            "stream": False,
+        },
+    )
+    if tenant_spec and tenant_spec.get("runtime") and not spec.get("runtime"):
+        payload["runtime"] = tenant_spec.get("runtime")
     headers = {
         "Content-Type": "application/json",
         "X-Bloodstone-Job-Id": job_id,
@@ -1229,6 +1249,9 @@ def route_inference_job(*, job_id: str, force: bool = False) -> Dict[str, Any]:
     prefer_offline = bool(spec.get("prefer_offline", AI_PREFER_OFFLINE))
     offline_mode = prefer_offline or not uplink.get("uplink_stable")
 
+    from chain_mesh import tenant_ai_route as troute
+
+    tenant_spec = troute.resolve_job_inference_spec(job)
     discover_ai_providers()
     rows = aip.list_ai_providers(limit=100).get("providers") or []
     candidates: List[Tuple[Dict[str, Any], float]] = []
@@ -1252,10 +1275,13 @@ def route_inference_job(*, job_id: str, force: bool = False) -> Dict[str, Any]:
             uplink=uplink,
             offline_mode=offline_mode,
         )
-        dispatch = dispatch_inference_job(job_id=job_id, provider=provider)
+        dispatch = dispatch_inference_job(
+            job_id=job_id, provider=provider, tenant_spec=tenant_spec
+        )
         return {
             "ok": True,
             "job_id": job_id,
+            "tenant_route": tenant_spec,
             "route_status": "assigned",
             "provider_id": pid,
             "score": score,
@@ -1579,7 +1605,7 @@ def status_payload(*, include_uplink: bool = True) -> Dict[str, Any]:
         "uplink": uplink,
         "providers_count": providers_count,
         "last_upkeep": dict(_LAST_UPKEEP),
-        "wave": "W",
+        "wave": "X",
         "coordinator_dispatch": AI_COORDINATOR_DISPATCH_ENABLE,
         "coordinator_node": _is_coordinator_node(),
         "gossip_sign": _gossip_sign_status(),

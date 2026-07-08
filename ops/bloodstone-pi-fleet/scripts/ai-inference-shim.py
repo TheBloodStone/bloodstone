@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wave W — tenant NPU model resolution + Hailo/Coral execution delegates."""
+"""Wave X — tenant AI route hints + Hailo/Coral NPU execution delegates."""
 
 from __future__ import annotations
 
@@ -352,7 +352,7 @@ class InferenceHandler(BaseHTTPRequestHandler):
                     "npu_runtimes": _npu_runtime_prefs(),
                     "npu_hardware": (_npu_hardware().get("hardware") or {}),
                     "tenant_npu_resolve": f"{os.environ.get('BLOODSTONE_PUBLIC_ROOT', 'http://127.0.0.1:8887')}/api/convergence/tenant/npu/resolve",
-                    "wave": "W",
+                    "wave": "X",
                 },
             )
             return

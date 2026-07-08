@@ -101,7 +101,7 @@ def status_payload() -> Dict[str, Any]:
         "ok": True,
         "vision": "Sovereign Mesh 2030 — Blurt trust anchor + Bloodstone memory fabric",
         "tagline": "Autonomous, self-healing nervous system — identity owns truth, hardware owns the network",
-        "roadmap": "Wave A–V ✓ · Wave W: submit quorum gate + tenant NPU models + dashboard quorum panel ✓",
+        "roadmap": "Wave A–W ✓ · Wave X: tenant AI routing + manifest gossip + NPU model probe ✓",
         "layers": layer_status(),
         "mesh_v2": {
             "spec": v2_sys.get("spec"),

@@ -93,7 +93,7 @@ class TestAiWaveW(unittest.TestCase):
         self.assertIn("quorum", dash)
         self.assertGreaterEqual(len(dash.get("npu_models") or []), 1)
         html = tdash.dashboard_page_html()
-        self.assertIn("Wave W", html)
+        self.assertTrue("Wave W" in html or "Wave X" in html)
         self.assertIn("fleet quorum", html)
 
     def test_tenant_manifest_includes_npu_models(self):

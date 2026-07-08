@@ -151,6 +151,14 @@ def build_exchange_payload() -> Dict[str, Any]:
     except Exception:
         pass
 
+    tenant_manifest_snapshots: List[Dict[str, Any]] = []
+    try:
+        from chain_mesh import tenant_manifest_gossip as tmgossip
+
+        tenant_manifest_snapshots = tmgossip.build_manifest_snapshots()
+    except Exception:
+        pass
+
     return {
         "ok": True,
         "format": GOSSIP_FORMAT,
@@ -163,6 +171,7 @@ def build_exchange_payload() -> Dict[str, Any]:
         "ai_provider_snapshots": ai_provider_snapshots,
         "tenant_snapshots": tenant_snapshots,
         "tenant_quorum_snapshots": tenant_quorum_snapshots,
+        "tenant_manifest_snapshots": tenant_manifest_snapshots,
         "max_hops": GOSSIP_MAX_HOPS,
         "rumor_ttl_sec": GOSSIP_RUMOR_TTL_SEC,
     }
@@ -299,6 +308,7 @@ def ingest_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     tenant_votes = 0
     tenant_quorum_votes = 0
+    tenant_manifest_indexed = 0
     try:
         from chain_mesh import tenant_fleet_quorum as tquorum
 
@@ -319,6 +329,18 @@ def ingest_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         ]
         ingest_q = tquorum.ingest_quorum_snapshots(quorum_snaps)
         tenant_quorum_votes = int(ingest_q.get("votes_recorded") or 0)
+        try:
+            from chain_mesh import tenant_manifest_gossip as tmgossip
+
+            manifest_snaps = [
+                row
+                for row in (payload.get("tenant_manifest_snapshots") or [])
+                if isinstance(row, dict)
+            ]
+            ingest_m = tmgossip.ingest_manifest_snapshots(manifest_snaps)
+            tenant_manifest_indexed = int(ingest_m.get("indexed") or 0)
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -333,6 +355,7 @@ def ingest_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "ai_providers_recorded": ai_votes,
         "tenant_bindings_recorded": tenant_votes,
         "tenant_quorum_votes_recorded": tenant_quorum_votes,
+        "tenant_manifests_indexed": tenant_manifest_indexed,
         "reply": build_exchange_payload(),
     }
 
