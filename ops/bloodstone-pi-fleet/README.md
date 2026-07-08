@@ -325,6 +325,26 @@ curl -fsS http://127.0.0.1:8887/api/convergence/ai/provider/broadcast/queue | jq
 
 Compute/AI submit auto-resolves `tenant_id` from `DTN_DEFAULT_TENANT` when omitted.
 
+### Wave U — signed tenant fleet + dashboard UI + NPU inference + DTN auto-author
+
+**HMAC-signed tenant snapshots** (reuses `AI_GOSSIP_SIGNING_KEY` when set):
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/tenant/fleet/sign/status | jq .
+curl -fsS http://127.0.0.1:8887/api/convergence/tenant/fleet/snapshots | jq '.snapshots[0].signature'
+```
+
+**Tenant dashboard web UI** at `/convergence/tenant` — per-author compute/bandwidth/storage caps.
+
+**NPU-aware inference shim** — prefers ONNX on Hailo, TFLite on Coral:
+
+```bash
+curl -fsS http://127.0.0.1:8081/health | jq '.wave,.npu_runtimes,.delegates'
+curl -fsS http://127.0.0.1:8081/v1/runtimes | jq .
+```
+
+**DTN export** auto-resolves `blurt_author` from tenant bindings when only `stone_address` is set.
+
 ### Coordinator AI dispatch (Wave N)
 
 When no local provider matches and uplink is stable, edge nodes HTTP-dispatch to the coordinator instead of queue-only fallback:

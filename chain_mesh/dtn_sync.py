@@ -1786,7 +1786,7 @@ def status_payload() -> Dict[str, Any]:
     fw = flush_window_status()
     return {
         "ok": True,
-        "wave": "T",
+        "wave": "U",
         "hardened": True,
         "use_case": "off_grid_dtn_mesh",
         "format": DTN_BUNDLE_FORMAT,
@@ -1859,6 +1859,13 @@ def export_payload(
 
     addr = (stone_address or "").strip()
     author = (blurt_author or "").strip()
+    if not author and addr:
+        try:
+            from chain_mesh import tenant_fleet_sync as tfleet
+
+            author = tfleet.resolve_author_for_stone(addr, tenant_id=tenant_id)
+        except Exception:
+            author = ""
     if depin.ENFORCE_BANDWIDTH and addr:
         est = int(os.environ.get("DTN_BANDWIDTH_ESTIMATE_BYTES", str(DTN_MAX_BUNDLE_BYTES)))
         quota_check = depin.check_bandwidth_allowed(

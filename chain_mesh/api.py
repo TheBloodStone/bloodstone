@@ -1174,6 +1174,18 @@ def convergence_tenant_fleet_snapshots_payload() -> Dict[str, Any]:
     return {"ok": True, "format": tfleet.SYNC_FORMAT, "count": len(snaps), "snapshots": snaps}
 
 
+def convergence_tenant_fleet_sign_status_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_fleet_sign as tsign
+
+    return tsign.status_payload()
+
+
+def convergence_tenant_dashboard_page_payload() -> str:
+    from chain_mesh import tenant_dashboard as tdash
+
+    return tdash.dashboard_page_html()
+
+
 def convergence_ai_provider_broadcast_queue_payload() -> Dict[str, Any]:
     from chain_mesh import ai_provider as aip
 
@@ -1315,6 +1327,13 @@ def convergence_dtn_build_zip(
 
     addr = (stone_address or "").strip()
     author = (blurt_author or "").strip()
+    if not author and addr:
+        try:
+            from chain_mesh import tenant_fleet_sync as tfleet
+
+            author = tfleet.resolve_author_for_stone(addr, tenant_id=tenant_id)
+        except Exception:
+            author = ""
     if depin.ENFORCE_BANDWIDTH and addr:
         est = int(os.environ.get("DTN_BANDWIDTH_ESTIMATE_BYTES", str(dtn.DTN_MAX_BUNDLE_BYTES)))
         quota_check = depin.check_bandwidth_allowed(

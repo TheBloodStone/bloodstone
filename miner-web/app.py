@@ -2358,6 +2358,22 @@ def api_convergence_tenant_fleet_snapshots():
     return jsonify(cm.convergence_tenant_fleet_snapshots_payload())
 
 
+@app.route("/api/convergence/tenant/fleet/sign/status")
+@app.route("/mining/api/convergence/tenant/fleet/sign/status")
+def api_convergence_tenant_fleet_sign_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_fleet_sign_status_payload())
+
+
+@app.route("/convergence/tenant")
+@app.route("/mining/convergence/tenant")
+def convergence_tenant_dashboard_page():
+    import chain_mesh.api as cm
+
+    return cm.convergence_tenant_dashboard_page_payload()
+
+
 @app.route("/api/convergence/compute/job/status")
 @app.route("/mining/api/convergence/compute/job/status")
 def api_convergence_compute_job_status():

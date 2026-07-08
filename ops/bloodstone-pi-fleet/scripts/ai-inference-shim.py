@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wave S — OpenAI-compatible inference shim with llama.cpp / ONNX / TFLite delegates."""
+"""Wave U — OpenAI-compatible inference shim with NPU-aware ONNX / TFLite / llama.cpp delegates."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ import json
 import os
 import sys
 import time
+
+sys.path.insert(0, "/root")
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, List, Optional, Tuple
 from urllib import error, request
@@ -19,6 +21,29 @@ TFLITE_MODEL = (os.environ.get("AI_TFLITE_MODEL_PATH") or "").strip()
 TIMEOUT_SEC = max(5, int(os.environ.get("AI_INFERENCE_TIMEOUT_SEC", "120")))
 
 _DELEGATES: Dict[str, bool] = {}
+_NPU_RUNTIMES: List[str] = []
+
+
+def _npu_runtime_prefs() -> List[str]:
+    global _NPU_RUNTIMES
+    if _NPU_RUNTIMES:
+        return _NPU_RUNTIMES
+    try:
+        from chain_mesh import ai_npu_detect as npu
+
+        detected = npu.detect_npu_hardware()
+        runtimes = [
+            str(r).strip().lower()
+            for r in (detected.get("runtimes") or [])
+            if str(r).strip()
+        ]
+        if runtimes:
+            _NPU_RUNTIMES = runtimes
+            return _NPU_RUNTIMES
+    except Exception:
+        pass
+    _NPU_RUNTIMES = ["onnx", "tflite", "llama.cpp", "cpu-inference"]
+    return _NPU_RUNTIMES
 
 
 def _probe_delegates() -> Dict[str, bool]:
@@ -80,7 +105,7 @@ def _infer_runtime(body: Dict[str, Any]) -> str:
     if "llama" in model:
         return "llama.cpp"
     delegates = _probe_delegates()
-    for pref in ("onnx", "tflite", "llama.cpp", "cpu-inference"):
+    for pref in _npu_runtime_prefs():
         if delegates.get(pref):
             return pref
     return "cpu-inference"
@@ -224,12 +249,20 @@ class InferenceHandler(BaseHTTPRequestHandler):
                     "service": "bloodstone-ai-inference",
                     "port": PORT,
                     "delegates": _probe_delegates(),
-                    "wave": "S",
+                    "npu_runtimes": _npu_runtime_prefs(),
+                    "wave": "U",
                 },
             )
             return
         if self.path in ("/v1/runtimes", "/runtimes"):
-            self._send_json(200, {"ok": True, "delegates": _probe_delegates()})
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "delegates": _probe_delegates(),
+                    "npu_runtimes": _npu_runtime_prefs(),
+                },
+            )
             return
         self._send_json(404, {"ok": False, "error": "not found"})
 

@@ -32,6 +32,31 @@ def _conn():
     return mesh_db._conn()
 
 
+def resolve_author_for_stone(
+    stone_address: str,
+    *,
+    tenant_id: str = "",
+) -> str:
+    """Resolve blurt_author from tenant bindings when only stone_address is known."""
+    addr = (stone_address or "").strip()
+    if not addr:
+        return ""
+    from chain_mesh import compute_tenant_quota as compute
+
+    tid = (tenant_id or _default_tenant()).strip()[:64] or _default_tenant()
+    compute.init_tenant_quota_db()
+    with _conn() as conn:
+        row = conn.execute(
+            """
+            SELECT blurt_author FROM compute_tenant_bindings
+            WHERE tenant_id = ? AND stone_address = ?
+            ORDER BY updated_at DESC LIMIT 1
+            """,
+            (tid, addr),
+        ).fetchone()
+    return str(row["blurt_author"]) if row else ""
+
+
 def collect_tenant_snapshots(*, tenant_id: str = "", limit: int = 50) -> List[Dict[str, Any]]:
     from chain_mesh import bandwidth_tenant_quota as bw
     from chain_mesh import compute_tenant_quota as compute
@@ -106,7 +131,9 @@ def collect_tenant_snapshots(*, tenant_id: str = "", limit: int = 50) -> List[Di
         if st_row:
             snap["rails"]["storage"] = {"bytes_cap": int(st_row.get("bytes_cap") or 0)}
             snap["updated_at"] = max(snap["updated_at"], int(st_row.get("updated_at") or 0))
-    return snaps
+    from chain_mesh import tenant_fleet_sign as tsign
+
+    return tsign.sign_snapshots(snaps)
 
 
 def ingest_tenant_snapshots(snapshots: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -114,11 +141,14 @@ def ingest_tenant_snapshots(snapshots: List[Dict[str, Any]]) -> Dict[str, Any]:
     from chain_mesh import compute_tenant_quota as compute
     from chain_mesh import storage_tenant_quota as storage
 
+    from chain_mesh import tenant_fleet_sign as tsign
+
     if not _tenant_sync_enable():
         return {"ok": True, "skipped": True, "reason": "TENANT_FLEET_SYNC_ENABLE off"}
+    accepted, rejected = tsign.filter_verified_snapshots(snapshots)
     recorded = 0
     skipped = 0
-    for snap in snapshots or []:
+    for snap in accepted:
         if not isinstance(snap, dict):
             skipped += 1
             continue
@@ -160,7 +190,13 @@ def ingest_tenant_snapshots(snapshots: List[Dict[str, Any]]) -> Dict[str, Any]:
             recorded += 1
         else:
             skipped += 1
-    return {"ok": True, "recorded": recorded, "skipped": skipped}
+    return {
+        "ok": True,
+        "recorded": recorded,
+        "skipped": skipped,
+        "rejected": len(rejected),
+        "rejections": rejected[:5],
+    }
 
 
 def resolve_tenant_context(
@@ -192,5 +228,7 @@ def status_payload() -> Dict[str, Any]:
         "apis": {
             "status": f"{public}/api/convergence/tenant/fleet/status",
             "snapshots": f"{public}/api/convergence/tenant/fleet/snapshots",
+            "sign_status": f"{public}/api/convergence/tenant/fleet/sign/status",
+            "dashboard": f"{public}/convergence/tenant",
         },
     }
