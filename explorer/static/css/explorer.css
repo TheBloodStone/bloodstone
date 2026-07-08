@@ -215,6 +215,29 @@ tr:hover td { background: rgba(255, 255, 255, 0.02); }
 .badge-burn { background: #3a2020; color: #ff8a80; }
 .badge-pending { background: #3a3520; color: #ffd666; }
 
+.quasar-panel { border-color: #3d3520; }
+.quasar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+  padding: 1rem 1.25rem 0.25rem;
+}
+.quasar-stat.wide { grid-column: 1 / -1; }
+.quasar-foot { padding: 0 1.25rem 1rem; margin: 0; }
+.braid-badge {
+  display: inline-block;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.braid-healthy { background: #1e3a2f; color: var(--success); }
+.braid-skewed { background: #3a3520; color: #ffd666; }
+.braid-deferred { background: #4a2028; color: #ff8a9a; }
+.braid-unknown { background: #2a3144; color: var(--muted); }
+
 .page-head { margin-bottom: 1.5rem; }
 .page-head h1 { margin: 0 0 0.5rem; }
 .accent { color: var(--accent-soft); }

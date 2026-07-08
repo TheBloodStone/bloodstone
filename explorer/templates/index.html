@@ -40,6 +40,48 @@
   </div>
 </div>
 
+<section class="panel quasar-panel" id="quasar-panel" data-initial-status="{{ quasar.braid_status|default('unknown') }}">
+  <div class="panel-head">
+    <h2>QUASAR Epoch Braid</h2>
+    <span class="muted" id="quasar-updated">Phase 1 · policy layer</span>
+  </div>
+  <div class="quasar-grid">
+    <div class="quasar-stat">
+      <div class="stat-label">Braid status</div>
+      <div class="stat-value">
+        <span class="braid-badge braid-{{ quasar.braid_status|default('unknown') }}" id="quasar-braid-status">{{ quasar.braid_status|default('unknown') }}</span>
+      </div>
+    </div>
+    <div class="quasar-stat">
+      <div class="stat-label">Deposit confirms</div>
+      <div class="stat-value mono" id="quasar-deposit-conf">{{ quasar.confirmations.recommended_deposit|default(6) }}</div>
+    </div>
+    <div class="quasar-stat">
+      <div class="stat-label">Epoch blocks</div>
+      <div class="stat-value mono" id="quasar-epoch-blocks">{{ quasar.epoch_blocks|default(10) }}</div>
+    </div>
+    <div class="quasar-stat wide">
+      <div class="stat-label">Braid vector (current epoch)</div>
+      <div class="stat-value mono small" id="quasar-braid-vector">
+        {% if quasar.current_epoch and quasar.current_epoch.braid_vector %}
+        SHA256d {{ quasar.current_epoch.braid_vector.sha256d }} ·
+        neoscrypt {{ quasar.current_epoch.braid_vector.neoscrypt }} ·
+        yespower {{ quasar.current_epoch.braid_vector.yespower }}
+        {% else %}—{% endif %}
+      </div>
+    </div>
+    <div class="quasar-stat wide">
+      <div class="stat-label">Policy</div>
+      <div class="stat-value small" id="quasar-policy-reason">{{ quasar.confirmations.reason|default('Loading braid policy…') }}</div>
+    </div>
+  </div>
+  <p class="muted small quasar-foot">
+    Exchanges: poll <a href="{{ public_root }}/api/quasar/status">{{ public_root }}/api/quasar/status</a> alongside
+    <a href="{{ public_root }}/api/exchange">/api/exchange</a>.
+    <a href="{{ public_root }}/downloads/Bloodstone-QUASAR-Witness-Aware-Confirmation-Guide.md">Witness-aware confirmation guide</a>
+  </p>
+</section>
+
 <section class="panel">
   <div class="panel-head">
     <h2>Latest Blocks</h2>

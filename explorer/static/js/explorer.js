@@ -41,6 +41,45 @@ async function refreshStats() {
   }
 }
 
+function updateQuasarPanel(data) {
+  if (!data || !document.getElementById("quasar-panel")) return;
+  const status = data.braid_status || "unknown";
+  const statusEl = document.getElementById("quasar-braid-status");
+  if (statusEl) {
+    statusEl.textContent = status;
+    statusEl.className = `braid-badge braid-${status}`;
+  }
+  const confEl = document.getElementById("quasar-deposit-conf");
+  if (confEl) {
+    confEl.textContent = String(data.confirmations?.recommended_deposit ?? 6);
+  }
+  const epochEl = document.getElementById("quasar-epoch-blocks");
+  if (epochEl) epochEl.textContent = String(data.epoch_blocks ?? 10);
+  const vector = data.current_epoch?.braid_vector;
+  const vectorEl = document.getElementById("quasar-braid-vector");
+  if (vectorEl && vector) {
+    vectorEl.textContent = `SHA256d ${vector.sha256d} · neoscrypt ${vector.neoscrypt} · yespower ${vector.yespower}`;
+  }
+  const reasonEl = document.getElementById("quasar-policy-reason");
+  if (reasonEl) reasonEl.textContent = data.confirmations?.reason || "—";
+  const updatedEl = document.getElementById("quasar-updated");
+  if (updatedEl && data.updated_utc) {
+    updatedEl.textContent = `Updated ${data.updated_utc}`;
+  }
+}
+
+async function refreshQuasar() {
+  if (!document.getElementById("quasar-panel")) return;
+  try {
+    const res = await fetch(apiUrl("/api/quasar/status"));
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.ok !== false) updateQuasarPanel(data);
+  } catch (_) {
+    /* ignore */
+  }
+}
+
 function updateBitaxePanel(bitaxe) {
   const panel = document.getElementById("bitaxe-panel");
   const tbody = document.querySelector("#bitaxe-devices tbody");
@@ -157,6 +196,8 @@ async function refreshMinersPage() {
 
 refreshStats();
 setInterval(refreshStats, 30000);
+refreshQuasar();
+setInterval(refreshQuasar, 45000);
 
 if (document.getElementById("pool-miners-page")) {
   refreshMinersPage();

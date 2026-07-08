@@ -11,6 +11,7 @@ import requests
 
 sys.path.insert(0, "/root")
 import bloodstone_branding
+import bloodstone_quasar
 import bloodstone_time
 import merge_mining_info
 import pool_db
@@ -217,6 +218,12 @@ def index():
             ),
             503,
         )
+    quasar = {}
+    try:
+        quasar = bloodstone_quasar.build_status(rpc)
+    except Exception:
+        quasar = {"ok": False, "braid_status": "unknown"}
+
     return render_template(
         "index.html",
         blocks=blocks,
@@ -224,6 +231,7 @@ def index():
         info=info,
         mining=mining,
         mempool_count=len(mempool),
+        quasar=quasar,
     )
 
 
@@ -383,6 +391,14 @@ def search():
     if kind == "name":
         return redirect(url_for("name_page", name=value))
     return render_template("error.html", message=f"Could not identify search query: {q}"), 400
+
+
+@app.route("/api/quasar/status")
+def api_quasar_status():
+    try:
+        return jsonify(bloodstone_quasar.build_status(rpc))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 503
 
 
 @app.route("/api/stats")

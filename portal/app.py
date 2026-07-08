@@ -18,6 +18,7 @@ from flask import Flask, jsonify, render_template, request
 import bloodstone_branding
 import bloodstone_beta_codes
 import bloodstone_downloads
+import bloodstone_quasar
 import bloodstone_rich_list
 import pool_db
 import pool_device_fleet
@@ -274,6 +275,11 @@ def electrum_status():
 def exchange_listing():
     stats = chain_stats()
     electrum = electrum_status()
+    quasar_status = {}
+    try:
+        quasar_status = bloodstone_quasar.build_status(rpc)
+    except Exception:
+        quasar_status = {"ok": False, "braid_status": "unknown"}
     downloads = {
         "node_linux": download_available(NODE_PKG),
         "exchange_node_linux": download_available(EXCHANGE_NODE_PKG),
@@ -296,6 +302,16 @@ def exchange_listing():
             "block_time_seconds": 90,
             "confirmations_deposit": 6,
             "confirmations_withdrawal": 6,
+            "confirmations_deposit_recommended": (
+                (quasar_status.get("confirmations") or {}).get(
+                    "recommended_deposit", 6
+                )
+            ),
+            "confirmations_withdrawal_recommended": (
+                (quasar_status.get("confirmations") or {}).get(
+                    "recommended_withdrawal", 6
+                )
+            ),
             "coinbase_maturity": 100,
             "address_formats": {
                 "legacy_p2pkh": "S… (base58, prefix 0x3f)",
@@ -353,6 +369,7 @@ def exchange_listing():
             "required_flags": ["txindex=1", "wallet=exchange-hot"],
             "forbidden_flags": ["disablewallet=1"],
         },
+        "quasar": bloodstone_quasar.exchange_quasar_fields(quasar_status, PUBLIC_ROOT),
         "listing_notes": [
             "Jun 2026 relaunch — new genesis; legacy pre-relaunch chain data is not valid.",
             "RPC is localhost-only on the pool VPS; exchanges should use ElectrumX or run their own node.",
@@ -684,6 +701,14 @@ def exchange_page():
 @app.route("/api/exchange")
 def api_exchange():
     return jsonify(exchange_listing())
+
+
+@app.route("/api/quasar/status")
+def api_quasar_status():
+    try:
+        return jsonify(bloodstone_quasar.build_status(rpc))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 503
 
 
 @app.route("/atomicdex/")

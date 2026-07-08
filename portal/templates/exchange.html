@@ -67,7 +67,8 @@
           <dt>Genesis hash</dt><dd class="mono small">{{ listing.coin.genesis_hash }}</dd>
           <dt>Block reward</dt><dd>{{ listing.coin.block_reward_stone }} STONE</dd>
           <dt>Block time</dt><dd>~{{ listing.coin.block_time_seconds }}s</dd>
-          <dt>Deposit confirmations</dt><dd>{{ listing.coin.confirmations_deposit }}</dd>
+          <dt>Deposit confirmations (base)</dt><dd>{{ listing.coin.confirmations_deposit }}</dd>
+          <dt>Deposit confirmations (QUASAR recommended)</dt><dd><strong>{{ listing.coin.confirmations_deposit_recommended }}</strong> — braid {{ listing.quasar.braid_status }}</dd>
           <dt>Addresses</dt><dd>{{ listing.coin.address_formats.legacy_p2pkh }} · {{ listing.coin.address_formats.bech32 }}</dd>
           <dt>PoW algos</dt><dd>{{ listing.coin.algorithms | join(', ') }}</dd>
         </dl>
@@ -149,6 +150,22 @@
           <li><a href="{{ listing.infrastructure.downloads.node_linux.url }}">Linux node v{{ listing.software.node_core_version }}</a></li>
           {% endif %}
         </ul>
+      </div>
+    </section>
+
+    <section class="panel" style="border-color:#3d3520">
+      <div class="panel-head">
+        <h2>QUASAR braid status (live)</h2>
+        <p class="panel-sub">Poll with listing JSON — Phase 1 policy layer</p>
+      </div>
+      <div class="panel-body">
+        <dl class="detail-dl">
+          <dt>Braid status</dt><dd><strong>{{ listing.quasar.braid_status }}</strong></dd>
+          <dt>Recommended deposit confirms</dt><dd>{{ listing.quasar.confirmations_deposit_recommended }} (×{{ listing.quasar.confirmation_multiplier }})</dd>
+          <dt>Epoch braid vector</dt><dd class="mono small">SHA256d {{ listing.quasar.current_epoch_braid_vector.sha256d }} · neoscrypt {{ listing.quasar.current_epoch_braid_vector.neoscrypt }} · yespower {{ listing.quasar.current_epoch_braid_vector.yespower }}</dd>
+          <dt>Status API</dt><dd class="mono small"><a href="{{ listing.quasar.status_url }}">{{ listing.quasar.status_url }}</a></dd>
+          <dt>Confirmation guide</dt><dd><a href="{{ listing.quasar.guide_url }}">Witness-aware confirmation guide</a></dd>
+        </dl>
       </div>
     </section>
 
