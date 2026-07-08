@@ -3,7 +3,8 @@
  */
 
 import { apiUrl } from "./miner-paths.js";
-import { initMeshAssetLibrary, refreshMeshAssetLibrary } from "./mesh-asset-library.js";
+import { initMeshAssetLibrary, keepAssetOnDevice, refreshMeshAssetLibrary } from "./mesh-asset-library.js";
+import { initMeshAssetPinUi } from "./mesh-asset-pin.js";
 import {
   fetchWritableMeshKeys,
   initMeshAssetUserSubmit,
@@ -223,7 +224,10 @@ async function receiveAsset(assetKey) {
       "_",
     );
     triggerDownload(bytes, filename, manifest.mime_type);
-    if (statusEl) {
+    const pinAfter = document.getElementById("nd-receive-pin")?.checked !== false;
+    if (pinAfter) {
+      await keepAssetOnDevice(assetKey, statusEl);
+    } else if (statusEl) {
       statusEl.textContent = `Verified and saved ${filename} (${formatBytes(bytes.length)}).`;
     }
   } catch (err) {
@@ -250,6 +254,7 @@ export function initNetworkDataPortal() {
 
   initMeshAssetUserSubmit();
   initMeshSendForm();
+  initMeshAssetPinUi();
   initMeshAssetLibrary({ limit: 100 });
   void loadWritableKeys();
   void refreshPortalStats();

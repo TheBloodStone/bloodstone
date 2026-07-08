@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+{% block title %}Blurt Mesh Traffic · Bloodstone{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Blurt mesh traffic</h1>
+  <p class="hero-sub">
+    Public totals for data Blurt sends to and receives from the Bloodstone chain mesh
+    (<span class="mono">assets/blurt/</span>). Updated live from partner uploads and asset downloads.
+  </p>
+  <div class="btn-row">
+    <a class="btn btn-small" href="{{ url_for('blurt_mesh_v2_page') }}">v2.0-Lite system</a>
+    <a class="btn btn-small" href="{{ url_for('network_data') }}">Network Data Portal</a>
+    <a class="btn btn-ghost btn-small" href="/api/chain-mesh/partner/blurt/traffic">JSON API</a>
+  </div>
+</section>
+
+<div class="stats-grid" id="blurt-traffic-periods">
+  <div class="stat-card highlight">
+    <div class="stat-label">This week (in)</div>
+    <div class="stat-value" id="bt-week-in">—</div>
+    <div class="muted small" id="bt-week-in-req"></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">This week (out)</div>
+    <div class="stat-value" id="bt-week-out">—</div>
+    <div class="muted small" id="bt-week-out-req"></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">This month (in)</div>
+    <div class="stat-value" id="bt-month-in">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">This month (out)</div>
+    <div class="stat-value" id="bt-month-out">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">This year (in)</div>
+    <div class="stat-value" id="bt-year-in">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">This year (out)</div>
+    <div class="stat-value" id="bt-year-out">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">All time (in)</div>
+    <div class="stat-value" id="bt-all-in">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">All time (out)</div>
+    <div class="stat-value" id="bt-all-out">—</div>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>History by week</h2>
+    <p class="muted small panel-sub" id="bt-updated">Loading…</p>
+  </div>
+  <div class="panel-body">
+    <div class="table-wrap">
+      <table class="data-table" id="bt-week-table">
+        <thead>
+          <tr>
+            <th>Week</th>
+            <th>In</th>
+            <th>Out</th>
+            <th>Net</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>History by month</h2></div>
+  <div class="panel-body">
+    <div class="table-wrap">
+      <table class="data-table" id="bt-month-table">
+        <thead>
+          <tr>
+            <th>Month</th>
+            <th>In</th>
+            <th>Out</th>
+            <th>Net</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>History by year</h2></div>
+  <div class="panel-body">
+    <div class="table-wrap">
+      <table class="data-table" id="bt-year-table">
+        <thead>
+          <tr>
+            <th>Year</th>
+            <th>In</th>
+            <th>Out</th>
+            <th>Net</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<script>
+(function () {
+  function fillPeriod(prefix, data) {
+    if (!data) return;
+    const inEl = document.getElementById(prefix + "-in");
+    const outEl = document.getElementById(prefix + "-out");
+    if (inEl) inEl.textContent = data.in_human || "0 B";
+    if (outEl) outEl.textContent = data.out_human || "0 B";
+    const inReq = document.getElementById(prefix + "-in-req");
+    const outReq = document.getElementById(prefix + "-out-req");
+    if (inReq && data.in_requests != null) {
+      inReq.textContent = data.in_requests + " upload request(s)";
+    }
+    if (outReq && data.out_requests != null) {
+      outReq.textContent = data.out_requests + " download request(s)";
+    }
+  }
+
+  function fillTable(tableId, rows) {
+    const tbody = document.querySelector("#" + tableId + " tbody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    (rows || []).forEach(function (row) {
+      const tr = document.createElement("tr");
+      const net = (row.in_bytes || 0) - (row.out_bytes || 0);
+      const netHuman = row.net_human || "0 B";
+      tr.innerHTML =
+        "<td class=\"mono\">" + row.label + "</td>" +
+        "<td>" + (row.in_human || "0 B") + "</td>" +
+        "<td>" + (row.out_human || "0 B") + "</td>" +
+        "<td>" + (net >= 0 ? "+" : "−") + netHuman + "</td>";
+      tbody.appendChild(tr);
+    });
+  }
+
+  fetch("/api/chain-mesh/partner/blurt/traffic", { cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok) throw new Error(data.error || "load failed");
+      const p = data.periods || {};
+      fillPeriod("bt-week", p.week);
+      fillPeriod("bt-month", p.month);
+      fillPeriod("bt-year", p.year);
+      fillPeriod("bt-all", p.all_time);
+      const updated = document.getElementById("bt-updated");
+      if (updated) {
+        updated.textContent = "Last updated " + (data.updated_at || "") + " UTC";
+      }
+      const hist = data.history || {};
+      fillTable("bt-week-table", hist.by_week);
+      fillTable("bt-month-table", hist.by_month);
+      fillTable("bt-year-table", hist.by_year);
+    })
+    .catch(function (err) {
+      const updated = document.getElementById("bt-updated");
+      if (updated) updated.textContent = "Failed to load: " + err.message;
+    });
+})();
+</script>
+{% endblock %}

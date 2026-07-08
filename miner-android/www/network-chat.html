@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#008080">
+  <title>Network Chat — Bloodstone Miner</title>
+  <link rel="stylesheet" href="static/css/miner.css">
+  <link rel="stylesheet" href="static/css/network-chat.css?v=20260707c">
+  <style>
+    body { margin: 0; background: #0d0f14; color: #e8ecf0; }
+    .nc-back { max-width: 980px; margin: 0.75rem auto 0; padding: 0 0.5rem; }
+    .nc-back a { color: #6eb5ff; font-size: 0.9rem; text-decoration: none; }
+  </style>
+</head>
+<body data-android-app="1" data-url-prefix="/mining" data-update-base="https://bloodstonewallet.mytunnel.org">
+  <p class="nc-back"><a href="offline-mine.html?app=android">← Back to miner</a></p>
+  <section class="panel" style="border:none;background:transparent;padding:0 0.5rem 1.5rem;">
+    <div class="nc-app" id="network-chat-app">
+      <div class="nc-titlebar">
+        <div class="nc-title">
+          <span class="nc-icon">BS</span>
+          <span>Bloodstone Network Chat</span>
+        </div>
+        <span class="nc-counts" id="nc-online-counts">…</span>
+      </div>
+      <div class="nc-body">
+        <aside class="nc-sidebar">
+          <div class="nc-me">
+            <label for="nc-nick">Screen name</label>
+            <input id="nc-nick" type="text" maxlength="64" placeholder="Your nick" autocomplete="nickname">
+            <label for="nc-status-msg" style="margin-top:0.35rem;">Status</label>
+            <input id="nc-status-msg" type="text" maxlength="120" placeholder="On the mesh" autocomplete="off">
+          </div>
+          <div class="nc-buddy-head">Buddies &amp; nodes</div>
+          <div class="nc-buddy-list" id="nc-buddy-list"></div>
+        </aside>
+        <div class="nc-main">
+          <div class="nc-chat-head" id="nc-chat-head">Network Lobby</div>
+          <div class="nc-messages" id="nc-messages" aria-live="polite"></div>
+          <div class="nc-compose">
+            <textarea id="nc-compose" rows="2" maxlength="1200" placeholder="Type a message… (Enter to send)"></textarea>
+            <button type="button" class="nc-send" id="nc-send">Send</button>
+          </div>
+        </div>
+      </div>
+      <div class="nc-statusbar" id="nc-statusbar">Loading…</div>
+    </div>
+  </section>
+  <script type="module">
+    import { initNetworkChat } from "./static/js/network-chat-ui.js?v=20260707c";
+    initNetworkChat(document);
+  </script>
+</body>
+</html>

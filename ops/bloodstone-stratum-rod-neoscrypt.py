@@ -17,6 +17,7 @@ from typing import Dict, Optional, Tuple
 sys.path.insert(0, "/root")
 from stratum_utils import (  # noqa: E402
     block_job_is_stale,
+    classify_miner_kind,
     extranonce_bytes,
     resolve_share_header,
     share_target_int,
@@ -30,6 +31,7 @@ from stratum_extensions import (  # noqa: E402
 )
 import pool_browser_miner  # noqa: E402
 import pool_db  # noqa: E402
+import pool_rod_vardiff  # noqa: E402
 import rod_dual_submit  # noqa: E402
 
 SPACEXPANSE_HASH = "/root/bloodstone-core/src/spacexpanse-hash"
@@ -199,8 +201,15 @@ class StratumClient:
         self.authorized = False
         self.solo_mode = False
         self.user_agent = ""
+        self.miner_kind = "cpu"
         self.is_web_miner = False
         self.share_difficulty = 0.0
+        self._rod_vardiff_enabled = True
+        self._rod_submit_count = 0
+        self._rod_accept_count = 0
+        self._rod_last_accept_at = 0.0
+        self._rod_last_adjust_at = 0.0
+        self._rod_reject_streak = 0
         self.jobs: Dict[str, Job] = {}
         self.current_job_height = 0
         self.configured = False
@@ -245,14 +254,20 @@ class StratumClient:
         if method == "mining.subscribe":
             self.subscribed = True
             self.user_agent = str(params[0]).strip() if params else ""
+            self.miner_kind = classify_miner_kind(self.user_agent, self.worker)
             self.is_web_miner = self.user_agent == "bloodstone-web-miner"
-            if self.is_web_miner:
-                self.share_difficulty = min(
-                    self.server.share_difficulty,
-                    ROD_BROWSER_DIFF,
-                )
-            else:
-                self.share_difficulty = self.server.share_difficulty
+            pool_rod_vardiff.init_client_difficulty(
+                self,
+                self.server.share_difficulty,
+                self.server.network_neoscrypt_difficulty(),
+            )
+            logging.info(
+                "subscribe ua=%r kind=%s diff=%.8g peer=%s",
+                self.user_agent,
+                self.miner_kind,
+                float(self.share_difficulty or 0.0),
+                self.writer.get_extra_info("peername"),
+            )
             # 2 bytes in nNonce for extranonce1 per SpaceXpanse stratum spec.
             self.extranonce1 = binascii.hexlify(os.urandom(2)).decode("ascii")
             await self.reply(
@@ -273,6 +288,7 @@ class StratumClient:
             password = params[1] if len(params) > 1 else ""
             self.solo_mode = str(password).strip().lower() == "solo"
             self.worker = user
+            self.miner_kind = classify_miner_kind(self.user_agent, self.worker)
             self.address, fallback = rod_address_from_worker(user)
             if not self.address:
                 await self.reply(
@@ -342,24 +358,32 @@ class StratumClient:
 
         if method == "mining.suggest_difficulty":
             suggested = params[0] if params else None
-            if (
-                suggested is not None
-                and self.is_web_miner
-                and not self.solo_mode
-            ):
-                self.share_difficulty = pool_browser_miner.clamp_suggested_difficulty(
-                    "neoscrypt",
-                    float(suggested),
-                    self.server.share_difficulty,
-                )
-                try:
-                    await self.server.push_job(self)
-                except Exception as exc:
-                    logging.warning(
-                        "browser vardiff refresh failed for %s: %s",
-                        self.worker or self.address,
-                        exc,
+            if suggested is not None and not self.solo_mode:
+                refreshed = False
+                if self.is_web_miner:
+                    self.share_difficulty = min(
+                        float(suggested),
+                        self.server.share_difficulty,
+                        ROD_BROWSER_DIFF,
                     )
+                    refreshed = True
+                elif pool_rod_vardiff.vardiff_enabled(self):
+                    pool_rod_vardiff.apply_suggested_difficulty(
+                        self,
+                        float(suggested),
+                        self.server.share_difficulty,
+                        self.server.network_neoscrypt_difficulty(),
+                    )
+                    refreshed = True
+                if refreshed:
+                    try:
+                        await self.server.push_job(self)
+                    except Exception as exc:
+                        logging.warning(
+                            "rod vardiff refresh failed for %s: %s",
+                            self.worker or self.address,
+                            exc,
+                        )
             await self.reply(msg_id, True, None)
             return
 
@@ -381,6 +405,101 @@ class StratumServer:
         self.tip_height = -1
         self.job_refresh_interval = 1.0
         self._refresh_lock: Optional[asyncio.Lock] = None
+        self._network_neoscrypt_diff = 0.0
+        self._network_diff_updated_at = 0.0
+
+    def network_neoscrypt_difficulty(self) -> float:
+        if self._network_neoscrypt_diff > 0:
+            return self._network_neoscrypt_diff
+        return max(float(self.share_difficulty or 0.0), 1e-6)
+
+    async def refresh_network_difficulty(self) -> None:
+        try:
+            info = await self.rpc.call("getmininginfo")
+            diff = info.get("difficulty")
+            if isinstance(diff, dict):
+                value = float(diff.get("neoscrypt") or 0.0)
+            else:
+                value = float(diff or 0.0)
+            if value > 0:
+                old = self._network_neoscrypt_diff
+                self._network_neoscrypt_diff = value
+                self._network_diff_updated_at = time.time()
+                if old > 0 and abs(value - old) / old >= 0.05:
+                    logging.info(
+                        "ROD neoscrypt network diff %.8g -> %.8g",
+                        old,
+                        value,
+                    )
+        except Exception as exc:
+            logging.warning("ROD network diff refresh failed: %s", exc)
+
+    async def network_diff_loop(self, interval: float = 60.0) -> None:
+        while True:
+            await self.refresh_network_difficulty()
+            await asyncio.sleep(interval)
+
+    async def apply_rod_vardiff(
+        self,
+        client: StratumClient,
+        *,
+        accepted: bool,
+        block_found: bool = False,
+    ) -> None:
+        pool_diff = self.share_difficulty
+        network_diff = self.network_neoscrypt_difficulty()
+        old_diff = float(client.share_difficulty or 0.0)
+        if block_found:
+            new_diff = pool_rod_vardiff.on_block_find(
+                client, pool_diff, network_diff
+            )
+        elif accepted:
+            new_diff = pool_rod_vardiff.on_accept(client, pool_diff, network_diff)
+            if new_diff is None:
+                new_diff = pool_rod_vardiff.maybe_promote_fast_shares(
+                    client, pool_diff, network_diff
+                )
+        else:
+            new_diff = pool_rod_vardiff.on_reject(client, pool_diff, network_diff)
+        if new_diff is None:
+            return
+        logging.info(
+            "rod vardiff worker=%s kind=%s diff=%.8g -> %.8g accepted=%s block=%s net=%.8g",
+            client.worker or client.address,
+            getattr(client, "miner_kind", "") or "-",
+            old_diff,
+            new_diff,
+            accepted,
+            block_found,
+            network_diff,
+        )
+        await self.push_job(client)
+
+    async def rod_vardiff_loop(self, interval: float = 15.0) -> None:
+        while True:
+            await asyncio.sleep(interval)
+            network_diff = self.network_neoscrypt_difficulty()
+            for client in list(self.clients):
+                if not getattr(client, "authorized", False):
+                    continue
+                if getattr(client, "solo_mode", False) or client.is_web_miner:
+                    continue
+                try:
+                    new_diff = pool_rod_vardiff.idle_adjust(
+                        client,
+                        self.share_difficulty,
+                        network_diff,
+                    )
+                    if new_diff is not None:
+                        logging.info(
+                            "rod vardiff idle worker=%s diff -> %.8g (net cap %.8g)",
+                            client.worker or client.address,
+                            new_diff,
+                            network_diff,
+                        )
+                        await self.push_job(client)
+                except Exception as exc:
+                    logging.debug("rod vardiff idle failed: %s", exc)
 
     def _refresh_lock_get(self) -> asyncio.Lock:
         if self._refresh_lock is None:
@@ -476,12 +595,12 @@ class StratumServer:
         return job
 
     def client_share_difficulty(self, client: StratumClient) -> float:
-        return pool_browser_miner.effective_share_difficulty(
-            "neoscrypt",
+        if float(client.share_difficulty or 0.0) > 0:
+            return float(client.share_difficulty)
+        return pool_rod_vardiff.native_floor(
+            client,
             self.share_difficulty,
-            is_web_miner=bool(client.is_web_miner),
-            solo_mode=bool(client.solo_mode),
-            client_diff=float(client.share_difficulty or 0.0),
+            self.network_neoscrypt_difficulty(),
         )
 
     async def send_job(self, client: StratumClient, job: Job):
@@ -521,13 +640,16 @@ class StratumServer:
         )
         mode = "solo" if client.solo_mode else "pool"
         browser_note = " browser" if client.is_web_miner else ""
+        kind = getattr(client, "miner_kind", "") or "-"
         logging.info(
-            "ROD neoscrypt job %s height=%s address=%s mode=%s diff=%.6f%s",
+            "ROD neoscrypt job %s height=%s address=%s mode=%s kind=%s diff=%.8g net=%.8g%s",
             job.job_id,
             job.work["height"],
             client.address,
             mode,
+            kind,
             difficulty,
+            self.network_neoscrypt_difficulty(),
             browser_note,
         )
 
@@ -638,17 +760,25 @@ class StratumServer:
             await self.handle_stale_submit(client, worker, job_key)
             return False
 
+        client._rod_submit_count = int(getattr(client, "_rod_submit_count", 0) or 0) + 1
+
+        # ccminer / sgminer neoscrypt uses LE nonce bytes; browsers try BE first.
+        preferred_nonce_be = not bool(getattr(client, "is_web_miner", False))
         try:
-            resolved = resolve_share_header(
-                self.build_fake_header,
-                neoscrypt_hash_compare_hex,
-                job,
-                extranonce2,
-                str(ntime_hex),
-                str(nonce_hex),
-                job.share_target_hex,
-                expected_hash=expected_hash,
-                preferred_nonce_be=True,
+            loop = asyncio.get_running_loop()
+            resolved = await loop.run_in_executor(
+                None,
+                lambda: resolve_share_header(
+                    self.build_fake_header,
+                    neoscrypt_hash_compare_hex,
+                    job,
+                    extranonce2,
+                    str(ntime_hex),
+                    str(nonce_hex),
+                    job.share_target_hex,
+                    expected_hash=expected_hash,
+                    preferred_nonce_be=preferred_nonce_be,
+                ),
             )
         except (ValueError, binascii.Error) as exc:
             logging.warning("invalid submit from %s: %s", worker, exc)
@@ -667,12 +797,13 @@ class StratumServer:
 
         if resolved is None:
             logging.info(
-                "rejected share from %s job=%s en2=%s ntime=%s nonce=%s",
+                "rejected share from %s job=%s en2=%s ntime=%s nonce=%s diff=%.8g",
                 worker,
                 job_id,
                 extranonce2,
                 ntime_hex,
                 nonce_hex,
+                float(client.share_difficulty or 0.0),
             )
             pool_db.record_dual_chain_event(
                 chain="rod",
@@ -684,16 +815,30 @@ class StratumServer:
                 pool="rod_neoscrypt",
                 job_height=int(job.work.get("height") or 0),
             )
+            try:
+                await self.apply_rod_vardiff(client, accepted=False)
+            except Exception as exc:
+                logging.warning("rod vardiff reject adjust failed: %s", exc)
             return False
 
         fake_header, hash_hex = resolved
+        is_block = int(hash_hex, 16) <= int(job.block_target_hex, 16)
 
         logging.info(
-            "accepted share from %s job=%s hash=%s",
+            "accepted share from %s job=%s hash=%s kind=%s diff=%.8g block=%s",
             worker,
             job_id,
             hash_hex[:16],
+            getattr(client, "miner_kind", "") or "-",
+            float(client.share_difficulty or 0.0),
+            is_block,
         )
+        try:
+            await self.apply_rod_vardiff(
+                client, accepted=True, block_found=is_block
+            )
+        except Exception as exc:
+            logging.warning("rod vardiff accept adjust failed: %s", exc)
         pool_db.record_dual_chain_event(
             chain="rod",
             event_type="share",
@@ -705,7 +850,7 @@ class StratumServer:
             job_height=int(job.work.get("height") or 0),
         )
 
-        if int(hash_hex, 16) <= int(job.block_target_hex, 16):
+        if is_block:
             height = int(job.work["height"])
             if await block_job_is_stale(self.rpc, height):
                 logging.info(
@@ -799,10 +944,13 @@ class StratumServer:
         logging.info(
             "SpaceXpanse ROD neoscrypt stratum on %s:%s", self.host, self.port
         )
+        await self.refresh_network_difficulty()
         async with server:
             await asyncio.gather(
                 server.serve_forever(),
                 self.refresh_jobs_loop(),
+                self.network_diff_loop(),
+                self.rod_vardiff_loop(),
                 stratum_export_loop(self.clients, "rod_neoscrypt"),
             )
 

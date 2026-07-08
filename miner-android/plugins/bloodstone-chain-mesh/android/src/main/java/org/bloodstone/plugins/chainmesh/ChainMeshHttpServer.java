@@ -49,6 +49,22 @@ final class ChainMeshHttpServer extends NanoHTTPD {
                 return json(Response.Status.OK, body);
             }
 
+            if ("/gateway/status".equals(uri) && method == Method.GET) {
+                JSONObject body = new JSONObject();
+                body.put("ok", true);
+                body.put("sharing", ChainMeshPlugin.isGatewaySharingEnabled());
+                body.put("service", "bloodstone-lan-gateway");
+                body.put("port", ChainMeshPlugin.DEFAULT_CHUNK_PORT);
+                return json(Response.Status.OK, body);
+            }
+
+            if ("/gateway/http".equals(uri) && method == Method.POST) {
+                if (!ChainMeshPlugin.isGatewaySharingEnabled()) {
+                    return json(Response.Status.FORBIDDEN, error("gateway sharing disabled"));
+                }
+                return handleGatewayHttp(session);
+            }
+
             if ("/peers".equals(uri)) {
                 JSONObject body = peerRegistry != null
                     ? peerRegistry.exportJson()
@@ -163,6 +179,58 @@ final class ChainMeshHttpServer extends NanoHTTPD {
 
     private Response json(Response.Status status, JSONObject body) {
         return newFixedLengthResponse(status, "application/json", body.toString());
+    }
+
+    private Response handleGatewayHttp(IHTTPSession session) {
+        try {
+            java.util.Map<String, String> files = new java.util.HashMap<>();
+            session.parseBody(files);
+            String raw = files.get("postData");
+            if (raw == null || raw.isEmpty()) {
+                return json(Response.Status.BAD_REQUEST, error("empty gateway request"));
+            }
+            JSONObject req = new JSONObject(raw);
+            String url = req.optString("url", "").trim();
+            if (url.isEmpty() || !(url.startsWith("http://") || url.startsWith("https://"))) {
+                return json(Response.Status.BAD_REQUEST, error("invalid url"));
+            }
+            String requestMethod = req.optString("method", "GET").trim().toUpperCase(Locale.US);
+            java.net.HttpURLConnection conn =
+                (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+            conn.setConnectTimeout(12000);
+            conn.setReadTimeout(20000);
+            conn.setInstanceFollowRedirects(true);
+            conn.setRequestMethod(
+                "GET".equals(requestMethod) || "HEAD".equals(requestMethod) ? requestMethod : "GET"
+            );
+            conn.setRequestProperty("User-Agent", "BloodstoneLanGateway/1.0");
+            int status = conn.getResponseCode();
+            java.io.InputStream stream =
+                status >= 400 ? conn.getErrorStream() : conn.getInputStream();
+            byte[] body = new byte[0];
+            if (stream != null) {
+                body = readAllBytes(stream);
+            }
+            JSONObject out = new JSONObject();
+            out.put("ok", true);
+            out.put("status", status);
+            out.put("content_type", conn.getContentType() != null ? conn.getContentType() : "");
+            out.put("body_b64", Base64.encodeToString(body, Base64.NO_WRAP));
+            return json(Response.Status.OK, out);
+        } catch (Exception exc) {
+            Log.w(TAG, "gateway http failed: " + exc.getMessage());
+            return json(Response.Status.INTERNAL_ERROR, error(exc.getMessage()));
+        }
+    }
+
+    private static byte[] readAllBytes(java.io.InputStream in) throws java.io.IOException {
+        java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+        byte[] chunk = new byte[8192];
+        int read;
+        while ((read = in.read(chunk)) != -1) {
+            buf.write(chunk, 0, read);
+        }
+        return buf.toByteArray();
     }
 
     private JSONObject error(String message) {

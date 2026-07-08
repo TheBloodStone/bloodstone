@@ -1,0 +1,285 @@
+/* Bloodstone Network Chat — retro IM (ICQ / AIM era) */
+
+.nc-app {
+  --nc-teal: #008080;
+  --nc-teal-dark: #006666;
+  --nc-win-gray: #c0c0c0;
+  --nc-win-light: #dfdfdf;
+  --nc-win-dark: #808080;
+  --nc-white: #ffffff;
+  --nc-cream: #ffffe8;
+  --nc-online: #00aa00;
+  --nc-away: #cc9900;
+  --nc-offline: #888888;
+  --nc-lobby: #7c3aed;
+  font-family: "Tahoma", "MS Sans Serif", "Segoe UI", Arial, sans-serif;
+  font-size: 13px;
+  color: #111;
+  border: 2px solid var(--nc-win-dark);
+  border-right-color: var(--nc-white);
+  border-bottom-color: var(--nc-white);
+  background: var(--nc-win-gray);
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.25);
+  max-width: 980px;
+  margin: 0 auto 2rem;
+}
+
+.nc-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 0.6rem;
+  background: linear-gradient(90deg, var(--nc-teal) 0%, #00a0a0 100%);
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.nc-titlebar .nc-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.nc-titlebar .nc-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: #fff;
+  color: var(--nc-teal);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.nc-titlebar .nc-counts {
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.92;
+}
+
+.nc-body {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  min-height: 480px;
+}
+
+.nc-sidebar {
+  border-right: 1px solid var(--nc-win-dark);
+  background: var(--nc-win-light);
+  display: flex;
+  flex-direction: column;
+}
+
+.nc-me {
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid var(--nc-win-dark);
+  background: #e8f4f4;
+}
+
+.nc-me label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #555;
+  margin-bottom: 0.2rem;
+}
+
+.nc-me input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px inset var(--nc-win-gray);
+  padding: 0.25rem 0.35rem;
+  font: inherit;
+  background: #fff;
+}
+
+.nc-buddy-head {
+  padding: 0.35rem 0.55rem;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #444;
+  background: var(--nc-win-gray);
+  border-bottom: 1px solid var(--nc-win-dark);
+}
+
+.nc-buddy-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.25rem 0;
+}
+
+.nc-buddy {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.nc-buddy:hover,
+.nc-buddy.active {
+  background: #b8d8d8;
+}
+
+.nc-buddy.lobby .nc-name {
+  color: var(--nc-lobby);
+  font-weight: 700;
+}
+
+.nc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+  background: var(--nc-offline);
+}
+
+.nc-dot.online { background: var(--nc-online); }
+.nc-dot.away { background: var(--nc-away); }
+
+.nc-buddy-meta {
+  min-width: 0;
+  flex: 1;
+}
+
+.nc-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nc-sub {
+  font-size: 10px;
+  color: #555;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nc-main {
+  display: flex;
+  flex-direction: column;
+  background: var(--nc-cream);
+  min-width: 0;
+}
+
+.nc-chat-head {
+  padding: 0.45rem 0.65rem;
+  border-bottom: 1px solid var(--nc-win-dark);
+  background: #f4f4e8;
+  font-weight: 700;
+}
+
+.nc-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.55rem 0.65rem;
+  line-height: 1.45;
+  min-height: 300px;
+}
+
+.nc-msg {
+  margin-bottom: 0.35rem;
+  word-break: break-word;
+}
+
+.nc-msg .nc-time {
+  color: #666;
+  font-size: 10px;
+  margin-right: 0.35rem;
+}
+
+.nc-msg .nc-nick {
+  font-weight: 700;
+  color: var(--nc-teal-dark);
+}
+
+.nc-msg.system .nc-nick {
+  color: #666;
+  font-weight: 400;
+  font-style: italic;
+}
+
+.nc-msg.self .nc-nick {
+  color: #004488;
+}
+
+.nc-compose {
+  border-top: 1px solid var(--nc-win-dark);
+  padding: 0.45rem 0.55rem;
+  background: var(--nc-win-gray);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.45rem;
+  align-items: end;
+}
+
+.nc-compose textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 52px;
+  max-height: 120px;
+  resize: vertical;
+  border: 1px inset var(--nc-win-gray);
+  padding: 0.35rem 0.45rem;
+  font: inherit;
+  background: #fff;
+}
+
+.nc-send {
+  border: 2px solid var(--nc-win-gray);
+  border-right-color: var(--nc-win-dark);
+  border-bottom-color: var(--nc-win-dark);
+  background: var(--nc-win-light);
+  padding: 0.45rem 0.9rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nc-send:active {
+  border: 2px solid var(--nc-win-gray);
+  border-left-color: var(--nc-win-dark);
+  border-top-color: var(--nc-win-dark);
+}
+
+.nc-send:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.nc-statusbar {
+  padding: 0.25rem 0.55rem;
+  font-size: 11px;
+  color: #333;
+  background: var(--nc-win-gray);
+  border-top: 1px solid var(--nc-win-dark);
+}
+
+.nc-statusbar.error { color: #a00; }
+.nc-statusbar.ok { color: #060; }
+
+@media (max-width: 720px) {
+  .nc-body {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+  .nc-sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--nc-win-dark);
+    max-height: 200px;
+  }
+}

@@ -2,7 +2,7 @@
 # Build and publish a sideload Bloodstone Android miner APK.
 set -euo pipefail
 
-VERSION="${BLOODSTONE_MINER_ANDROID_VERSION:-1.3.23}"
+VERSION="${BLOODSTONE_MINER_ANDROID_VERSION:-1.3.76}"
 OUT_DL="${BLOODSTONE_DOWNLOADS_DIR:-/var/www/bloodstone/downloads}"
 APK_NAME="bloodstone-miner-android-${VERSION}.apk"
 SRC="/root/bloodstone-miner-android"
@@ -33,7 +33,32 @@ sync_web_assets() {
     static/js/local-node.js \
     static/js/network-nodes.js \
     static/js/power-guard.js \
-    static/js/web-miner.js; do
+    static/js/web-miner.js \
+    static/js/stratum-transport.js \
+    static/js/bridge-warmup-boot.js \
+    static/js/chain-sync-boot.js \
+    static/js/android-ota-boot.js \
+    static/js/app-update.js \
+    static/js/node-diagnostics.js \
+    static/js/node-diagnostics-track.js \
+    static/js/node-diagnostics-boot.js \
+    static/js/pull-refresh-boot.js \
+    static/js/mesh-chain-restore.js \
+    static/js/mesh-share-internet.js \
+    static/js/mesh-gateway-lan.js \
+    static/js/mesh-lan-internet-client.js \
+    static/js/mesh-internet-gateway.js \
+    static/js/miner-start-boot.js \
+    static/js/miner-log-boot.js \
+    static/js/web-miner-loader.js \
+    static/js/safeguard-bypass.js \
+    static/js/miner-paths.js \
+    static/js/thermal-guard.js \
+    static/js/device-network-info.js \
+    static/js/mining-setup-instructions.js \
+    static/js/mining-math.js \
+    static/js/web-miner-worker.js \
+    static/css/miner.css; do
     if [[ -f "${SRC}/www/${rel}" ]]; then
       mkdir -p "$(dirname "${preserve_dir}/${rel}")"
       cp -f "${SRC}/www/${rel}" "${preserve_dir}/${rel}"
@@ -48,7 +73,32 @@ sync_web_assets() {
     static/js/local-node.js \
     static/js/network-nodes.js \
     static/js/power-guard.js \
-    static/js/web-miner.js; do
+    static/js/web-miner.js \
+    static/js/stratum-transport.js \
+    static/js/bridge-warmup-boot.js \
+    static/js/chain-sync-boot.js \
+    static/js/android-ota-boot.js \
+    static/js/app-update.js \
+    static/js/node-diagnostics.js \
+    static/js/node-diagnostics-track.js \
+    static/js/node-diagnostics-boot.js \
+    static/js/pull-refresh-boot.js \
+    static/js/mesh-chain-restore.js \
+    static/js/mesh-share-internet.js \
+    static/js/mesh-gateway-lan.js \
+    static/js/mesh-lan-internet-client.js \
+    static/js/mesh-internet-gateway.js \
+    static/js/miner-start-boot.js \
+    static/js/miner-log-boot.js \
+    static/js/web-miner-loader.js \
+    static/js/safeguard-bypass.js \
+    static/js/miner-paths.js \
+    static/js/thermal-guard.js \
+    static/js/device-network-info.js \
+    static/js/mining-setup-instructions.js \
+    static/js/mining-math.js \
+    static/js/web-miner-worker.js \
+    static/css/miner.css; do
     if [[ -f "${preserve_dir}/${rel}" ]]; then
       cp -f "${preserve_dir}/${rel}" "${SRC}/www/${rel}"
     fi
@@ -117,6 +167,10 @@ storePassword=${KEYSTORE_PASS}
 keyAlias=${KEY_ALIAS}
 keyPassword=${KEYSTORE_PASS}
 EOF
+  local version_code
+  version_code=$(echo "$VERSION" | awk -F. '{print $3}')
+  sed -i "s/versionCode [0-9]\\+/versionCode ${version_code}/" "$gradle"
+  sed -i "s/versionName \"[^\"]*\"/versionName \"${VERSION}\"/" "$gradle"
 }
 
 prepare_capacitor_project() {
@@ -167,8 +221,16 @@ build_apk() {
   mkdir -p "$OUT_DL"
   cp -f "$built" "${OUT_DL}/${APK_NAME}"
   sha256sum "${OUT_DL}/${APK_NAME}" | tee "${OUT_DL}/${APK_NAME}.sha256" >/dev/null
-  ln -sfn "${APK_NAME}" "${OUT_DL}/bloodstone-miner-android-latest.apk"
-  ls -lh "${OUT_DL}/${APK_NAME}" "${OUT_DL}/bloodstone-miner-android-latest.apk"
+  CHANNEL="${BLOODSTONE_RELEASE_CHANNEL:-beta}"
+  if [[ "$CHANNEL" == "stable" ]]; then
+    ln -sfn "${APK_NAME}" "${OUT_DL}/bloodstone-miner-android-latest.apk"
+    log "stable channel: bloodstone-miner-android-latest.apk -> ${APK_NAME}"
+  else
+    ln -sfn "${APK_NAME}" "${OUT_DL}/bloodstone-miner-android-beta.apk"
+    log "beta channel: bloodstone-miner-android-beta.apk -> ${APK_NAME}"
+  fi
+  ls -lh "${OUT_DL}/${APK_NAME}" "${OUT_DL}/bloodstone-miner-android-beta.apk" 2>/dev/null \
+    || ls -lh "${OUT_DL}/${APK_NAME}" "${OUT_DL}/bloodstone-miner-android-latest.apk"
   log "Published ${OUT_DL}/${APK_NAME}"
   publish_mesh_apk
   update_downloads_page
@@ -176,6 +238,7 @@ build_apk() {
     /root/sync-bloodstone-downloads-to-worker.sh \
       "${OUT_DL}/${APK_NAME}" \
       "${OUT_DL}/${APK_NAME}.sha256" \
+      "${OUT_DL}/bloodstone-miner-android-beta.apk" \
       "${OUT_DL}/bloodstone-miner-android-latest.apk" \
       "${OUT_DL}/index.html" || true
   fi
@@ -205,7 +268,7 @@ publish_mesh_apk() {
 }
 
 update_downloads_page() {
-  local notes="${BLOODSTONE_ANDROID_RELEASE_NOTES:-APK ${VERSION}: update-check fix; bloodstoned 0.7.0 ARM; full-chain local node}"
+  local notes="${BLOODSTONE_ANDROID_RELEASE_NOTES:-APK ${VERSION}: chain bootstrap on first full sync; bridge warmup; node diagnostics; pull-to-refresh}"
   local prev=""
   if [[ -f "${OUT_DL}/index.html" ]]; then
     prev=$(grep -oP 'bloodstone-miner-android-\K[0-9]+\.[0-9]+\.[0-9]+(?=\.apk</a> · <a href="bloodstone-miner-android-latest)' \
@@ -223,12 +286,56 @@ update_downloads_page() {
   fi
 }
 
+sync_bloodstoned_jni_libs() {
+  local abi asset jni
+  for abi in arm64-v8a armeabi-v7a; do
+    asset="${SRC}/plugins/bloodstone-local-node/android/src/main/assets/bloodstoned/${abi}"
+    jni="${SRC}/plugins/bloodstone-local-node/android/src/main/jniLibs/${abi}"
+    mkdir -p "$jni"
+    if [[ -f "${asset}/bloodstoned" ]]; then
+      cp -f "${asset}/bloodstoned" "${jni}/libbloodstoned_node.so"
+      chmod 755 "${jni}/libbloodstoned_node.so"
+    fi
+    if [[ -f "${asset}/libc++_shared.so" ]]; then
+      cp -f "${asset}/libc++_shared.so" "${jni}/libc++_shared.so"
+    fi
+  done
+}
+
+verify_bloodstoned_assets() {
+  local abi bin jni size
+  sync_bloodstoned_jni_libs
+  for abi in arm64-v8a armeabi-v7a; do
+    bin="${SRC}/plugins/bloodstone-local-node/android/src/main/assets/bloodstoned/${abi}/bloodstoned"
+    jni="${SRC}/plugins/bloodstone-local-node/android/src/main/jniLibs/${abi}/libbloodstoned_node.so"
+    if [[ ! -f "$bin" ]]; then
+      log "FATAL: missing ${bin} — run /root/build-bloodstoned-arm64.sh android ${abi}"
+      exit 1
+    fi
+    if [[ ! -f "$jni" ]]; then
+      log "FATAL: missing ${jni} — run sync_bloodstoned_jni_libs"
+      exit 1
+    fi
+    size=$(stat -c%s "$bin" 2>/dev/null || stat -f%z "$bin")
+    if [[ "$size" -lt 8000000 ]]; then
+      log "FATAL: bloodstoned ${abi} binary too small (${size} bytes)"
+      exit 1
+    fi
+    log "bloodstoned ${abi} OK ($(du -h "$bin" | awk '{print $1}'))"
+    log "bloodstoned jniLibs ${abi} OK ($(du -h "$jni" | awk '{print $1}'))"
+  done
+}
+
 ensure_android_sdk
 ensure_keystore
+verify_bloodstoned_assets
 sync_web_assets
-if [[ -x /root/publish-android-miner-web-bundle.sh ]]; then
-  BLOODSTONE_MINER_ANDROID_WEB_VERSION="${BLOODSTONE_MINER_ANDROID_WEB_VERSION:-${VERSION}-web}" \
+if [[ "${BLOODSTONE_PUBLISH_WEB_BUNDLE:-0}" == "1" && -x /root/publish-android-miner-web-bundle.sh ]]; then
+  if [[ -z "${BLOODSTONE_MINER_ANDROID_WEB_VERSION:-}" ]]; then
+    log "BLOODSTONE_PUBLISH_WEB_BUNDLE=1 requires BLOODSTONE_MINER_ANDROID_WEB_VERSION — skipping web bundle publish"
+  else
     /root/publish-android-miner-web-bundle.sh || log "web bundle publish failed (non-fatal)"
+  fi
 fi
 prepare_capacitor_project
 build_apk

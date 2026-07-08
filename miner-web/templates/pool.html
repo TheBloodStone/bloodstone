@@ -160,9 +160,9 @@
         <li><strong>Server</strong> — <span class="mono">{{ pool.stratum_host or vps_ip }}</span>, port <span class="mono">{{ pool.port }}</span> (plain TCP, no SSL).</li>
         <li><strong>Worker name</strong> — <span class="mono">YOURADDRESS.WORKER</span> (your {% if pool.key == 'rod_neoscrypt' %}ROD{% else %}STONE{% endif %} payout address, a dot, then a label per rig/device — e.g. <span class="mono">Sabc…xyz.rig1</span>). Payouts go to the address; workers are tracked separately.</li>
         <li><strong>Password</strong> — <code>x</code> (pool) or <code>solo</code> (solo).</li>
-        {% if pool.algo in ['neoscrypt-xaya', 'yespower'] %}
-        {% if pool.algo == 'neoscrypt-xaya' %}
-        <li><strong>GPU:</strong> <em>nsgminer</em> / <em>sgminer</em> / <em>ccminer</em> — kernel <code>neoscrypt-xaya</code>, pool URL above (port {{ pool.port }}).</li>
+        {% if pool.algo in ['neoscrypt-xaya', 'yespower'] or pool.key == 'rod_neoscrypt' %}
+        {% if pool.algo == 'neoscrypt-xaya' or pool.key == 'rod_neoscrypt' %}
+        <li><strong>GPU:</strong> <em>ccminer</em> / <em>sgminer</em> / <em>nsgminer</em> — algorithm <code>neoscrypt-xaya</code>, pool URL above (port {{ pool.port }}). Vardiff starts at ~0.001, caps at ROD network difficulty.</li>
         <li><strong>CPU:</strong> <em>CpuMiner-Opt</em> — algorithm <code>neoscrypt-xaya</code> → assign the pool above.</li>
         {% else %}
         <li><strong>CPU:</strong> add miner → <em>CpuMiner-Opt</em> → algorithm <code>YespowerR16</code> → assign the pool above.</li>

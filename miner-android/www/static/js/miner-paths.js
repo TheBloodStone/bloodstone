@@ -10,6 +10,28 @@ export function urlPrefix() {
   return "";
 }
 
+function isBundledStaticOrigin() {
+  if (typeof document !== "undefined" && document.body?.dataset?.desktopApp === "1") {
+    return true;
+  }
+  try {
+    const host = String(
+      (typeof window !== "undefined" && window.location?.hostname) || ""
+    ).toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost");
+  } catch (_) {
+    return false;
+  }
+}
+
+/** Prefix for mining workers loading WASM from /static (not the /mining API prefix). */
+export function localAssetPrefix() {
+  if (isBundledStaticOrigin()) {
+    return "";
+  }
+  return urlPrefix();
+}
+
 export function staticUrl(path) {
   const prefix = urlPrefix();
   const normalized = path.startsWith("/") ? path : `/${path}`;

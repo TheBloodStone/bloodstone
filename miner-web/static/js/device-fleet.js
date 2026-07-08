@@ -2,6 +2,8 @@
 
 import { isAndroidAppContext } from "./capacitor-ready.js";
 
+export { isAndroidAppContext };
+
 export const FLEET_ROLE = "decentralized-vps-node";
 
 let fleetIdentity = null;
@@ -25,10 +27,19 @@ export function setFleetNodeStatus(status) {
 
 export function isCapacitorAndroid() {
   try {
-    return window.Capacitor?.getPlatform?.() === "android";
+    const platform = window.Capacitor?.getPlatform?.();
+    if (platform === "android" || platform === "desktop") return true;
+    // Remote portal inside the APK WebView still has native plugins via nativePromise.
+    if (
+      isAndroidAppContext()
+      && typeof window.Capacitor?.nativePromise === "function"
+    ) {
+      return true;
+    }
   } catch (_) {
     return false;
   }
+  return false;
 }
 
 export function fleetPlugin() {

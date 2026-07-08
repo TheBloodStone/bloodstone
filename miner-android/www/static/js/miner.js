@@ -739,6 +739,10 @@ function formatNetworkNodesBreakdown(data) {
   if (data.lan_registered_nodes > 0) {
     parts.push(`${data.lan_registered_nodes} LAN registered`);
   }
+  if (data.lan_reported_devices > 0) {
+    const hr = data.lan_reported_hashrate ? ` @ ${data.lan_reported_hashrate}` : "";
+    parts.push(`${data.lan_reported_devices} LAN miner${data.lan_reported_devices === 1 ? "" : "s"}${hr}`);
+  }
   return parts.length ? parts.join(" · ") : "No peers reported yet";
 }
 
@@ -760,6 +764,8 @@ async function refreshNetworkNodesPanel() {
     const localEl = document.getElementById("network-nodes-local");
     const fleetEl = document.getElementById("network-nodes-fleet");
     const lanEl = document.getElementById("network-nodes-lan");
+    const lanReportedEl = document.getElementById("network-nodes-lan-reported");
+    const lanHashrateEl = document.getElementById("network-nodes-lan-hashrate");
 
     if (totalEl) totalEl.textContent = String(total);
     if (chainEl) chainEl.textContent = String(data.chain_p2p_connections ?? "—");
@@ -769,6 +775,8 @@ async function refreshNetworkNodesPanel() {
       fleetEl.textContent = String(data.fleet_offload_nodes ?? data.fleet_active_devices ?? "—");
     }
     if (lanEl) lanEl.textContent = String(data.lan_registered_nodes ?? "—");
+    if (lanReportedEl) lanReportedEl.textContent = String(data.lan_reported_devices ?? "—");
+    if (lanHashrateEl) lanHashrateEl.textContent = data.lan_reported_hashrate || "—";
     if (breakdownEl) breakdownEl.textContent = formatNetworkNodesBreakdown(data);
     if (summaryEl) {
       summaryEl.textContent = `${total} network node${total === 1 ? "" : "s"} connected — ${formatNetworkNodesBreakdown(data)}`;

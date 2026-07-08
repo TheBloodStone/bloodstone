@@ -13,7 +13,8 @@ import {
 const CHUNK_SIZE = 256 * 1024;
 // Keep each JSON POST under ~1 MiB on strict proxies (256 KiB chunk ≈ 350 KiB base64).
 const UPLOAD_BATCH_MAX = 2;
-const MAX_PUBLISH_BYTES = 64 * 1024 * 1024;
+// Blurt tenant request (July 2026): 256 MiB per published file.
+const MAX_PUBLISH_BYTES = 256 * 1024 * 1024;
 
 function safeBasename(name) {
   const base = String(name || "file")

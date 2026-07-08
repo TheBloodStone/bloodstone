@@ -2,14 +2,19 @@ package org.bloodstone.plugins.localnode;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ForegroundServiceStartNotAllowedException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.lifecycle.Lifecycle;
+import androidx.lifecycle.LifecycleOwner;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -24,7 +29,24 @@ import org.json.JSONObject;
 @CapacitorPlugin(name = "BloodstoneLocalNode")
 public class LocalNodePlugin extends Plugin {
     private static final String TAG = "BloodstoneLocalNode";
+    private static final long FOREGROUND_START_RETRY_MS = 350L;
+    private static final int MAX_PENDING_FOREGROUND_RETRIES = 48;
     private static volatile LanDiscovery browseOnlyDiscovery;
+    private static volatile PendingForegroundStart pendingForegroundStart;
+    private static volatile int pendingForegroundRetries = 0;
+    private static final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    private static final class PendingForegroundStart {
+        final String upstreamUrl;
+        final int pruneMiB;
+        final String nodeMode;
+
+        PendingForegroundStart(String upstreamUrl, int pruneMiB, String nodeMode) {
+            this.upstreamUrl = upstreamUrl;
+            this.pruneMiB = pruneMiB;
+            this.nodeMode = nodeMode;
+        }
+    }
 
     @PluginMethod
     public void startLocalNode(PluginCall call) {
@@ -58,27 +80,20 @@ public class LocalNodePlugin extends Plugin {
 
         NodeSyncPreferences prefs = new NodeSyncPreferences(getContext());
         prefs.saveConfig(upstreamUrl, prune, mode);
-        NodeSyncScheduler.schedule(getContext());
 
-        boolean runForeground = Boolean.TRUE.equals(foreground)
-            || "full".equals(mode)
-            || "pruned".equals(mode)
-            || "mesh".equals(mode)
-            || NodeModeUtil.CONSENSUS.equals(mode)
-            || NodeModeUtil.CONSENSUS_WITNESS.equals(mode);
-        if (runForeground) {
-            startForegroundNode(call, upstreamUrl, prune, mode);
+        boolean runForeground = Boolean.TRUE.equals(foreground);
+        if (!runForeground) {
+            LocalNodeForegroundService.publishDormantSnapshot(
+                getContext(),
+                mode,
+                prefs.lastLocalHeight(),
+                prefs.lastNetworkHeight(),
+                prefs
+            );
+            call.resolve(statusObject());
             return;
         }
-
-        LocalNodeForegroundService.publishDormantSnapshot(
-            getContext(),
-            mode,
-            prefs.lastLocalHeight(),
-            prefs.lastNetworkHeight(),
-            prefs
-        );
-        call.resolve(statusObject());
+        startForegroundNode(call, upstreamUrl, prune, mode);
     }
 
     private static final int NODE_READY_POLL_MS = 500;
@@ -134,34 +149,198 @@ public class LocalNodePlugin extends Plugin {
         int pruneMiB,
         String nodeMode
     ) {
-        if (!hasNotificationPermission()) {
-            requestNotificationPermission();
-            call.reject(
-                "Allow notifications for Bloodstone (Settings → Apps → Bloodstone → Notifications), then tap Start again"
-            );
+        if (LocalNodeForegroundService.isRunning() || LocalNodeForegroundService.isStarting()) {
+            LocalNodeForegroundService.noteStartError("");
+            call.resolve(statusObject());
             return;
         }
+        if (!hasNotificationPermission()) {
+            requestNotificationPermission();
+            new NodeSyncPreferences(getContext()).setEnabled(false);
+            String msg =
+                "Allow notifications for Bloodstone (Settings → Apps → Bloodstone → Notifications), then tap Start again";
+            LocalNodeForegroundService.noteStartError(msg);
+            call.resolve(statusObject());
+            return;
+        }
+        boolean launched = launchForegroundNodeService(upstreamUrl, pruneMiB, nodeMode, false);
+        if (!launched && pendingForegroundStart != null) {
+            LocalNodeForegroundService.noteStartError(
+                "Starting local node when app is in foreground — keep Bloodstone open"
+            );
+        }
+        call.resolve(statusObject());
+    }
+
+    private Activity resolveStarterActivity() {
+        if (getBridge() != null && getBridge().getActivity() != null) {
+            return getBridge().getActivity();
+        }
+        return getActivity();
+    }
+
+    private boolean isActivityForeground(Activity activity) {
+        if (activity == null) {
+            return false;
+        }
+        if (activity.isFinishing()) {
+            return false;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && activity.isDestroyed()) {
+            return false;
+        }
+        if (activity instanceof LifecycleOwner) {
+            Lifecycle.State state = ((LifecycleOwner) activity).getLifecycle().getCurrentState();
+            return state.isAtLeast(Lifecycle.State.STARTED);
+        }
+        return true;
+    }
+
+    private Intent buildForegroundNodeIntent(String upstreamUrl, int pruneMiB, String nodeMode) {
         Intent intent = new Intent(getContext(), LocalNodeForegroundService.class);
         intent.putExtra("upstreamUrl", upstreamUrl);
         intent.putExtra("pruneMiB", pruneMiB);
         intent.putExtra("nodeMode", nodeMode);
-        try {
-            Context starter = getActivity();
-            if (starter == null) {
-                starter = getContext();
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                starter.startForegroundService(intent);
-            } else {
-                starter.startService(intent);
-            }
-            // Return immediately — bootstrap + bloodstoned boot can take minutes.
-            // UI polls getLocalNodeStatus() for progress.
-            call.resolve(statusObject());
-        } catch (Exception exc) {
-            Log.w(TAG, "startLocalNode failed: " + exc.getMessage());
-            call.reject("startLocalNode failed: " + exc.getMessage());
+        return intent;
+    }
+
+    private boolean launchForegroundNodeService(
+        String upstreamUrl,
+        int pruneMiB,
+        String nodeMode,
+        boolean fromResume
+    ) {
+        if (LocalNodeForegroundService.isRunning() || LocalNodeForegroundService.isStarting()) {
+            pendingForegroundStart = null;
+            pendingForegroundRetries = 0;
+            LocalNodeForegroundService.noteStartError("");
+            return true;
         }
+        Activity activity = resolveStarterActivity();
+        if (activity == null || !isActivityForeground(activity)) {
+            pendingForegroundStart = new PendingForegroundStart(upstreamUrl, pruneMiB, nodeMode);
+            pendingForegroundRetries = 0;
+            Log.i(TAG, "deferring local node foreground start until activity is visible");
+            schedulePendingForegroundStart();
+            return false;
+        }
+
+        Runnable launch = () -> {
+            try {
+                Intent intent = buildForegroundNodeIntent(upstreamUrl, pruneMiB, nodeMode);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    ContextCompat.startForegroundService(activity, intent);
+                } else {
+                    activity.startService(intent);
+                }
+                pendingForegroundStart = null;
+                pendingForegroundRetries = 0;
+                LocalNodeForegroundService.noteStartError("");
+            } catch (ForegroundServiceStartNotAllowedException exc) {
+                pendingForegroundStart = new PendingForegroundStart(upstreamUrl, pruneMiB, nodeMode);
+                Log.w(TAG, "foreground service deferred: " + exc.getMessage());
+                schedulePendingForegroundStart();
+            } catch (Exception exc) {
+                Log.w(TAG, "startLocalNode failed: " + exc.getMessage());
+                new NodeSyncPreferences(getContext()).setEnabled(false);
+                String msg = "startLocalNode failed: " + exc.getMessage();
+                LocalNodeForegroundService.noteStartError(msg);
+            }
+        };
+
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            launch.run();
+        } else {
+            activity.runOnUiThread(launch);
+        }
+        return pendingForegroundStart == null;
+    }
+
+    private void schedulePendingForegroundStart() {
+        mainHandler.removeCallbacks(retryPendingForegroundStart);
+        mainHandler.postDelayed(retryPendingForegroundStart, FOREGROUND_START_RETRY_MS);
+    }
+
+    private final Runnable retryPendingForegroundStart = new Runnable() {
+        @Override
+        public void run() {
+            PendingForegroundStart pending = pendingForegroundStart;
+            if (pending == null) {
+                return;
+            }
+            pendingForegroundRetries++;
+            if (pendingForegroundRetries > MAX_PENDING_FOREGROUND_RETRIES) {
+                pendingForegroundStart = null;
+                pendingForegroundRetries = 0;
+                LocalNodeForegroundService.noteStartError(
+                    "Could not start local node — open Bloodstone from the app icon, then tap Start"
+                );
+                return;
+            }
+            launchForegroundNodeService(
+                pending.upstreamUrl,
+                pending.pruneMiB,
+                pending.nodeMode,
+                false
+            );
+            if (pendingForegroundStart != null) {
+                mainHandler.postDelayed(this, FOREGROUND_START_RETRY_MS);
+            }
+        }
+    };
+
+    private void flushPendingForegroundStart(boolean fromResume) {
+        PendingForegroundStart pending = pendingForegroundStart;
+        if (pending == null) {
+            return;
+        }
+        mainHandler.postDelayed(
+            () -> launchForegroundNodeService(
+                pending.upstreamUrl,
+                pending.pruneMiB,
+                pending.nodeMode,
+                fromResume
+            ),
+            fromResume ? FOREGROUND_START_RETRY_MS : 0L
+        );
+    }
+
+    @Override
+    protected void handleOnResume() {
+        super.handleOnResume();
+        flushPendingForegroundStart(true);
+    }
+
+    @Override
+    protected void handleOnStart() {
+        super.handleOnStart();
+        flushPendingForegroundStart(false);
+    }
+
+    /** Save node mode/upstream without starting foreground service (fixes UI/native mode drift). */
+    @PluginMethod
+    public void configureLocalNode(PluginCall call) {
+        String upstreamUrl = call.getString("upstreamUrl", "");
+        Integer pruneMiB = call.getInt("pruneMiB", 550);
+        String nodeMode = call.getString("nodeMode", "full");
+        if (upstreamUrl == null || upstreamUrl.isEmpty()) {
+            upstreamUrl = NodeSyncPreferences.DEFAULT_UPSTREAM;
+        }
+        int prune = pruneMiB != null ? pruneMiB : 550;
+        String mode = PrunedNodeRunner.normalizeMode(nodeMode);
+        NodeSyncPreferences prefs = new NodeSyncPreferences(getContext());
+        prefs.saveConfig(upstreamUrl, prune, mode);
+        prefs.setEnabled(false);
+        NodeSyncScheduler.cancel(getContext());
+        LocalNodeForegroundService.stop(getContext());
+        LocalNodeForegroundService.publishDormantSnapshot(
+            getContext(),
+            mode,
+            prefs.lastLocalHeight(),
+            prefs.lastNetworkHeight(),
+            prefs
+        );
+        call.resolve(statusObject());
     }
 
     @PluginMethod
@@ -184,19 +363,44 @@ public class LocalNodePlugin extends Plugin {
     }
 
     @PluginMethod
+    public void applyMeshChunksToDatadir(PluginCall call) {
+        String nodeMode = call.getString("nodeMode", "full");
+        String overlayMode = call.getString("overlayMode", "overlay");
+        String mode = PrunedNodeRunner.normalizeMode(nodeMode);
+        boolean replace = "replace".equalsIgnoreCase(
+            overlayMode != null ? overlayMode.trim() : ""
+        );
+        try {
+            LocalNodeForegroundService.stop(getContext());
+            java.io.File dataDir = NodeModeUtil.datadir(getContext(), mode);
+            MeshDatadirRestorer.Result result = MeshDatadirRestorer.apply(
+                getContext(),
+                dataDir,
+                replace
+            );
+            JSObject ret = new JSObject();
+            ret.put("ok", true);
+            ret.put("chunksApplied", result.chunksApplied);
+            ret.put("bytesWritten", result.bytesWritten);
+            ret.put("filesTouched", result.filesTouched);
+            ret.put("reindexRequired", result.reindexRequired);
+            ret.put("overlayMode", replace ? "replace" : "overlay");
+            call.resolve(ret);
+        } catch (Exception exc) {
+            Log.w(TAG, "applyMeshChunksToDatadir failed: " + exc.getMessage());
+            call.reject("applyMeshChunksToDatadir failed: " + exc.getMessage());
+        }
+    }
+
+    @PluginMethod
     public void resetLocalNodeChain(PluginCall call) {
         String nodeMode = call.getString("nodeMode", "full");
         String mode = PrunedNodeRunner.normalizeMode(nodeMode);
         try {
             LocalNodeForegroundService.stop(getContext());
             java.io.File dataDir = NodeModeUtil.datadir(getContext(), mode);
-            ChainBootstrapInstaller.prepareForReindex(dataDir);
-            deleteTree(new java.io.File(dataDir, "blocks"));
-            ChainBootstrapInstaller.clearReindexMarker(dataDir);
-            java.io.File heightMarker = new java.io.File(dataDir, ".bootstrap-height");
-            if (heightMarker.isFile()) {
-                heightMarker.delete();
-            }
+            ChainBootstrapInstaller.invalidateInstalledChain(getContext(), dataDir);
+            LocalNodeForegroundService.noteStartError("");
             call.resolve(statusObject());
         } catch (Exception exc) {
             call.reject("resetLocalNodeChain failed: " + exc.getMessage());
@@ -286,6 +490,18 @@ public class LocalNodePlugin extends Plugin {
             LocalNodeForegroundService.status();
         if (!snap.running) {
             call.reject("Start your local node first — wallets are created on-device by bloodstoned");
+            return;
+        }
+        if (!snap.bloodstonedAlive) {
+            call.reject("bloodstoned is still starting — wait until the chain panel shows sync progress, then try again");
+            return;
+        }
+        if (!NodeModeUtil.supportsOnDeviceWallet(snap.mode)) {
+            call.reject(
+                "On-device wallet is not available in "
+                    + snap.mode
+                    + " mode — switch to Pruned, Full, or Mesh"
+            );
             return;
         }
         RpcCredentials credentials = RpcCredentials.loadOrCreate(getContext());
@@ -501,25 +717,36 @@ public class LocalNodePlugin extends Plugin {
         ret.put("rpcPort", snap.rpcPort);
         ret.put("stratumPort", snap.stratumPort);
         ret.put("stratumPortYespower", snap.stratumPortYespower);
+        ret.put("stratumPortSha256d", snap.stratumPortSha256d);
         JSObject stratumPorts = new JSObject();
         stratumPorts.put("neoscrypt", snap.stratumPort);
         stratumPorts.put("yespower", snap.stratumPortYespower);
+        stratumPorts.put("sha256d", snap.stratumPortSha256d);
         ret.put("stratumPorts", stratumPorts);
         ret.put("rpcUser", snap.rpcUser);
         ret.put("rpcPassword", snap.rpcPassword);
         ret.put("pruned", snap.pruned);
-        ret.put("blockHeight", snap.blockHeight > 0 ? snap.blockHeight : prefs.lastLocalHeight());
-        ret.put("networkBlockHeight", snap.networkBlockHeight > 0
-            ? snap.networkBlockHeight
-            : prefs.lastNetworkHeight());
-        ret.put("headerHeight", snap.headerHeight);
-        ret.put("syncProgress", snap.syncProgress);
+        int blockHeight = snap.blockHeight;
+        int networkHeight = snap.networkBlockHeight;
         boolean starting = LocalNodeForegroundService.isStarting();
         boolean bootstrapping = ChainBootstrapInstaller.isInProgress();
+        if (!snap.running && !starting && !bootstrapping && snap.chainBytes < 512L * 1024L) {
+            blockHeight = 0;
+        } else if (blockHeight <= 0 && (snap.running || starting || bootstrapping)) {
+            blockHeight = prefs.lastLocalHeight();
+        }
+        if (networkHeight <= 0 && (snap.running || starting || bootstrapping)) {
+            networkHeight = prefs.lastNetworkHeight();
+        }
+        ret.put("blockHeight", blockHeight);
+        ret.put("networkBlockHeight", networkHeight);
+        ret.put("headerHeight", snap.headerHeight);
+        ret.put("syncProgress", snap.syncProgress);
         ret.put("nodeStarting", starting || bootstrapping);
         ret.put("chainBootstrapping", bootstrapping);
         ret.put("chainBootstrapPhase", ChainBootstrapInstaller.phase);
         ret.put("chainBootstrapPct", ChainBootstrapInstaller.progressPct);
+        ret.put("chainReindexing", ChainBootstrapInstaller.reindexPending(getContext(), requestedMode));
         if (starting || bootstrapping) {
             ret.put("running", true);
             ret.put("nodeStarting", true);
@@ -528,10 +755,30 @@ public class LocalNodePlugin extends Plugin {
         if (snap.running || starting || bootstrapping) {
             ret.put("bloodstonedAlive", snap.bloodstonedAlive);
             ret.put("bloodstonedRestartAttempts", snap.bloodstonedRestartAttempts);
+        } else if (NodeModeUtil.runsBloodstoned(requestedMode)) {
+            ret.put("bloodstonedAlive", false);
+            ret.put("bloodstonedRestartAttempts", 0);
         }
         String startError = LocalNodeForegroundService.lastStartError();
+        String failureReason = LocalNodeForegroundService.bloodstonedFailureReason();
         if (startError != null && !startError.isEmpty()) {
-            ret.put("startError", startError);
+            boolean daemonDown = NodeModeUtil.runsBloodstoned(requestedMode) && !snap.bloodstonedAlive;
+            if (daemonDown || (!snap.running && !starting && !bootstrapping)) {
+                ret.put("startError", startError);
+            }
+        } else if (
+            failureReason != null
+            && !failureReason.isEmpty()
+            && NodeModeUtil.runsBloodstoned(requestedMode)
+            && !snap.bloodstonedAlive
+        ) {
+            ret.put("startError", failureReason);
+        }
+        if (failureReason != null && !failureReason.isEmpty()) {
+            ret.put("bloodstonedFailureReason", failureReason);
+        }
+        if (android.os.Build.SUPPORTED_ABIS != null && android.os.Build.SUPPORTED_ABIS.length > 0) {
+            ret.put("deviceAbis", String.join(",", android.os.Build.SUPPORTED_ABIS));
         }
         ret.put("chainBytes", snap.chainBytes);
         ret.put("mdnsRegistered", snap.mdnsRegistered);
@@ -567,6 +814,14 @@ public class LocalNodePlugin extends Plugin {
             );
         } catch (JSONException exc) {
             Log.w(TAG, "networkWork snapshot failed: " + exc.getMessage());
+        }
+        LanPoolCoordinator coordinator = LocalNodeForegroundService.poolCoordinator();
+        if (coordinator != null) {
+            try {
+                ret.put("poolCoordinator", JSObject.fromJSONObject(coordinator.getStatus()));
+            } catch (JSONException exc) {
+                Log.w(TAG, "poolCoordinator status failed: " + exc.getMessage());
+            }
         }
         return ret;
     }

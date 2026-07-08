@@ -4,6 +4,7 @@
 
 import { apiUrl } from "./miner-paths.js";
 import { resolveDeviceId } from "./chain-mesh.js";
+import { pinMeshAssetFromChunks } from "./mesh-asset-pin.js";
 import {
   bytesToB64,
   merkleRootFromChunkHashes,
@@ -13,7 +14,8 @@ import {
 const CHUNK_SIZE = 256 * 1024;
 // Keep each JSON POST under ~1 MiB on strict proxies (256 KiB chunk ≈ 350 KiB base64).
 const UPLOAD_BATCH_MAX = 2;
-const MAX_PUBLISH_BYTES = 64 * 1024 * 1024;
+// Blurt tenant request (July 2026): 256 MiB per published file.
+const MAX_PUBLISH_BYTES = 256 * 1024 * 1024;
 
 function safeBasename(name) {
   const base = String(name || "file")
@@ -153,6 +155,15 @@ export async function publishMeshAssetFromFile(file, options = {}) {
   const built = await buildMeshManifestFromFile(file, options);
   const manifest = built.manifest;
   const deviceId = await resolveDeviceId();
+  if (options.pinOnDevice !== false) {
+    try {
+      await pinMeshAssetFromChunks(manifest, built.chunks, {
+        onProgress: (p) => onProgress?.(p.stored || 0, p.total || built.chunks.length, "pinning on device"),
+      });
+    } catch (_) {
+      /* upload continues even if local pin fails */
+    }
+  }
   if (onProgress) onProgress(0, built.chunks.length, "uploading chunks");
   await uploadAllChunks(
     built.chunks,
@@ -188,6 +199,15 @@ export async function submitMeshAssetFromFile(file, options = {}) {
   const built = await buildMeshManifestFromFile(file, options);
   const manifest = built.manifest;
   const deviceId = options.deviceId || (await resolveDeviceId());
+  if (options.pinOnDevice !== false) {
+    try {
+      await pinMeshAssetFromChunks(manifest, built.chunks, {
+        onProgress: (p) => onProgress?.(p.stored || 0, p.total || built.chunks.length, "pinning on device"),
+      });
+    } catch (_) {
+      /* continue submit */
+    }
+  }
   if (onProgress) onProgress(0, built.chunks.length, "uploading chunks");
   await uploadAllChunks(
     built.chunks,
@@ -289,6 +309,7 @@ export function initMeshAssetUserSubmit(root = document) {
   const addressInput = root.getElementById("mesh-asset-submit-address");
   const noteInput = root.getElementById("mesh-asset-submit-note");
   const anchorInput = root.getElementById("mesh-asset-submit-anchor");
+  const pinInput = root.getElementById("mesh-asset-submit-pin");
   const submitBtn = root.getElementById("mesh-asset-submit-btn");
   const statusEl = root.getElementById("mesh-asset-submit-status");
   const progressEl = root.getElementById("mesh-asset-submit-progress");
@@ -338,6 +359,7 @@ export function initMeshAssetUserSubmit(root = document) {
         displayName: nameInput?.value?.trim(),
         version: versionInput?.value?.trim(),
         anchor: anchorInput ? anchorInput.checked : true,
+        pinOnDevice: pinInput ? pinInput.checked : true,
         submitterAddress: addressInput?.value?.trim(),
         note: noteInput?.value?.trim(),
         onProgress: (done, total, phase) => {
@@ -345,7 +367,9 @@ export function initMeshAssetUserSubmit(root = document) {
             progressEl.textContent =
               phase === "submitting for review"
                 ? "Submitting for admin review…"
-                : `Uploading chunks ${done} / ${total}`;
+                : phase === "pinning on device"
+                  ? `Keeping on device ${done} / ${total}…`
+                  : `Uploading chunks ${done} / ${total}`;
           }
         },
       });

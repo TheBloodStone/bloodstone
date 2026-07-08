@@ -22,17 +22,26 @@ bool HasRelaunchMarker(const fs::path& datadir);
 void WriteRelaunchMarker(const fs::path& datadir);
 bool WipeChainData(const fs::path& datadir, QString& error_out);
 
-/** Read legacy SpaceXpanse-Qt QSettings and migrate strDataDir when needed. */
+/** Create or patch bloodstone.conf with Bloodstone seed peers. */
+void EnsureDefaultNodeConfig(const fs::path& datadir);
+
+/** Read legacy Bloodstone-Qt QSettings and migrate strDataDir when needed. */
 QString MigrateLegacySettingsPath(const QString& current_default);
 
 /** Drop missing/VPS-only paths and return a local data directory that can be used. */
 QString ResolveUsableDataDirectory(const QString& preferred, const QString& current_default);
 
 /**
- * If pre-relaunch chain folders exist without a relaunch marker, offer to wipe
- * blocks/chainstate (wallets are kept). Returns false if the user cancels.
+ * If pre-relaunch chain folders exist without a relaunch marker, wipe
+ * blocks/chainstate automatically (wallets are kept). Returns false on I/O error.
  */
 bool EnsureRelaunchChainOrAbort(const fs::path& datadir, QWidget* parent);
+
+/**
+ * After bloodstone.conf is read, undo a bad datadir= override (e.g. copied from a
+ * VPS path) and strip that line from the config file under config_home.
+ */
+void SanitizeAfterConfigRead(const fs::path& config_home, const QString& default_datadir);
 
 } // namespace ChainReset
 

@@ -222,14 +222,17 @@ export async function createStratumTransport(poolKey, options = {}) {
   }
   const localNodeOnly = options.localNodeOnly === true;
   const forceVps = options.forceVps === true;
+  const lanLocalPool = options.lanLocalPool === true;
   const lanPoolRelay =
     !forceVps
+    && !lanLocalPool
     && (options.lanPoolRelay === true
-      || (useNative && options.miningMode === "pool" && !forceVps));
+      || (useNative && options.miningMode === "pool" && !forceVps && !lanLocalPool));
   const preferVpsPool =
     forceVps
     || (!localNodeOnly
       && !lanPoolRelay
+      && !lanLocalPool
       && (options.miningMode === "pool" && useNative));
   const lan = preferVpsPool
     ? null
@@ -239,6 +242,9 @@ export async function createStratumTransport(poolKey, options = {}) {
     if (lan) {
       transport.lanSource = lan.source;
       transport.lanDisplayHost = lan.displayHost || lan.host;
+    }
+    if (lanPoolRelay) {
+      transport.poolRelayHandshake = true;
     }
     return transport;
   }

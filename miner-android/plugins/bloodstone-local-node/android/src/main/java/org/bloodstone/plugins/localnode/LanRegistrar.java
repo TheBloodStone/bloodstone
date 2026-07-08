@@ -12,15 +12,18 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 final class LanRegistrar {
     private static final String TAG = "BloodstoneLanRegistrar";
+    private static final long DEFAULT_INTERVAL_SEC = 15L;
     private static final String DEFAULT_REGISTER_URL =
         "https://bloodstonewallet.mytunnel.org/mining/api/local-node/lan-register";
 
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private volatile ScheduledFuture<?> periodicTask;
     private final AtomicBoolean active = new AtomicBoolean(false);
     private volatile JSONObject payload = new JSONObject();
     private volatile String registerUrl = DEFAULT_REGISTER_URL;
@@ -57,15 +60,28 @@ final class LanRegistrar {
     }
 
     void start() {
-        if (active.getAndSet(true)) {
+        start(DEFAULT_INTERVAL_SEC);
+    }
+
+    void start(long intervalSec) {
+        long period = Math.max(10L, intervalSec);
+        if (periodicTask != null && !periodicTask.isCancelled() && !periodicTask.isDone()) {
+            active.set(true);
             return;
         }
-        scheduler.scheduleAtFixedRate(this::postSafe, 0, 60, TimeUnit.SECONDS);
+        if (scheduler == null || scheduler.isShutdown()) {
+            scheduler = Executors.newSingleThreadScheduledExecutor();
+        }
+        active.set(true);
+        periodicTask = scheduler.scheduleAtFixedRate(this::postSafe, 0, period, TimeUnit.SECONDS);
     }
 
     void stop() {
         active.set(false);
-        scheduler.shutdownNow();
+        if (periodicTask != null) {
+            periodicTask.cancel(false);
+            periodicTask = null;
+        }
     }
 
     private void postSafe() {

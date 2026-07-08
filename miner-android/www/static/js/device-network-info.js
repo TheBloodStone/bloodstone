@@ -13,6 +13,7 @@ import { stratumEndpoints } from "./stratum-transport.js";
 const DEFAULT_STRATUM_PORTS = {
   neoscrypt: 3437,
   yespower: 3438,
+  sha256d: 3429,
 };
 
 const DEFAULT_RPC_PORT = 18340;
@@ -60,6 +61,11 @@ function stratumPortsFromStatus(nodeStatus) {
         nodeStatus?.stratumPortYespower ||
         DEFAULT_STRATUM_PORTS.yespower,
     ),
+    sha256d: Number(
+      ports.sha256d ||
+        nodeStatus?.stratumPortSha256d ||
+        DEFAULT_STRATUM_PORTS.sha256d,
+    ),
   };
 }
 
@@ -75,12 +81,17 @@ function peerStratumYespower(peer, fallback) {
   return Number(peer?.stratum_port_yespower || peer?.stratumPortYespower || fallback);
 }
 
+function peerStratumSha256d(peer, fallback) {
+  return Number(peer?.stratum_port_sha256d || peer?.stratumPortSha256d || fallback);
+}
+
 async function resolveLanClientEndpoints(nodeStatus) {
-  const { neoscrypt, yespower } = stratumPortsFromStatus(nodeStatus);
+  const { neoscrypt, yespower, sha256d } = stratumPortsFromStatus(nodeStatus);
   const active = getActiveLanPeer();
   if (active?.displayHost || active?.host) {
     const host = peerHost(active);
     const rpcPort = Number(active.rpc_port || active.rpcPort || DEFAULT_RPC_PORT);
+    const shaPort = peerStratumSha256d(active, sha256d);
     return {
       role: "lan-client",
       host,
@@ -91,10 +102,12 @@ async function resolveLanClientEndpoints(nodeStatus) {
       rpcPassword: "",
       neoscryptPort: Number(active.port || active.stratum_port || neoscrypt),
       yespowerPort: Number(active.stratum_port_yespower || yespower),
+      sha256dPort: shaPort,
       neoscryptEndpoint: host ? stratumEndpoint(host, Number(active.port || neoscrypt)) : "",
       yespowerEndpoint: host
         ? stratumEndpoint(host, Number(active.stratum_port_yespower || yespower))
         : "",
+      sha256dEndpoint: host ? stratumEndpoint(host, shaPort) : "",
       p2pPort: P2P_PORT,
       portsOpen: Boolean(host),
       nodeRunning: false,
@@ -117,8 +130,10 @@ async function resolveLanClientEndpoints(nodeStatus) {
       rpcPassword: "",
       neoscryptPort: neoscrypt,
       yespowerPort: yespower,
+      sha256dPort: sha256d,
       neoscryptEndpoint: "",
       yespowerEndpoint: "",
+      sha256dEndpoint: "",
       p2pPort: P2P_PORT,
       portsOpen: false,
       nodeRunning: false,
@@ -132,6 +147,7 @@ async function resolveLanClientEndpoints(nodeStatus) {
   const rpcPort = Number(peer.rpc_port || DEFAULT_RPC_PORT);
   const neoPort = peerStratumNeo(peer, neoscrypt);
   const ypPort = peerStratumYespower(peer, yespower);
+  const shaPort = peerStratumSha256d(peer, sha256d);
   return {
     role: "lan-client",
     host,
@@ -142,8 +158,10 @@ async function resolveLanClientEndpoints(nodeStatus) {
     rpcPassword: "",
     neoscryptPort: neoPort,
     yespowerPort: ypPort,
+    sha256dPort: shaPort,
     neoscryptEndpoint: host ? stratumEndpoint(host, neoPort) : "",
     yespowerEndpoint: host ? stratumEndpoint(host, ypPort) : "",
+    sha256dEndpoint: host ? stratumEndpoint(host, shaPort) : "",
     p2pPort: P2P_PORT,
     portsOpen: Boolean(host),
     nodeRunning: false,
@@ -180,6 +198,12 @@ export function updateMineTargetsPanel(info) {
       : info?.lanIp
         ? `${info.lanIp}:${info.yespowerPort ?? DEFAULT_STRATUM_PORTS.yespower} (starting…)`
         : "—";
+  const lanSha =
+    info?.portsOpen && neoHost
+      ? `${neoHost}:${info.sha256dPort ?? DEFAULT_STRATUM_PORTS.sha256d}`
+      : info?.lanIp
+        ? `${info.lanIp}:${info.sha256dPort ?? DEFAULT_STRATUM_PORTS.sha256d} (starting…)`
+        : "—";
 
   const set = (id, text) => {
     const el = document.getElementById(id);
@@ -187,18 +211,24 @@ export function updateMineTargetsPanel(info) {
   };
   set("mine-target-vps-neo", vps.neoscrypt);
   set("mine-target-vps-yp", vps.yespower);
+  set("mine-target-vps-sha256d", vps.sha256d);
   set("mine-target-lan-neo", info?.role === "lan-client" && info.lanIp
     ? `${info.lanIp}:${info.neoscryptPort}`
     : lanNeo);
   set("mine-target-lan-yp", info?.role === "lan-client" && info.lanIp
     ? `${info.lanIp}:${info.yespowerPort}`
     : lanYp);
+  set("mine-target-lan-sha256d", info?.role === "lan-client" && info.lanIp
+    ? `${info.lanIp}:${info.sha256dPort}`
+    : lanSha);
 
   const targets = [
     ["mine-target-vps-neo", "btn-copy-mine-target-vps-neo"],
     ["mine-target-vps-yp", "btn-copy-mine-target-vps-yp"],
+    ["mine-target-vps-sha256d", "btn-copy-mine-target-vps-sha256d"],
     ["mine-target-lan-neo", "btn-copy-mine-target-lan-neo"],
     ["mine-target-lan-yp", "btn-copy-mine-target-lan-yp"],
+    ["mine-target-lan-sha256d", "btn-copy-mine-target-lan-sha256d"],
   ];
   targets.forEach(([fieldId, btnId]) => {
     const btn = document.getElementById(btnId);
@@ -224,7 +254,7 @@ export async function fetchDeviceNetworkInfo() {
   }
 
   const lanIp = await resolveLanIp(nodeStatus);
-  const { neoscrypt, yespower } = stratumPortsFromStatus(nodeStatus);
+  const { neoscrypt, yespower, sha256d } = stratumPortsFromStatus(nodeStatus);
   const nodeRunning = Boolean(nodeStatus.running);
   const portsOpen = nodeRunning;
   const host = lanIp || (nodeRunning ? "127.0.0.1" : "");
@@ -243,8 +273,10 @@ export async function fetchDeviceNetworkInfo() {
     rpcPassword: String(nodeStatus.rpcPassword || "").trim(),
     neoscryptPort: neoscrypt,
     yespowerPort: yespower,
+    sha256dPort: sha256d,
     neoscryptEndpoint: portsOpen && host ? stratumEndpoint(host, neoscrypt) : "",
     yespowerEndpoint: portsOpen && host ? stratumEndpoint(host, yespower) : "",
+    sha256dEndpoint: portsOpen && host ? stratumEndpoint(host, sha256d) : "",
     p2pPort: P2P_PORT,
     portsOpen,
     nodeRunning,
@@ -306,6 +338,7 @@ export function updateDeviceNetworkPanel(info) {
     setText("device-lan-ip", "Loading…");
     setText("device-lan-neoscrypt-endpoint", "—");
     setText("device-lan-yespower-endpoint", "—");
+    setText("device-lan-sha256d-endpoint", "—");
     if (document.getElementById("device-lan-port-status")) {
       document.getElementById("device-lan-port-status").textContent = "Waiting for node";
     }
@@ -350,11 +383,18 @@ export function updateDeviceNetworkPanel(info) {
     : info.lanIp
       ? `:${info.yespowerPort} (closed)`
       : "—";
+  const shaDisplay = info.portsOpen && neoHost
+    ? `${neoHost}:${info.sha256dPort ?? DEFAULT_STRATUM_PORTS.sha256d}`
+    : info.lanIp
+      ? `:${info.sha256dPort ?? DEFAULT_STRATUM_PORTS.sha256d} (closed)`
+      : "—";
 
   setText("device-lan-neoscrypt-endpoint", neoDisplay);
   setText("device-lan-yespower-endpoint", ypDisplay);
+  setText("device-lan-sha256d-endpoint", shaDisplay);
   setCopyButton("btn-copy-neoscrypt", info.neoscryptEndpoint);
   setCopyButton("btn-copy-yespower", info.yespowerEndpoint);
+  setCopyButton("btn-copy-sha256d", info.sha256dEndpoint);
 
   setText("device-node-p2p-port", String(info.p2pPort || P2P_PORT));
   setCopyButton("btn-copy-node-p2p-port", String(info.p2pPort || P2P_PORT));
@@ -394,20 +434,20 @@ export function updateDeviceNetworkPanel(info) {
           "No LAN full node found yet. Run Full chain mode on one plugged-in phone on the same Wi‑Fi.";
       } else {
         hintEl.textContent =
-          `RPC ${info.rpcUrl || "—"} · stratum neoscrypt :${info.neoscryptPort} · yespower :${info.yespowerPort} · chain P2P :${info.p2pPort}. Worker = YOUR_STONE_ADDRESS.rig1 · password x.`;
+          `RPC ${info.rpcUrl || "—"} · stratum neoscrypt :${info.neoscryptPort} · yespower :${info.yespowerPort} · SHA256d :${info.sha256dPort ?? DEFAULT_STRATUM_PORTS.sha256d} · chain P2P :${info.p2pPort}. Worker = YOUR_STONE_ADDRESS.rig1 · password x (solo for local blocks on SHA256d).`;
       }
     } else if (!info.lanIp) {
       hintEl.textContent =
         "Connect to Wi‑Fi to expose LAN endpoints. RPC stays on 127.0.0.1 until a LAN IP is available.";
     } else if (info.portsOpen) {
       hintEl.textContent =
-        `Node active on ${info.lanIp}. RPC :${info.rpcPort} · stratum :${info.neoscryptPort}/:${info.yespowerPort} · P2P :${info.p2pPort}.`;
+        `Node active on ${info.lanIp}. RPC :${info.rpcPort} · stratum :${info.neoscryptPort}/:${info.yespowerPort}/:${info.sha256dPort ?? DEFAULT_STRATUM_PORTS.sha256d} · P2P :${info.p2pPort}.`;
     } else if (info.batteryDormant) {
       hintEl.textContent =
         "Local node is in battery-save mode. Tap Start full node above to open RPC/stratum.";
     } else {
       hintEl.textContent =
-        `Tap Start full node above to open RPC :${info.rpcPort} and stratum :${info.neoscryptPort} / :${info.yespowerPort} on ${info.lanIp || "this device"}.`;
+        `Tap Start full node above to open RPC :${info.rpcPort} and stratum :${info.neoscryptPort} / :${info.yespowerPort} / :${info.sha256dPort ?? DEFAULT_STRATUM_PORTS.sha256d} on ${info.lanIp || "this device"}.`;
     }
   }
 }

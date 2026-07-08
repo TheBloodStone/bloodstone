@@ -26,11 +26,14 @@ final class NodeSyncPreferences {
 
     void saveConfig(String upstreamUrl, int pruneMiB, String nodeMode) {
         prefs.edit()
-            .putBoolean(KEY_ENABLED, true)
             .putString(KEY_UPSTREAM_URL, LanEndpointUrls.normalizeUpstream(upstreamUrl))
             .putInt(KEY_PRUNE_MIB, pruneMiB)
             .putString(KEY_NODE_MODE, normalizeStoredMode(nodeMode))
             .apply();
+    }
+
+    void enableBackgroundSync() {
+        prefs.edit().putBoolean(KEY_ENABLED, true).apply();
     }
 
     void setEnabled(boolean enabled) {

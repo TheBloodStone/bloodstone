@@ -14,6 +14,7 @@ import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -52,6 +53,7 @@ final class LocalStratumTcpServer {
     private final RpcCaller rpc;
     private final String poolUpstreamHost;
     private final int poolUpstreamPort;
+    private final LanPoolCoordinator poolCoordinator;
     private final AtomicInteger jobCounter = new AtomicInteger(1);
     private final ExecutorService pool = Executors.newCachedThreadPool();
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -69,11 +71,23 @@ final class LocalStratumTcpServer {
         String poolUpstreamHost,
         int poolUpstreamPort
     ) {
+        this(port, algo, rpc, poolUpstreamHost, poolUpstreamPort, null);
+    }
+
+    LocalStratumTcpServer(
+        int port,
+        Algo algo,
+        RpcCaller rpc,
+        String poolUpstreamHost,
+        int poolUpstreamPort,
+        LanPoolCoordinator poolCoordinator
+    ) {
         this.port = port;
         this.algo = algo;
         this.rpc = rpc;
         this.poolUpstreamHost = poolUpstreamHost;
         this.poolUpstreamPort = poolUpstreamPort;
+        this.poolCoordinator = poolCoordinator;
     }
 
     void start() throws IOException {
@@ -117,7 +131,7 @@ final class LocalStratumTcpServer {
                     continue;
                 }
                 NodeTrafficStats.recordStratumConnection();
-                pool.execute(() -> handleClient(client));
+                pool.execute(() -> handleClient(client, remote));
             } catch (IOException exc) {
                 if (running.get()) {
                     Log.w(TAG, algo.name() + " accept failed: " + exc.getMessage());
@@ -126,7 +140,7 @@ final class LocalStratumTcpServer {
         }
     }
 
-    private void handleClient(Socket client) {
+    private void handleClient(Socket client, String remoteIp) {
         long stratumRx = 0L;
         try (
             Socket sock = client;
@@ -142,14 +156,32 @@ final class LocalStratumTcpServer {
                 return;
             }
             stratumRx += firstLine.getBytes(StandardCharsets.UTF_8).length + 1;
-            String secondLine = reader.readLine();
-            if (secondLine == null || secondLine.isEmpty()) {
-                return;
-            }
-            stratumRx += secondLine.getBytes(StandardCharsets.UTF_8).length + 1;
 
-            boolean soloMode = isSoloAuthorize(secondLine);
-            if (!soloMode && poolUpstreamHost != null && !poolUpstreamHost.isEmpty() && poolUpstreamPort > 0) {
+            boolean localPoolActive =
+                poolCoordinator != null && poolCoordinator.isLocalPoolActive();
+            boolean poolRelayConfigured =
+                !localPoolActive
+                    && poolUpstreamHost != null
+                    && !poolUpstreamHost.isEmpty()
+                    && poolUpstreamPort > 0;
+            String secondLine = null;
+            if (poolRelayConfigured) {
+                try {
+                    sock.setSoTimeout(300);
+                    secondLine = reader.readLine();
+                } catch (SocketTimeoutException timeout) {
+                    // Sequential client (solo): answer subscribe before authorize arrives.
+                } finally {
+                    sock.setSoTimeout(0);
+                }
+            }
+
+            if (secondLine != null && !secondLine.isEmpty()) {
+                stratumRx += secondLine.getBytes(StandardCharsets.UTF_8).length + 1;
+            }
+
+            boolean soloMode = secondLine != null && isSoloAuthorize(secondLine);
+            if (poolRelayConfigured && secondLine != null && !secondLine.isEmpty() && !soloMode) {
                 Log.i(TAG, algo.name() + " pool relay → " + poolUpstreamHost + ":" + poolUpstreamPort);
                 StratumPoolRelay.relayWithHandshake(sock, poolUpstreamHost, poolUpstreamPort, firstLine, secondLine);
                 return;
@@ -158,8 +190,10 @@ final class LocalStratumTcpServer {
             String extranonce1 = Long.toHexString(System.nanoTime());
             final JSONObject[] lastWork = {null};
             final String[] addressHolder = {""};
-            processLine(firstLine, writer, extranonce1, lastWork, soloMode, addressHolder);
-            processLine(secondLine, writer, extranonce1, lastWork, soloMode, addressHolder);
+            processLine(firstLine, writer, extranonce1, lastWork, soloMode, addressHolder, remoteIp);
+            if (secondLine != null && !secondLine.isEmpty()) {
+                processLine(secondLine, writer, extranonce1, lastWork, soloMode, addressHolder, remoteIp);
+            }
 
             String line;
             while ((line = reader.readLine()) != null) {
@@ -167,7 +201,10 @@ final class LocalStratumTcpServer {
                     continue;
                 }
                 stratumRx += line.getBytes(StandardCharsets.UTF_8).length + 1;
-                processLine(line, writer, extranonce1, lastWork, soloMode, addressHolder);
+                if (!soloMode && isSoloAuthorize(line)) {
+                    soloMode = true;
+                }
+                processLine(line, writer, extranonce1, lastWork, soloMode, addressHolder, remoteIp);
             }
         } catch (Exception exc) {
             Log.w(TAG, algo.name() + " client ended: " + exc.getMessage());
@@ -184,7 +221,8 @@ final class LocalStratumTcpServer {
         String extranonce1,
         JSONObject[] lastWork,
         boolean soloMode,
-        String[] addressHolder
+        String[] addressHolder,
+        String remoteIp
     ) throws Exception {
         JSONObject req = new JSONObject(line);
         String method = req.optString("method", "");
@@ -214,7 +252,16 @@ final class LocalStratumTcpServer {
             String extranonce2 = params.optString(2, "");
             String ntime = params.optString(3, "");
             String nonce = params.optString(4, "");
-            boolean accepted = submitBlock(worker, submitJobId, extranonce2, ntime, nonce, lastWork[0]);
+            boolean accepted = submitBlock(
+                worker,
+                submitJobId,
+                extranonce2,
+                ntime,
+                nonce,
+                lastWork[0],
+                soloMode,
+                remoteIp
+            );
             send(writer, id, accepted);
             return;
         }
@@ -356,7 +403,9 @@ final class LocalStratumTcpServer {
         String extranonce2,
         String ntime,
         String nonce,
-        JSONObject lastWork
+        JSONObject lastWork,
+        boolean soloMode,
+        String remoteIp
     ) {
         try {
             if (lastWork == null) {
@@ -366,11 +415,50 @@ final class LocalStratumTcpServer {
             if (header.isEmpty()) {
                 return false;
             }
-            String blockHex = header + extranonce2 + ntime + nonce;
-            JSONArray params = new JSONArray();
-            params.put(blockHex);
-            rpc.call("submitblock", params);
-            return true;
+            int jobHeight = lastWork.optInt("height", 0);
+            boolean blockFound = false;
+            String blockHash = "";
+            try {
+                String blockHex = header + extranonce2 + ntime + nonce;
+                JSONArray params = new JSONArray();
+                params.put(blockHex);
+                rpc.call("submitblock", params);
+                blockFound = true;
+                blockHash = lastWork.optString("hash", lastWork.optString("blockhash", ""));
+            } catch (Exception submitExc) {
+                if (soloMode) {
+                    Log.w(TAG, algo.name() + " solo submit failed: " + submitExc.getMessage());
+                    return false;
+                }
+            }
+
+            if (!soloMode && poolCoordinator != null && poolCoordinator.isLocalPoolActive()) {
+                double weight = algo.defaultShareDiff * algo.diffScale;
+                long shareId = poolCoordinator.recordShare(
+                    algo.createWorkName,
+                    LanPoolShareUtil.payoutAddress("", worker),
+                    worker,
+                    jobHeight,
+                    weight,
+                    remoteIp
+                );
+                if (blockFound && shareId >= 0) {
+                    poolCoordinator.onBlockFind(
+                        algo.createWorkName,
+                        jobHeight,
+                        blockHash,
+                        LanPoolShareUtil.payoutAddress("", worker),
+                        worker
+                    );
+                    Log.i(TAG, algo.name() + " LAN pool block height=" + jobHeight + " worker=" + worker);
+                }
+                return shareId > 0 || blockFound;
+            }
+
+            if (soloMode) {
+                return blockFound;
+            }
+            return blockFound;
         } catch (Exception exc) {
             Log.w(TAG, algo.name() + " submit failed: " + exc.getMessage());
             return false;

@@ -5,6 +5,12 @@
 import { apiUrl } from "./miner-paths.js";
 import { fetchMeshAssetManifest, reconstructMeshAssetFromKey } from "./mesh-asset-reconstruct.js";
 import { publishMeshAssetFromFile, resolveMeshPublishToken } from "./mesh-asset-publish.js";
+import {
+  isAssetPinned,
+  pinMeshAsset,
+  unpinMeshAsset,
+  getPinnedAsset,
+} from "./mesh-asset-pin.js";
 
 function formatBytes(n) {
   const v = Number(n) || 0;
@@ -24,7 +30,12 @@ function formatDate(ts) {
 }
 
 let meshAdminMode = false;
+let requireSearchToShow = false;
 let cachedPublishToken = "";
+
+const SEARCH_DEBOUNCE_MS = 320;
+const EMPTY_SEARCH_HINT =
+  "Type in the filter above to search published mesh files.";
 
 function meshAdminEnabled() {
   return meshAdminMode || document.body?.dataset?.meshAdmin === "1";
@@ -111,7 +122,31 @@ function downloadUrl(assetKey) {
   return apiUrl(`/api/chain-mesh/asset/${encodeURI(assetKey)}/download`);
 }
 
-export async function downloadAsset(assetKey, statusEl) {
+export async function keepAssetOnDevice(assetKey, statusEl) {
+  if (statusEl) statusEl.textContent = `Keeping ${assetKey} on this device…`;
+  try {
+    await pinMeshAsset(assetKey, {
+      onProgress: (p) => {
+        if (!statusEl) return;
+        if (p.phase === "chunks") {
+          statusEl.textContent = `Downloading chunks ${p.stored}/${p.total}…`;
+        } else if (p.phase === "verify" || p.phase === "file") {
+          statusEl.textContent = "Verifying and archiving complete file…";
+        }
+      },
+    });
+    if (statusEl) {
+      statusEl.textContent = `Pinned ${assetKey} — all chunks kept on device for backup and LAN sharing.`;
+    }
+    void refreshMeshAssetLibrary();
+    return true;
+  } catch (err) {
+    if (statusEl) statusEl.textContent = err.message || String(err);
+    return false;
+  }
+}
+
+export async function downloadAsset(assetKey, statusEl, options = {}) {
   if (statusEl) statusEl.textContent = `Downloading ${assetKey}…`;
   try {
     const manifest = await fetchMeshAssetManifest(assetKey);
@@ -132,6 +167,9 @@ export async function downloadAsset(assetKey, statusEl) {
     triggerDownload(blob, filename, manifest.mime_type || blob.type);
     if (statusEl) {
       statusEl.textContent = `Downloaded ${filename} (${formatBytes(blob.size)}).`;
+    }
+    if (options.pinAfterDownload) {
+      await keepAssetOnDevice(assetKey, statusEl);
     }
   } catch (err) {
     if (statusEl) statusEl.textContent = err.message || String(err);
@@ -203,9 +241,14 @@ async function viewAsset(assetKey) {
       ? `<button type="button" class="btn btn-ghost btn-small" data-mesh-action="edit" data-asset-key="${escapeHtml(assetKey)}">Edit</button>
          <button type="button" class="btn btn-ghost btn-small" data-mesh-action="replace" data-asset-key="${escapeHtml(assetKey)}">Replace file</button>`
       : "";
+    const pinned = isAssetPinned(assetKey);
+    const pinInfo = getPinnedAsset(assetKey);
     const foot = `
       <a class="btn btn-small" href="${downloadUrl(assetKey)}" download>Download</a>
+      <button type="button" class="btn btn-small btn-ghost" data-mesh-action="pin" data-asset-key="${escapeHtml(assetKey)}">${pinned ? "Re-pin / refresh" : "Keep on device"}</button>
+      ${pinned ? `<button type="button" class="btn btn-small btn-ghost" data-mesh-action="unpin" data-asset-key="${escapeHtml(assetKey)}">Remove local copy</button>` : ""}
       ${adminActions}
+      ${pinned ? `<p class="muted small" style="margin-top:0.5rem">Pinned — ${pinInfo?.chunk_count || "?"} chunks on device · sharing enabled for mesh backup.</p>` : ""}
     `;
     openModal(manifest.display_name || manifest.asset_key, body, foot);
     wireModalActions();
@@ -322,6 +365,20 @@ function wireModalActions() {
       if (!key) return;
       if (action === "edit") editAsset(key);
       if (action === "replace") replaceAsset(key);
+      if (action === "pin") {
+        const statusEl = document.getElementById("mesh-library-status") ||
+          document.getElementById("nd-receive-status");
+        void keepAssetOnDevice(key, statusEl);
+      }
+      if (action === "unpin") {
+        const statusEl = document.getElementById("mesh-library-status") ||
+          document.getElementById("nd-receive-status");
+        void unpinMeshAsset(key).then(() => {
+          if (statusEl) statusEl.textContent = `Removed local copy of ${key}.`;
+          void viewAsset(key);
+          void refreshMeshAssetLibrary();
+        });
+      }
     });
   });
 }
@@ -343,9 +400,13 @@ export function renderMeshAssetCatalog(items, tbodySelector = "#nd-asset-catalog
       const anchor = row.anchor_txid
         ? `${String(row.anchor_txid).slice(0, 12)}…`
         : "—";
+      const pinned = isAssetPinned(key);
+      const pinBadge = pinned
+        ? `<span class="mesh-pin-badge" title="All chunks kept on this device">📌 local</span> `
+        : "";
       return (
         `<tr data-asset-key="${escapeHtml(key)}">` +
-        `<td class="mono small" title="${escapeHtml(key)}">${escapeHtml(name)}</td>` +
+        `<td class="mono small" title="${escapeHtml(key)}">${pinBadge}${escapeHtml(name)}</td>` +
         `<td class="mono small">${escapeHtml(key.split("/").slice(-1)[0] || key)}</td>` +
         `<td>${escapeHtml(row.version || "—")}</td>` +
         `<td>${formatBytes(row.file_size)}</td>` +
@@ -356,6 +417,7 @@ export function renderMeshAssetCatalog(items, tbodySelector = "#nd-asset-catalog
         (admin
           ? `<button type="button" class="btn btn-ghost btn-small" data-mesh-lib="edit" data-asset-key="${escapeHtml(key)}">Edit</button> `
           : "") +
+        `<button type="button" class="btn btn-ghost btn-small" data-mesh-lib="pin" data-asset-key="${escapeHtml(key)}">${pinned ? "Pinned" : "Keep"}</button> ` +
         `<button type="button" class="btn btn-ghost btn-small" data-mesh-lib="download" data-asset-key="${escapeHtml(key)}">Download</button>` +
         `</td>` +
         `</tr>`
@@ -372,6 +434,7 @@ export function renderMeshAssetCatalog(items, tbodySelector = "#nd-asset-catalog
         document.getElementById("mesh-library-status");
       if (action === "view") void viewAsset(key);
       if (action === "edit") editAsset(key);
+      if (action === "pin") void keepAssetOnDevice(key, statusEl);
       if (action === "download") void downloadAsset(key, statusEl);
     });
   });
@@ -379,10 +442,65 @@ export function renderMeshAssetCatalog(items, tbodySelector = "#nd-asset-catalog
 
 let refreshHook = null;
 
+function renderEmptyCatalogHint() {
+  const message = `<tr><td colspan="7" class="muted">${EMPTY_SEARCH_HINT}</td></tr>`;
+  catalogSelectors().forEach((sel) => {
+    const tbody = document.querySelector(sel);
+    if (tbody) tbody.innerHTML = message;
+  });
+}
+
 function catalogSelectors() {
   return ["#nd-asset-catalog tbody", "#mesh-asset-library tbody"].filter((sel) =>
     document.querySelector(sel),
   );
+}
+
+export async function searchMeshAssetLibrary(query, limit = 50) {
+  const q = (query || "").trim();
+  const statusEl = document.getElementById("mesh-library-status");
+  if (!q) {
+    renderEmptyCatalogHint();
+    if (statusEl) statusEl.textContent = "";
+    refreshHook?.([]);
+    return [];
+  }
+  if (statusEl) statusEl.textContent = `Searching for “${q}”…`;
+  try {
+    const params = new URLSearchParams({
+      limit: String(limit),
+      offset: "0",
+      q,
+    });
+    const res = await fetch(apiUrl(`/api/chain-mesh/search?${params}`), { cache: "no-store" });
+    if (!res.ok) throw new Error(`search failed (${res.status})`);
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || "search failed");
+    const items = data.results || [];
+    const selectors = catalogSelectors();
+    if (!selectors.length) {
+      renderMeshAssetCatalog(items);
+    } else {
+      selectors.forEach((sel) => renderMeshAssetCatalog(items, sel));
+    }
+    if (statusEl) {
+      const total = Number(data.total_matches) || items.length;
+      statusEl.textContent = total
+        ? `${total} match${total === 1 ? "" : "es"} for “${q}”.`
+        : `No matches for “${q}”.`;
+    }
+    refreshHook?.(items);
+    return items;
+  } catch (err) {
+    catalogSelectors().forEach((sel) => {
+      const tbody = document.querySelector(sel);
+      if (tbody) {
+        tbody.innerHTML = `<tr><td colspan="7" class="muted">${escapeHtml(err.message || String(err))}</td></tr>`;
+      }
+    });
+    if (statusEl) statusEl.textContent = err.message || String(err);
+    return null;
+  }
 }
 
 export async function refreshMeshAssetLibrary(limit = 100) {
@@ -415,12 +533,21 @@ export async function refreshMeshAssetLibrary(limit = 100) {
 
 export function initMeshAssetLibrary(options = {}) {
   meshAdminMode = Boolean(options.admin);
+  requireSearchToShow = Boolean(options.requireSearch);
   refreshHook = options.onRefresh || null;
   ensureModal();
 
   document.querySelectorAll("#mesh-library-search").forEach((searchInput) => {
+    let debounceTimer = null;
     searchInput.addEventListener("input", () => {
       const q = searchInput.value.trim().toLowerCase();
+      if (requireSearchToShow) {
+        clearTimeout(debounceTimer);
+        debounceTimer = window.setTimeout(() => {
+          void searchMeshAssetLibrary(searchInput.value.trim(), options.limit || 50);
+        }, SEARCH_DEBOUNCE_MS);
+        return;
+      }
       document
         .querySelectorAll(
           "#mesh-asset-library tbody tr[data-asset-key], #nd-asset-catalog tbody tr[data-asset-key]",
@@ -432,6 +559,11 @@ export function initMeshAssetLibrary(options = {}) {
         });
     });
   });
+
+  if (requireSearchToShow) {
+    renderEmptyCatalogHint();
+    return;
+  }
 
   void refreshMeshAssetLibrary(options.limit || 100);
   if (!options.pollMs) return;

@@ -7,9 +7,9 @@ import org.json.JSONArray;
 
 final class NodeSyncEngine {
     private static final String TAG = "BloodstoneNodeSync";
-    static final int BLOCKS_BEHIND_THRESHOLD = 20;
-    static final int CAUGHT_UP_BLOCKS = 2;
-    static final long MAX_SYNC_MS = 10L * 60L * 1000L;
+    static final int BLOCKS_BEHIND_THRESHOLD = 8;
+    static final int CAUGHT_UP_BLOCKS = 3;
+    static final long MAX_SYNC_MS = 30L * 60L * 1000L;
     static final long POLL_MS = 5000L;
     static final long NODE_BOOT_MS = 2500L;
 

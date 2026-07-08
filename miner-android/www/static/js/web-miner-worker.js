@@ -1,4 +1,10 @@
-import { buildHeaderTemplate, hashMeetsTarget } from "./mining-math.js";
+import {
+  blockHashDisplayHex,
+  buildHeaderTemplate,
+  buildSha256dHeader,
+  hashMeetsTarget,
+  hashMeetsTargetDisplay,
+} from "./mining-math.js";
 import { staticUrl } from "./miner-paths.js";
 
 let running = false;
@@ -13,11 +19,13 @@ let hashErrors = 0;
 let lastReport = Date.now();
 let workerId = 0;
 let threadCount = 1;
+let algo = "neoscrypt-xaya";
 let shareEmitMinMs = 60000;
 let lastShareEmitAt = 0;
 let inPtr = 0;
 let outPtr = 0;
 let scratchHeader = null;
+
 async function loadNeoscrypt() {
   const modUrl = staticUrl("/static/lib/neoscrypt.js");
   const createModule =
@@ -75,6 +83,13 @@ function reportHashrate() {
 }
 
 function applyJob(nextJob, targetHex) {
+  if (algo === "sha256d") {
+    if (!nextJob?.coinb1 || !nextJob?.coinb2 || !nextJob?.prevhash || !nextJob?.nbits || !nextJob?.ntime) {
+      return "Invalid SHA256d job from pool";
+    }
+    job = { ...nextJob, targetHex: String(targetHex).padStart(64, "0") };
+    return null;
+  }
   if (!nextJob?.headerPrefix || !nextJob?.nbits || !nextJob?.ntime) {
     return "Invalid job payload from pool";
   }
@@ -99,8 +114,83 @@ function startMiningLoop() {
   mineBatch(generation);
 }
 
+function mineSha256dBatch(generation) {
+  if (!running || generation !== loopGeneration || !job) return;
+
+  let extranonce2 = workerId;
+  let nonce = workerId;
+  const stride = Math.max(1, threadCount);
+  const batchDeadline = Date.now() + 250;
+  const targetHex = job.targetHex || "";
+
+  try {
+    while (
+      running &&
+      generation === loopGeneration &&
+      job &&
+      Date.now() < batchDeadline
+    ) {
+      const en2 = extranonce2.toString(16).padStart(8, "0");
+      const nonceEnd = nonce + 32 * stride;
+
+      for (; nonce < nonceEnd && running && generation === loopGeneration; nonce += stride) {
+        const header = buildSha256dHeader(job, en2, job.ntime, nonce);
+        const hashHex = blockHashDisplayHex(header);
+        hashes += 1;
+        if (!hashHex) {
+          hashErrors += 1;
+          continue;
+        }
+        if (hashMeetsTargetDisplay(hashHex, targetHex)) {
+          if (workerId !== 0) continue;
+          const now = Date.now();
+          if (!lastShareEmitAt || now - lastShareEmitAt >= shareEmitMinMs) {
+            lastShareEmitAt = now;
+            self.postMessage({
+              type: "share",
+              jobId: job.jobId,
+              extranonce2: en2,
+              ntime: job.ntime,
+              nonce: nonce.toString(16).padStart(8, "0"),
+              hash: hashHex,
+              version: job.version || "01000000",
+            });
+          }
+        }
+      }
+
+      extranonce2 += stride;
+    }
+  } catch (err) {
+    if (generation === loopGeneration) {
+      running = false;
+      loopGeneration += 1;
+      self.postMessage({
+        type: "error",
+        workerId,
+        message: err?.message || String(err),
+      });
+    }
+    return;
+  }
+
+  if (generation !== loopGeneration || !running || !job) {
+    return;
+  }
+
+  if (Date.now() - lastReport >= 1000) {
+    reportHashrate();
+  }
+
+  setTimeout(() => mineSha256dBatch(generation), 0);
+}
+
 function mineBatch(generation) {
   if (!running || generation !== loopGeneration || !job) return;
+  if (algo === "sha256d") {
+    mineSha256dBatch(generation);
+    return;
+  }
 
   let extranonce2 = workerId;
   let nonce = workerId;
@@ -178,14 +268,18 @@ self.onmessage = async (event) => {
     shareEmitMinMs = Math.max(5000, Number(msg.shareEmitMinMs) || 60000);
     lastShareEmitAt = 0;
     try {
+      algo = msg.algo || "neoscrypt-xaya";
       staticPrefix = msg.staticPrefix || "";
       self.__bloodstoneStaticPrefix = staticPrefix;
-      if (msg.algo === "yespower") {
+      if (algo === "sha256d") {
+        /* pure JS double-SHA256 — no WASM */
+      } else if (algo === "yespower") {
         await loadYespower();
+        initHashBuffers();
       } else {
         await loadNeoscrypt();
+        initHashBuffers();
       }
-      initHashBuffers();
       self.postMessage({ type: "ready", workerId });
     } catch (err) {
       self.postMessage({

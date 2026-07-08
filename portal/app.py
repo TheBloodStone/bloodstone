@@ -16,6 +16,7 @@ import bloodstone_time
 from flask import Flask, jsonify, render_template, request
 
 import bloodstone_branding
+import bloodstone_beta_codes
 import bloodstone_downloads
 import bloodstone_rich_list
 import pool_db
@@ -37,6 +38,7 @@ NODE_VERSION = os.environ.get("BLOODSTONE_NODE_VERSION", "0.6.9.1")
 NODE_GUI_VERSION = os.environ.get("BLOODSTONE_NODE_GUI_VERSION", "0.6.9.2")
 WALLET_GUI_VERSION = os.environ.get("BLOODSTONE_WALLET_GUI_VERSION", "0.7.11")
 NODE_PKG = f"bloodstone-node-{NODE_VERSION}-linux-x86_64.tar.gz"
+EXCHANGE_NODE_PKG = f"bloodstone-exchange-node-{NODE_VERSION}-linux-x86_64.tar.gz"
 NODE_WIN_PKG = f"bloodstone-node-{NODE_VERSION}-win64.zip"
 GUI_WIN_SRC = f"bloodstone-node-gui-{NODE_GUI_VERSION}-win64-source.zip"
 GUI_WIN_INSTALLER = f"bloodstone-node-gui-{NODE_GUI_VERSION}-win64.exe"
@@ -274,6 +276,7 @@ def exchange_listing():
     electrum = electrum_status()
     downloads = {
         "node_linux": download_available(NODE_PKG),
+        "exchange_node_linux": download_available(EXCHANGE_NODE_PKG),
         "node_windows": download_available(NODE_WIN_PKG),
         "node_gui_windows": download_available(GUI_WIN_INSTALLER),
         "wallet_gui_windows": download_available(WALLET_GUI_INSTALLER),
@@ -340,9 +343,20 @@ def exchange_listing():
             "coins_repo_upstream": "https://github.com/GLEECBTC/coins",
             "legacy_apps": ["Komodo Wallet", "AtomicDEX"],
         },
+        "exchange_node": {
+            "package": EXCHANGE_NODE_PKG,
+            "download": download_available(EXCHANGE_NODE_PKG),
+            "wallet_name": "exchange-hot",
+            "datadir_example": "/var/lib/bloodstone-exchange",
+            "setup_script": "setup-exchange-node.sh",
+            "verify_script": "verify-exchange-node.sh",
+            "required_flags": ["txindex=1", "wallet=exchange-hot"],
+            "forbidden_flags": ["disablewallet=1"],
+        },
         "listing_notes": [
             "Jun 2026 relaunch — new genesis; legacy pre-relaunch chain data is not valid.",
             "RPC is localhost-only on the pool VPS; exchanges should use ElectrumX or run their own node.",
+            "CEX: download bloodstone-exchange-node-*-linux-x86_64.tar.gz — includes txindex, hot wallet, setup + verify scripts.",
             "ElectrumX SSL uses the main portal hostname (Let's Encrypt rate limit blocks electrum.* subdomain cert until later).",
             "For DEX listing: GleecDEX via Gleec (ex-Komodo); CEX listing uses /exchange/ pack above.",
         ],
@@ -690,9 +704,118 @@ def rich_list_data(limit: int = 25, use_cache: bool = True) -> dict:
     return bloodstone_rich_list.get_rich_list(limit=limit)
 
 
+def _portal_request_client_ip() -> str:
+    forwarded = (request.headers.get("X-Forwarded-For") or "").strip()
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return (request.remote_addr or "").strip()
+
+
+def _portal_beta_token() -> str:
+    return (
+        request.headers.get("X-Bloodstone-Beta-Token")
+        or request.args.get("beta_token")
+        or ""
+    ).strip()
+
+
+def _portal_lan_ip() -> str:
+    return (
+        request.headers.get("X-Bloodstone-Lan-Ip")
+        or request.args.get("lan_ip")
+        or ""
+    ).strip()
+
+
+def _portal_update_release_channel() -> str:
+    channel = (request.args.get("channel") or "").strip()
+    return bloodstone_beta_codes.resolve_release_channel(
+        beta_token=_portal_beta_token(),
+        channel=channel,
+    )
+
+
 @app.route("/api/android-miner/update")
 def api_android_miner_update():
-    return jsonify(bloodstone_downloads.android_miner_update_manifest(PUBLIC_ROOT))
+    channel = _portal_update_release_channel()
+    return jsonify(
+        bloodstone_downloads.android_miner_update_manifest(
+            PUBLIC_ROOT,
+            release_channel=channel,
+            lan_ip=_portal_lan_ip(),
+        )
+    )
+
+
+@app.route("/api/beta/redeem", methods=["POST"])
+def api_beta_redeem():
+    payload = request.get_json(silent=True) or {}
+    code = (payload.get("code") or "").strip()
+    device_id = (payload.get("device_id") or "").strip()
+    lan_ip = (payload.get("lan_ip") or "").strip()
+    result = bloodstone_beta_codes.redeem_code(
+        code,
+        device_id=device_id,
+        client_ip=_portal_request_client_ip(),
+        lan_ip=lan_ip,
+    )
+    status = 200 if result.get("ok") else 400
+    return jsonify(result), status
+
+
+@app.route("/api/beta/status")
+def api_beta_status():
+    token = _portal_beta_token()
+    lan_ip = _portal_lan_ip()
+    active = bloodstone_beta_codes.verify_access_token(token) if token else False
+    lan_key = bloodstone_beta_codes.lan_key_from_ip(lan_ip) if lan_ip else None
+    lan_release = (
+        bloodstone_beta_codes.get_lan_validated_release(lan_key) if lan_key else None
+    )
+    return jsonify(
+        {
+            "ok": True,
+            "beta_active": active,
+            "release_channel": "beta" if active else "stable",
+            "lan_key": lan_key,
+            "lan_validated": bool(lan_release),
+            "lan_apk_version": (lan_release or {}).get("apk_version"),
+            "lan_web_bundle_version": (lan_release or {}).get("web_bundle_version"),
+        }
+    )
+
+
+@app.route("/api/beta/validate-lan", methods=["POST"])
+def api_beta_validate_lan():
+    payload = request.get_json(silent=True) or {}
+    token = _portal_beta_token() or str(payload.get("beta_token") or "").strip()
+    lan_ip = str(payload.get("lan_ip") or _portal_lan_ip() or "").strip()
+    device_id = str(payload.get("device_id") or "").strip()
+    beta_apk_version, beta_apk_filename = bloodstone_downloads._resolve_android_apk("beta")
+    beta_web_version, beta_web_filename = bloodstone_downloads._resolve_android_web_bundle(
+        "beta"
+    )
+    result = bloodstone_beta_codes.validate_lan_release(
+        beta_token=token,
+        lan_ip=lan_ip,
+        device_id=device_id,
+        apk_version=beta_apk_version,
+        apk_filename=beta_apk_filename,
+        web_bundle_version=beta_web_version,
+        web_bundle_filename=beta_web_filename,
+    )
+    status = 200 if result.get("ok") else 400
+    return jsonify(result), status
+
+
+@app.route("/api/desktop-miner/update")
+def api_desktop_miner_update():
+    channel = _portal_update_release_channel()
+    return jsonify(
+        bloodstone_downloads.desktop_miner_update_manifest(
+            PUBLIC_ROOT, release_channel=channel
+        )
+    )
 
 
 @app.route("/api/rich-list")

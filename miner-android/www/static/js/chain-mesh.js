@@ -15,9 +15,9 @@ const JOB_CACHE_KEY = "bloodstone-chain-mesh-job-cache";
 const PENDING_SHARES_KEY = "bloodstone-chain-mesh-pending-shares";
 const PEER_IPS_KEY = "bloodstone-chain-mesh-peer-ips";
 const DEFAULT_BACKUP_PCT = 10;
-const MAX_LOCAL_CHUNKS_WEB = 32;
-const MAX_LOCAL_CHUNKS_ANDROID = 64;
-const MAX_LOCAL_CHUNKS_MESH = 128;
+const MAX_LOCAL_CHUNKS_WEB = 48;
+const MAX_LOCAL_CHUNKS_ANDROID = 96;
+const MAX_LOCAL_CHUNKS_MESH = 192;
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 // Keep each JSON POST under ~1 MiB on strict proxies (256 KiB chunk ≈ 350 KiB base64).
 const UPLOAD_BATCH_MAX = 2;
@@ -145,17 +145,55 @@ function b64ToBytes(b64) {
   return bytes;
 }
 
+async function pinnedChunkHashes() {
+  try {
+    const mod = await import("./mesh-asset-pin.js");
+    return mod.getPinnedChunkHashes();
+  } catch (_) {
+    return new Set();
+  }
+}
+
+async function evictOldestNativeChunk() {
+  const plugin = chainMeshNative();
+  if (!plugin?.listChunks || !plugin?.removeChunk) return false;
+  const pinned = await pinnedChunkHashes();
+  try {
+    const res = await plugin.listChunks();
+    const chunks = (res?.chunks || []).filter(
+      (row) => !pinned.has(String(row.chunkHash || "").trim().toLowerCase()),
+    );
+    if (!chunks.length) return false;
+    chunks.sort((a, b) => (a.savedAt || 0) - (b.savedAt || 0));
+    const oldest = chunks[0]?.chunkHash;
+    if (!oldest) return false;
+    await plugin.removeChunk({ chunkHash: oldest });
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 async function nativePutChunk(record) {
   const plugin = chainMeshNative();
   if (!plugin) return false;
-  await plugin.putChunk({
+  const payload = {
     chunkHash: record.chunk_hash,
     dataB64: bytesToB64(record.data),
     sourceFile: record.source_file || "",
     fileOffset: record.file_offset || 0,
     size: record.size || record.data?.length || 0,
-  });
-  return true;
+  };
+  try {
+    await plugin.putChunk(payload);
+    return true;
+  } catch (err) {
+    const msg = String(err?.message || err || "");
+    if (!/capacity|maximum|full/i.test(msg)) throw err;
+    if (!(await evictOldestNativeChunk())) throw err;
+    await plugin.putChunk(payload);
+    return true;
+  }
 }
 
 async function nativeGetAllChunks() {
@@ -663,7 +701,39 @@ async function downloadChunkFromVps(hash) {
   return null;
 }
 
+async function getLocalChunkBytes(hash) {
+  const normalized = String(hash || "").trim().toLowerCase();
+  if (!normalized) return null;
+  const plugin = chainMeshNative();
+  if (plugin?.getChunk) {
+    try {
+      const got = await plugin.getChunk({ chunkHash: normalized });
+      if (got?.dataB64) return b64ToBytes(got.dataB64);
+    } catch (_) {
+      /* try idb */
+    }
+  }
+  if ("indexedDB" in window) {
+    try {
+      const db = await openDb();
+      const record = await new Promise((resolve) => {
+        const tx = db.transaction(STORE, "readonly");
+        const req = tx.objectStore(STORE).get(normalized);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
+      if (record?.data?.length) return record.data;
+    } catch (_) {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
 async function downloadChunk(hash) {
+  const local = await getLocalChunkBytes(hash);
+  if (local?.length) return local;
+
   const savedPeers = await loadKnownPeerEndpoints();
   const discoveredPeers = await discoverPeerEndpoints(hash);
   const candidates = [];
@@ -797,6 +867,18 @@ export function getCachedMiningSession() {
   return local;
 }
 
+export function pendingShareCount() {
+  try {
+    const raw = localStorage.getItem(PENDING_SHARES_KEY);
+    const shares = raw ? JSON.parse(raw) : [];
+    return Array.isArray(shares) ? shares.length : 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
+let coordinatorFlushTimer = null;
+
 export function queuePendingShare(share) {
   let shares = [];
   try {
@@ -812,8 +894,20 @@ export function queuePendingShare(share) {
   } catch (_) {
     /* ignore */
   }
-  void flushPendingSharesToCoordinator(shares);
+  scheduleCoordinatorFlush(shares);
   return shares.length;
+}
+
+function scheduleCoordinatorFlush(shares) {
+  if (shares.length <= 1) {
+    void flushPendingSharesToCoordinator(shares);
+    return;
+  }
+  if (coordinatorFlushTimer) clearTimeout(coordinatorFlushTimer);
+  coordinatorFlushTimer = setTimeout(() => {
+    coordinatorFlushTimer = null;
+    void flushPendingSharesToCoordinator(shares);
+  }, 400);
 }
 
 async function flushPendingSharesToCoordinator(shares) {
@@ -870,6 +964,8 @@ export async function syncChainMesh() {
   const canStore = chainMeshNative() || "indexedDB" in window;
   if (!canStore) return null;
 
+  await configureMeshForNodeMode(meshNodeMode);
+
   const manifest = await fetchManifest();
   const deviceId = await resolveDeviceId();
   const existing = await storageGetAll();
@@ -885,7 +981,9 @@ export async function syncChainMesh() {
   if (manifest) {
     assignment = await pickAssignedChunks(manifest, deviceId, new Set(held.keys()));
 
+    const pinned = await pinnedChunkHashes();
     for (const hash of [...held.keys()]) {
+      if (pinned.has(String(hash).trim().toLowerCase())) continue;
       if (!assignment.assignedHashes.has(hash)) {
         await storageRemove(hash);
         held.delete(hash);
@@ -913,6 +1011,12 @@ export async function syncChainMesh() {
   const hashes = [...held.keys()];
   if (hashes.length && manifest) {
     await announcePeer(deviceId, hashes, manifest);
+  }
+  try {
+    const pinMod = await import("./mesh-asset-pin.js");
+    await pinMod.refreshPinnedAssetSharing();
+  } catch (_) {
+    /* optional */
   }
 
   const meta = {
@@ -1003,6 +1107,11 @@ export async function downloadMeshChunk(hash) {
 export async function exportLocalMeshChunks() {
   const rows = await storageGetAll();
   return rows.filter((r) => r?.chunk_hash && r?.data?.length);
+}
+
+/** Remove one locally held chunk (respects pin registry in sync). */
+export async function removeLocalMeshChunk(chunkHash) {
+  return storageRemove(chunkHash);
 }
 
 /** Restore one chunk from a backup file into local storage. */

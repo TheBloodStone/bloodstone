@@ -180,7 +180,7 @@ static inline uint32_t ror32( uint32_t a, const int c )
   #warning "__int128 not supported, requires GCC-4.8 or newer."
 #endif
 
-#if defined(GCC_INT128)
+#if defined(GCC_INT128) && defined(__SIZEOF_INT128__)
 
 // Familiar looking type names
 typedef          __int128  int128_t;

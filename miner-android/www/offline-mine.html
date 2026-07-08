@@ -13,9 +13,36 @@
     .hero h1 { font-size: 1.2rem; margin: 0 0 0.35rem; }
     .hero p { color: #8b95a8; font-size: 0.9rem; margin: 0; }
   </style>
+  <script>
+    (function () {
+      function markDesktop() {
+        try {
+          document.documentElement.setAttribute("data-desktop-app", "1");
+          if (document.body) document.body.setAttribute("data-desktop-app", "1");
+        } catch (_) {
+          /* ignore */
+        }
+      }
+      if (window.__bloodstoneDesktopBridgeSealed || window.__bloodstoneDesktop) {
+        markDesktop();
+        return;
+      }
+      try {
+        if (
+          window.Capacitor
+          && typeof window.Capacitor.getPlatform === "function"
+          && window.Capacitor.getPlatform() === "desktop"
+        ) {
+          markDesktop();
+        }
+      } catch (_) {
+        /* ignore */
+      }
+    })();
+  </script>
 </head>
-<body data-url-prefix="/mining" data-android-app="1" data-ui-layout="v2" data-app-version="1.3.44"
-  data-web-ui-version="1.3.58-web"
+<body data-url-prefix="/mining" data-android-app="1" data-ui-layout="v2" data-app-version="1.3.84"
+  data-web-ui-version="1.3.127-web"
   data-update-base="https://bloodstonewallet.mytunnel.org"
   data-stratum-host="64.188.22.190"
   data-stratum-neoscrypt="3437"
@@ -72,7 +99,37 @@
           <span><span class="stat-k">On disk</span> <span class="mono" id="local-node-sync-disk">—</span></span>
         </div>
         <p class="muted small chain-download-detail" id="local-node-sync-detail">Keep the app open on Wi‑Fi while blocks download.</p>
+        <div class="btn-row chain-download-actions" id="local-node-sync-actions" hidden style="margin-top:0.65rem">
+          <button type="button" class="btn btn-small" id="btn-start-after-sync">Start mining</button>
+          <button type="button" class="btn btn-small btn-ghost" id="btn-dismiss-sync-panel">Hide panel</button>
+        </div>
+        <div class="mesh-chain-restore-panel" id="mesh-chain-restore-wrap" style="margin-top:0.65rem;padding-top:0.55rem;border-top:1px solid #2a3344">
+          <strong style="font-size:0.92rem">Restore from local mesh chunks</strong>
+          <p class="muted small" style="margin:0.35rem 0 0.5rem">
+            If this phone already cached Time Capsule / mesh block data, apply it directly into the bloodstoned datadir instead of re-downloading from P2P.
+          </p>
+          <label class="field" style="margin-bottom:0.45rem">
+            <span class="muted small">Write mode</span>
+            <select id="mesh-chain-overlay-mode">
+              <option value="overlay" selected>Overlay — patch existing block files</option>
+              <option value="replace">Replace — clear blocks/ then write mesh data</option>
+            </select>
+          </label>
+          <div class="btn-row">
+            <button type="button" class="btn btn-small" id="mesh-chain-restore-btn">Apply mesh data to chain</button>
+          </div>
+          <p class="muted small" id="mesh-chain-restore-status" style="margin:0.35rem 0 0"></p>
+        </div>
       </div>
+      <details class="node-diagnostics-panel" id="node-diagnostics-wrap" open>
+        <summary class="node-diagnostics-summary">Node diagnostics <span class="muted small">(tap if stuck on Starting)</span></summary>
+        <p class="node-diag-summary-line" id="node-diag-summary">Run diagnostics to see bridge, APK/UI versions, and bloodstoned status.</p>
+        <div class="btn-row node-diag-actions">
+          <button type="button" class="btn btn-small" id="btn-node-diagnostics">Run diagnostics</button>
+          <button type="button" class="btn btn-small btn-ghost" id="btn-node-diag-copy">Copy report</button>
+        </div>
+        <pre class="node-diag-body mono" id="node-diag-body" aria-label="Diagnostic report"></pre>
+      </details>
     </section>
     <section class="panel web-miner-panel" id="web-miner">
       <div class="panel-body">
@@ -90,17 +147,24 @@
           <label class="field" id="local-node-mode-wrap" style="margin-top:0.65rem">
             <span>Local node mode (Android)</span>
             <select id="local-node-mode-select">
-              <option value="pruned" selected>Pruned (~550 MiB) — host lightweight node</option>
-              <option value="full">Full chain — host for household (needs ~2 GB free)</option>
-              <option value="mesh">Mesh federation — pruned tip + block backups</option>
-              <option value="consensus">Consensus — validate chain + P2P witness (no stratum)</option>
-              <option value="consensus-witness">Consensus witness — lightweight witness only</option>
-              <option value="lan-client">LAN client — mine from household full node (no chain download)</option>
+              <optgroup label="Download chain on this phone">
+                <option value="full" selected>Full chain — bootstrap snapshot first (~5 MB), then sync</option>
+                <option value="pruned">Pruned (~550 MiB) — after chain is on device</option>
+                <option value="mesh">Mesh federation — pruned tip + block backups</option>
+              </optgroup>
+              <optgroup label="Advanced — witness only (no stratum, not for first download)">
+                <option value="consensus">Consensus — P2P validator witness (no stratum)</option>
+                <option value="consensus-witness">Consensus witness — lightweight outbound only</option>
+              </optgroup>
+              <optgroup label="Use another phone as host">
+                <option value="lan-client">LAN client — no chain download on this device</option>
+              </optgroup>
             </select>
             <span class="muted small mode-hint" id="local-node-mode-hint"></span>
           </label>
           <div class="btn-row node-only-actions" id="node-only-actions" style="margin-top:0.5rem">
-            <button type="button" class="btn btn-small" id="btn-activate-node">Start full node</button>
+            <button type="button" class="btn btn-small" id="btn-activate-node"
+              onclick="void window.__bloodstoneStartFullNode?.()">Start full node</button>
             <button type="button" class="btn btn-small btn-ghost" id="btn-stop-node" disabled>Stop node</button>
           </div>
           <p class="muted small" id="node-only-status" style="margin:0.35rem 0 0">
@@ -124,6 +188,7 @@
             <select id="miner-algo">
               <option value="neoscrypt-xaya" selected>Neoscrypt-Xaya</option>
               <option value="yespower">Yespower R16</option>
+              <option value="sha256d">SHA256d (CPU)</option>
             </select>
           </label>
           <label class="field">
@@ -132,8 +197,18 @@
           </label>
           <div class="btn-row">
             <button id="btn-start" class="btn">Start offline mining</button>
+            <button type="button" id="btn-just-mine" class="btn btn-just-mine">Just mine</button>
             <button id="btn-stop" class="btn btn-ghost" disabled>Stop</button>
           </div>
+          <p class="muted small just-mine-note">Just mine ignores battery, charging, and thermal limits — use at your own risk.</p>
+          <p class="muted small miner-start-hint" id="miner-start-hint" style="margin:0.35rem 0 0"></p>
+          <section class="miner-log-panel" id="miner-log-wrap">
+            <div class="miner-log-head">
+              <strong>Miner log</strong>
+              <span class="muted small">live status</span>
+            </div>
+            <div class="miner-log" id="miner-log" role="log" aria-live="polite" aria-label="Miner log"></div>
+          </section>
           <p class="android-power-banner muted small" id="android-power-banner" hidden>
             <span id="android-power-banner-text"></span>
             <button type="button" class="android-power-bypass-btn" id="android-power-bypass-btn" hidden>Bypass power check</button>
@@ -143,7 +218,7 @@
           </p>
           <label class="android-power-bypass-wrap" id="android-power-bypass-wrap">
             <input type="checkbox" id="android-power-bypass">
-            <span>Allow mining on battery (bypass power sensor)</span>
+            <span>Low-battery bypass — mine on battery down to 5% (default: above 50% only)</span>
           </label>
           <div class="background-mining-banner" id="background-mining-banner" hidden>
             <span data-banner-text>Background mining active</span>
@@ -194,6 +269,26 @@
               <span>Check for live UI + APK updates on startup</span>
             </label>
             <p class="muted small">UI changes download automatically (no reinstall). APK updates are only needed for native plugin changes.</p>
+            <div class="android-beta-panel info-box" id="android-beta-panel" hidden>
+              <strong>Beta testing (LAN only)</strong>
+              <p class="muted small android-beta-status" id="android-beta-status"></p>
+              <div id="android-beta-form">
+                <label class="field">
+                  <span class="muted small">One-time beta invite code</span>
+                  <input type="text" id="android-beta-code" autocomplete="off" spellcheck="false" placeholder="BS-BETA-XXXX-XXXX-XXXX">
+                </label>
+                <div class="btn-row">
+                  <button type="button" class="btn btn-small" id="android-beta-redeem-btn">Unlock beta OTA</button>
+                </div>
+              </div>
+              <div id="android-beta-active" hidden>
+                <p class="muted small">Test the beta build on this LAN. When it looks good, approve it so everyone on this Wi‑Fi gets it as stable OTA.</p>
+                <div class="btn-row">
+                  <button type="button" class="btn btn-small" id="android-beta-approve-btn">Approve for this LAN</button>
+                  <button type="button" class="btn btn-small btn-ghost" id="android-beta-leave-btn">Leave beta channel</button>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
         <details class="setup-details android-advanced-panel" id="android-advanced-panel" open>
@@ -211,16 +306,20 @@
           </p>
           <div class="info-box mine-targets-panel" id="mine-targets-panel" style="margin-top:0.65rem">
             <strong>Mine to — host &amp; port</strong>
-            <p class="muted small" style="margin:0.35rem 0 0">Copy into Bitaxe, cpuminer, or Awesome Miner. Worker = your STONE address + <code>.rig1</code> · password <code>x</code>.</p>
+            <p class="muted small" style="margin:0.35rem 0 0">Copy into Bitaxe, cpuminer, or Awesome Miner. Worker = your STONE address + <code>.rig1</code>. SHA256d: password <code>x</code> (pool relay) or <code>solo</code> (local full node).</p>
             <dl class="setup-field-dl meta-dl compact">
               <dt>VPS pool · neoscrypt</dt>
               <dd class="copy-row"><code class="mono" id="mine-target-vps-neo">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-mine-target-vps-neo" data-lan-copy="">Copy</button></dd>
               <dt>VPS pool · yespower</dt>
               <dd class="copy-row"><code class="mono" id="mine-target-vps-yp">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-mine-target-vps-yp" data-lan-copy="">Copy</button></dd>
+              <dt>VPS pool · SHA256d</dt>
+              <dd class="copy-row"><code class="mono" id="mine-target-vps-sha256d">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-mine-target-vps-sha256d" data-lan-copy="">Copy</button></dd>
               <dt>This phone (LAN) · neoscrypt</dt>
               <dd class="copy-row"><code class="mono" id="mine-target-lan-neo">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-mine-target-lan-neo" data-lan-copy="">Copy</button></dd>
               <dt>This phone (LAN) · yespower</dt>
               <dd class="copy-row"><code class="mono" id="mine-target-lan-yp">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-mine-target-lan-yp" data-lan-copy="">Copy</button></dd>
+              <dt>This phone (LAN) · SHA256d</dt>
+              <dd class="copy-row"><code class="mono" id="mine-target-lan-sha256d">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-mine-target-lan-sha256d" data-lan-copy="">Copy</button></dd>
             </dl>
           </div>
           <div class="info-box device-lan-mining-panel" id="device-lan-mining-panel" style="margin-top:0.65rem">
@@ -246,6 +345,8 @@
               <dd class="copy-row"><code class="mono" id="device-lan-neoscrypt-endpoint">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-neoscrypt" data-lan-copy="">Copy</button></dd>
               <dt>Stratum (yespower)</dt>
               <dd class="copy-row"><code class="mono" id="device-lan-yespower-endpoint">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-yespower" data-lan-copy="">Copy</button></dd>
+              <dt>Stratum (SHA256d / Bitaxe)</dt>
+              <dd class="copy-row"><code class="mono" id="device-lan-sha256d-endpoint">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-sha256d" data-lan-copy="">Copy</button></dd>
               <dt>Chain P2P</dt>
               <dd class="copy-row"><code class="mono" id="device-node-p2p-port">17333</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-node-p2p-port" data-lan-copy="">Copy</button></dd>
             </dl>
@@ -310,18 +411,19 @@
             <p class="muted small" style="margin:0.35rem 0 0">Hosts register LAN stratum/RPC for household miners (auto every 60s while a local node runs). LAN clients discover via mDNS + this registry.</p>
           </div>
           <div class="info-box share-internet-panel" id="share-internet-panel" style="margin-top:0.65rem">
-            <strong>Free internet over the mesh</strong>
+            <strong>Share internet on your LAN (optional)</strong>
             <p class="muted small" style="margin:0.35rem 0 0">
-              If this phone has Wi‑Fi or mobile data, turn on sharing so every LAN miner on your household mesh can reach the internet through BSM4.
+              On the same household Wi‑Fi, one phone with mobile data or internet can relay HTTP for other Bloodstone APK devices — while mining or not. No mining required to share or to receive.
             </p>
             <label class="android-option-row" style="margin-top:0.5rem">
               <input type="checkbox" id="share-internet-toggle">
-              <span>Share my internet with LAN miners</span>
+              <span>Share my internet on this LAN</span>
             </label>
             <p class="muted small" id="share-internet-status" style="margin:0.35rem 0 0">Not sharing</p>
+            <p class="muted small" id="share-internet-client-status" style="margin:0.25rem 0 0">This phone: checking connection…</p>
             <p class="muted small" id="share-internet-elected" style="margin:0.25rem 0 0">Resolving gateway…</p>
-            <p class="muted small" style="margin:0.35rem 0 0">
-              Miners without internet open a BSM4 tunnel to the elected gateway on your LAN. This device fetches HTTP/HTTPS on their behalf.
+            <p class="muted small share-internet-hint" style="margin:0.35rem 0 0">
+              Gateway phone: keep this app open on Wi‑Fi. Other phones on the LAN auto-discover the gateway at port 18341 — pool API, updates, and mesh egress work without their own internet.
             </p>
           </div>
           <div class="info-box mining-setup-panel" id="mining-setup-panel" hidden style="margin-top:0.65rem">
@@ -378,6 +480,14 @@
                   <dt>Port</dt><dd><code class="mono" id="lan-port-yespower">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-lan-port-yespower" data-setup-copy="lan-port-yespower">Copy</button></dd>
                 </dl>
               </div>
+              <div class="setup-algo-block" data-setup-algo="sha256d">
+                <h4>SHA256d / Bitaxe (ASIC)</h4>
+                <dl class="setup-field-dl meta-dl compact">
+                  <dt>Stratum host</dt><dd><code class="mono" id="lan-host-sha256d">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-lan-host-sha256d" data-setup-copy="lan-host-sha256d">Copy</button></dd>
+                  <dt>Port</dt><dd><code class="mono" id="lan-port-sha256d">—</code><button type="button" class="btn btn-ghost btn-small" id="btn-copy-lan-port-sha256d" data-setup-copy="lan-port-sha256d">Copy</button></dd>
+                </dl>
+                <p class="muted small setup-note">Password <code>x</code> relays pool shares to the VPS. Password <code>solo</code> mines blocks through this phone's full node (chain must be synced).</p>
+              </div>
               <div class="setup-algo-block">
                 <h4>JSON-RPC (wallet / queries)</h4>
                 <dl class="setup-field-dl meta-dl compact">
@@ -401,7 +511,7 @@
                 <li>Tap <strong>Start full node</strong> — runs bloodstoned without mining on this phone.</li>
                 <li>Wait for chain sync — progress bar shows download status.</li>
                 <li>Optional: create an <strong>on-device wallet</strong> and tap <em>Use for mining</em>.</li>
-                <li>On Bitaxe/cpuminer: paste the <strong>LAN host + port</strong> from the section above (same Wi‑Fi only).</li>
+                <li>On Bitaxe: paste <strong>LAN host + port 3429</strong> (same Wi‑Fi). Pool password <code>x</code> or solo password <code>solo</code> for local blocks.</li>
                 <li>Optional: enter a <strong>STONE payout address</strong> and tap <strong>Start offline mining</strong> to mine on this device too.</li>
               </ol>
             </details>
@@ -436,12 +546,23 @@
             </div>
           </div>
         </section>
-        <div class="miner-log" id="miner-log"></div>
       </div>
     </section>
-    <p style="margin-top:1rem;text-align:center"><a href="https://bloodstonewallet.mytunnel.org/mining/mine?app=android" style="color:#6eb5ff">Try online portal</a></p>
+    <p style="margin-top:1rem;text-align:center;font-size:0.85rem;color:#8b95a8">
+      <a href="network-chat.html" style="color:#6eb5ff;margin-right:0.75rem">Network Chat</a>
+      Pool stats &amp; portal extras:
+      <a href="https://bloodstonewallet.mytunnel.org/mining/mine?app=android" style="color:#6eb5ff">online portal</a>
+      (full node must stay on this bundled screen)
+    </p>
   </div>
+  <script src="static/js/desktop-bridge-boot.js"></script>
+  <script src="static/js/bridge-warmup-boot.js"></script>
+  <script src="static/js/miner-log-boot.js"></script>
+  <script src="static/js/chain-sync-boot.js"></script>
   <script src="static/js/android-ota-boot.js"></script>
-  <script type="module" src="static/js/web-miner.js"></script>
+  <script src="static/js/node-diagnostics-boot.js"></script>
+  <script src="static/js/pull-refresh-boot.js"></script>
+  <script src="static/js/miner-start-boot.js"></script>
+  <script src="static/js/web-miner-loader.js"></script>
 </body>
 </html>

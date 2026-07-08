@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1a1520">
+  <title>Bloodstone Treasury & Blurt Outpost Tour — Blurt Follow-up #2</title>
+  <style>
+    :root {
+      --bg: #1a1520;
+      --panel: #252030;
+      --panel2: #322a3d;
+      --text: #f0ebe8;
+      --muted: #a89bb0;
+      --accent: #e8b86d;
+      --accent2: #9bdea8;
+      --warn: #f0c674;
+      --live: #6ee7a8;
+      --draft: #e8a86d;
+      --border: #443a52;
+      --script-size: 1.35rem;
+      --script-line: 1.65;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    a { color: var(--accent); }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(26, 21, 32, 0.96);
+      border-bottom: 1px solid var(--border);
+      padding: 0.65rem 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .topbar h1 { margin: 0; font-size: 1rem; font-weight: 600; }
+    .topbar .meta { font-size: 0.82rem; color: var(--muted); }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    button {
+      background: var(--panel2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.45rem 0.8rem;
+      font-size: 0.88rem;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); }
+    button.primary { background: #4a3820; border-color: var(--accent); }
+    button.active { background: #2a4a32; border-color: var(--accent2); }
+    .layout {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 1rem;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { order: 2; }
+    }
+    .sidebar {
+      position: sticky;
+      top: 4.5rem;
+      align-self: start;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem;
+      max-height: calc(100vh - 6rem);
+      overflow: auto;
+    }
+    .sidebar h2 {
+      margin: 0 0 0.5rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .stop-list { list-style: none; margin: 0; padding: 0; }
+    .stop-list li { margin: 0.2rem 0; }
+    .stop-list button {
+      width: 100%;
+      text-align: left;
+      padding: 0.5rem 0.6rem;
+      font-size: 0.8rem;
+    }
+    .stop-list button.current {
+      background: #3d3020;
+      border-color: var(--accent);
+    }
+    .progress-wrap { margin-top: 0.75rem; }
+    .progress-bar {
+      height: 6px;
+      background: var(--panel2);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      width: 0%;
+      transition: width 0.25s ease;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 1rem;
+    }
+    .card h2 { margin: 0 0 0.35rem; font-size: 1.35rem; }
+    .card .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 0.75rem; }
+    .tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
+    .tag {
+      font-size: 0.75rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      background: var(--panel2);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .tag.doc { color: var(--accent); }
+    .tag.time { color: var(--warn); }
+    .tag.live { color: var(--live); border-color: #2a5a3a; }
+    .tag.draft { color: var(--draft); border-color: #5a4020; }
+    .record-hint {
+      background: #2a2418;
+      border: 1px solid #5a4a20;
+      border-radius: 8px;
+      padding: 0.75rem 0.9rem;
+      font-size: 0.88rem;
+      color: #e8d9a8;
+      margin-bottom: 0.85rem;
+    }
+    .script-box {
+      background: #120f18;
+      border: 2px solid #5a4028;
+      border-radius: 10px;
+      padding: 1.1rem 1.2rem;
+      margin: 0.5rem 0 1rem;
+    }
+    .script-box .label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+    .script-text {
+      font-size: var(--script-size);
+      line-height: var(--script-line);
+      white-space: pre-wrap;
+    }
+    body.presenter .script-text { font-size: 1.65rem; line-height: 1.75; }
+    body.presenter .script-box { padding: 1.4rem 1.5rem; }
+    .takeaway {
+      border-left: 3px solid var(--accent2);
+      padding: 0.5rem 0 0.5rem 0.85rem;
+      margin: 0.5rem 0;
+      color: #d8ece0;
+      font-size: 0.95rem;
+    }
+    pre {
+      margin: 0;
+      padding: 0.85rem 1rem;
+      background: #0c0a10;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: auto;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+    code { font-family: "Cascadia Code", "Consolas", monospace; }
+    .ref-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 0.75rem 0 0.35rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .nav-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .hidden { display: none !important; }
+    .kbd {
+      display: inline-block;
+      padding: 0.1rem 0.35rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.75rem;
+      background: var(--panel2);
+    }
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+      padding: 1.5rem 1rem 2rem;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Treasury &amp; Blurt Outpost Tour</h1>
+      <div class="meta">Blurt follow-up #2 · economics · bulk storage rails · ~40 min</div>
+    </div>
+    <div class="controls">
+      <button type="button" id="btn-presenter">Presenter mode</button>
+      <button type="button" id="btn-script-only">Script only</button>
+      <button type="button" class="primary" id="btn-prev">← Prev</button>
+      <button type="button" class="primary" id="btn-next">Next →</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <h2>Stops</h2>
+      <ul class="stop-list" id="stop-list"></ul>
+      <div class="progress-wrap">
+        <div class="meta" id="progress-label">Stop 1 of 12</div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      </div>
+      <p class="meta" style="margin-top:0.75rem;font-size:0.78rem;">
+        <span class="kbd">←</span> <span class="kbd">→</span> navigate ·
+        <span class="kbd">P</span> presenter ·
+        <span class="kbd">S</span> script only
+      </p>
+      <p class="meta" style="margin-top:0.5rem;font-size:0.78rem;">
+        <a href="consensus-code-tour.html">← Track #1 consensus tour</a>
+      </p>
+    </aside>
+    <main class="main" id="main"></main>
+  </div>
+
+  <footer>
+    <a href="downloads/Bloodstone-Treasury-and-Concentration-Disclosure.md">Treasury disclosure</a> ·
+    <a href="downloads/Bloodstone-Blurt-Partnership-Response.md">Partnership response</a> ·
+    <a href="#rich-list" onclick="location.href='https://bloodstonewallet.mytunnel.org/#rich-list'">Rich list</a> ·
+    <a href="consensus-code-tour.html">Track #1</a>
+  </footer>
+
+  <script>
+    const STOPS = [
+      {
+        title: "0 — Before you hit Record",
+        time: "2 min",
+        docs: [],
+        status: null,
+        record: "Second monitor: this page. Main screen: rich list (bloodstonewallet.mytunnel.org/#rich-list) + Treasury disclosure MD/DOCX. Optional: Mesh Storage Partnership white paper. Turn on Presenter mode (P) before recording.",
+        script: `Track two — treasury disbursement and the Blurt bulk-storage outpost.
+
+This is the economics session Anthony. We heard you: concentration matters, and a storage partner should not have to buy STONE off three wallets on the open market.
+
+I will be straight with you about what exists today versus what we are proposing to build with you. No pretending automated billing is already trustless on-chain. No hiding that the top three addresses still hold about seventy-seven percent of supply.
+
+Have these open while I talk: the live rich list, our Treasury and Concentration Disclosure, and the Blurt Mesh Storage partnership draft.
+
+Hit Next when ready.`,
+        takeaway: "Honest economics tour — live vs proposed clearly separated.",
+        ref: null
+      },
+      {
+        title: "1 — The problem you raised",
+        time: "4 min",
+        docs: ["Blurt Partnership Response"],
+        status: "live",
+        record: "Show rich list top 3 addresses and percentages. Optional: partnership response §1.",
+        script: `Blurt's concern was fair. At block height around nine thousand seven hundred, circulating supply is about two hundred one million STONE.
+
+The top three addresses hold roughly thirty percent, twenty-five percent, and twenty-two percent — about seventy-seven percent combined.
+
+If Blurt.blog paid for one point two terabytes of mesh storage by buying STONE on the open market, you'd mostly be paying whoever controls those wallets. That is a captive-token dynamic — bad for a utility partnership.
+
+We are not asking you to ignore that. We are not asking you to trust mining dilution alone. Issuance does not equal decentralization if treasury never disburses or the same entity recaptures PoW payouts.
+
+The fix we are proposing: structured treasury outflows plus a partner outpost so Blurt never needs OTC whale float.`,
+        takeaway: "77% top-3 is real · partners should not be spot price-takers from rich list.",
+        ref: `Rich list (live)     →  bloodstonewallet.mytunnel.org/#rich-list
+Top 3 at ~9,704       →  ~77.1% of supply
+Your S3 benchmark     →  ~€22.80 / 1.2 TB / month`
+      },
+      {
+        title: "2 — What concentration actually is",
+        time: "4 min",
+        docs: ["Treasury & Concentration Disclosure"],
+        status: "live",
+        record: "Treasury disclosure §3 — show the metrics table. Emphasize: treasury custody, not anonymous whales.",
+        script: `Important nuance: high concentration today is mostly undisbursed project treasury — not a deep independent holder base.
+
+About ninety-nine point five percent of supply at tip is still treasury-derived. Only about nine hundred seventy thousand STONE has been PoW-mined at one hundred STONE per block in era zero.
+
+Only forty-nine addresses even have a balance right now. Top ten hold about ninety-six percent.
+
+That is still a problem for partner economics until money moves — but the remedy is published disbursement and a ring-fenced outpost, not "hope the market is liquid."
+
+We also will not lean on the dilution fairy alone. Yes, the one-thousand STONE fork at block twelve thousand makes era-zero PoW mint about one point zero four billion STONE — premine share of total supply could fall toward sixteen percent by end of era zero if treasury sits still. But sitting still is exactly what we are trying to fix.`,
+        takeaway: "~200M premine split across project wallets · ~49 holders · disbursement is the remedy.",
+        ref: `Total supply (9,704)   200,970,398 STONE
+PoW minted so far        ~970,400 (~0.48%)
+Treasury-derived         ~99.5%
+Addresses w/ balance     49
+Top 10 share             ~96%`
+      },
+      {
+        title: "3 — Genesis → wallet registry",
+        time: "5 min",
+        docs: ["Treasury Disclosure §4", "Development Journey WP"],
+        status: "live",
+        record: "Show genesis address SZNtm… in docs; show it is NOT in top 25 now. Scroll wallet registry table.",
+        script: `Genesis in June twenty twenty-six: one coinbase output of one hundred ninety-nine million nine hundred ninety-nine thousand nine hundred ninety-eight STONE to address SZNtmBMyx2Cr9VMrj5vk5EYTUn1naedu5N. Public, documented, single P2PKH — not the old SpaceXpanse two-of-four multisig.
+
+That genesis address is spent now — it does not appear in the top twenty-five. During the first weeks of mainnet the premine was operationally split into labeled project wallets. Not an airdrop. Not a public sale. No on-chain vesting contract.
+
+For Blurt, the wallets that matter most:
+— Rank one: about sixty point eight million STONE — cold core treasury reserve.
+— Rank three: about forty-five million — operational wallet earmarked for partner programs and ecosystem. This is the likely funding path for your outpost.
+— Rank eight: about five million — partner programs tranche, unassigned integrator bucket.
+
+We label what we can from wallet exports. Signatory names come in disclosure version one point one — target Q four twenty twenty-six. We will not fake detail we have not published yet.`,
+        takeaway: "Premine was split operationally · rank 3 + rank 8 = partner funding path.",
+        ref: `Genesis (spent)   SZNtmBMyx2Cr9VMrj5vk5EYTUn1naedu5N
+Rank 1 (cold)     SaYQKHQr…  60.8M  30.27%
+Rank 3 (ops)      SPWDbxeV…  45.0M  22.39%  ← partner/ecosystem
+Rank 8 (earmark)  ScDCPRun…   5.0M   2.48%  ← partner tranche`
+      },
+      {
+        title: "4 — Allocation buckets",
+        time: "4 min",
+        docs: ["Treasury Disclosure §5"],
+        status: "draft",
+        record: "Show bucket table from disclosure. Clarify: policy targets, NOT on-chain locks.",
+        script: `We published target allocation buckets for the roughly two hundred million STONE treasury envelope.
+
+Infrastructure and core development: twenty-five to thirty percent — nodes, pool, mesh, miners, security.
+
+Ecosystem grants: fifteen to twenty percent — builders, mesh operators, storage replicators.
+
+Partner programs: fifteen to twenty percent — this is Blurt's lane. Bulk storage quotas, integrator allocations.
+
+Community distribution: ten to fifteen — faucets, onboarding, mesh rebates.
+
+Liquidity: five to ten — when CEX or DEX routes exist.
+
+Unallocated strategic reserve: fifteen to twenty-five percent on rank one cold wallet — only moves via published decisions.
+
+These are policy ranges, not smart-contract locks. Honest again: we do not have on-chain bucket enforcement today. This disclosure is the accountability layer until we do.`,
+        takeaway: "Blurt draws from Partner programs bucket — 15–20% target of premine envelope.",
+        ref: `Bucket                    Target %    Blurt?
+Infrastructure            25–30%      indirect (mesh ops)
+Ecosystem grants          15–20%      replicators / builders
+Partner programs          15–20%      ✓ primary
+Community distribution    10–15%      user free tier subsidy
+Liquidity                 5–10%       later
+Core reserve (unalloc)    15–25%      strategic only`
+      },
+      {
+        title: "5 — Disbursement plan (12–24 mo)",
+        time: "5 min",
+        docs: ["Treasury Disclosure §6"],
+        status: "draft",
+        record: "Show quarterly outflow table + concentration targets. Stress: TXIDs published for moves ≥1M STONE.",
+        script: `Disbursement principles — four rules.
+
+One: no silent re-concentration. Any treasury move of one million STONE or more gets a public note with destination label and bucket.
+
+Two: partner-first rails. Integrators get STONE from the outpost, not OTC from cold reserves.
+
+Three: we measure top-three and top-ten percentage every quarter.
+
+Four: Blurt bulk invoices do not go live until the outpost path is funded and visible.
+
+Quarterly outflow targets: Q three twenty twenty-six two to five million STONE in pilots and small grants. Q four five to ten million including first outpost funding. First half twenty twenty-seven fifteen to twenty-five million — that's where a Blurt bulk contract lands if we sign. Cumulative goal: at least fifty million disbursed by July twenty twenty-seven.
+
+Concentration target: top three falls from seventy-seven percent today to fifty-five percent or below by July twenty twenty-seven — assuming PoW dilution plus real outflows, and assuming we do not recycle pool payouts back into the same cold wallets.`,
+        takeaway: "≥50M STONE disbursed by Jul 2027 · top-3 target ≤55% · moves ≥1M are public.",
+        ref: `Q3 2026    2–5M STONE   pilots, faucet, small grants
+Q4 2026    5–10M STONE  outpost seed, ecosystem
+H1 2027   15–25M STONE  Blurt bulk (if contracted)
+H2 2027   20–35M STONE  partner programs continue
+
+Jul 2027 target: top-3 ≤ 55% of supply`
+      },
+      {
+        title: "6 — Partner outpost (core idea)",
+        time: "5 min",
+        docs: ["Treasury Disclosure §7"],
+        status: "draft",
+        record: "Draw simple flow: cold treasury → operational wallet → OUTPOST → quota ledger. Address TBD before first invoice.",
+        script: `The partner outpost is the centerpiece for Blurt.
+
+It is a dedicated P2PKH address we publish before your first production invoice — separate from cold reserves. Ring-fenced STONE only for bulk storage quota and memo credits. Not a trading wallet. Not something you buy from on the market.
+
+Funding path: rank three operational wallet and/or rank eight partner tranche. We credit the outpost; your quota ledger draws down against that balance monthly.
+
+Reporting we commit to: opening balance, credits, debits, bytes stored — monthly statement you can reconcile.
+
+What we have not done yet: pick and publish the final outpost address. That happens at contract signature, not before. We will not rush a address into this video and pretend it is live.
+
+This is co-design — you tell us invoice cadence, namespace needs, and whether you want to pay in BLURT or STONE at the rail.`,
+        takeaway: "Outpost = ring-fenced partner float · address published at contract · not OTC.",
+        ref: `Purpose      Bulk quota + BLURT→STONE memo credits
+Funding      Rank 3 ops + Rank 8 partner tranche
+Address      Published before 1st production invoice
+Reporting    Monthly balance + bytes stored
+
+FLOW:
+  [Cold treasury] → [Ops wallet] → [Partner outpost] → [Blurt quota ledger]`
+      },
+      {
+        title: "7 — Model A: Blurt bulk tenant",
+        time: "5 min",
+        docs: ["Mesh Storage Partnership WP"],
+        status: "live",
+        record: "Show partnership white paper Model A diagram. Compare to current S3 bucket UX — Blurt backend unchanged for users.",
+        script: `Technical integration: Model A — Blurt bulk tenant. Recommended launch path in our mesh storage partnership draft.
+
+Your users see the same thing they see today with S3. Blurt.blog backend stores media under a namespaced path like assets slash blurt slash media slash post ID slash filename. Content-addressed chunks on Chain Mesh. BSM one anchors for integrity. Users do not buy STONE. They do not touch the rich list.
+
+Blurt team holds a publish token and quota API credentials. You pay the monthly bulk allocation into the outpost — STONE or BLURT via memo rail. Coordinator enables publish under your namespace until quota is consumed.
+
+Chain Mesh coordination is operational today. Chunk upload APIs exist. What is still roadmap: automated per-gigabyte debits from quota accounts and peer replication rebates in STONE — we want Blurt as the design partner for those rules, not as a beta tester we mislead.
+
+The sixty-four megabyte chunk policy limit is coordinator policy, not protocol — we can raise for a bulk partner with edge cache where needed.`,
+        takeaway: "Same UX as S3 for users · Blurt pays bulk · mesh APIs live · billing rules co-designed.",
+        ref: `Model A (recommended)
+  Namespace:  assets/blurt/media/<post_id>/<file>
+  Payer:      Blurt team (bulk) — not end users
+  User UX:    unchanged vs S3 bucket
+
+LIVE today       Mesh coord, chunk upload, manifests
+CO-DESIGN        Quota debits, replication rebates, billing`
+      },
+      {
+        title: "8 — BLURT → STONE memo rail",
+        time: "4 min",
+        docs: ["Mesh Storage Partnership §2.3"],
+        status: "draft",
+        record: "Write the memo format large on screen. Example with fake addresses OK.",
+        script: `Payment rail option two: BLURT to STONE without touching whale float.
+
+Bloodstone operates or designates an outpost that accepts BLURT with a structured memo:
+
+storage colon STONE address colon byte count.
+
+Example: storage colon S T N abc one two three dot dot dot colon one zero seven three seven four one eight two four credits one gibibyte of storage quota to that STONE address.
+
+Blurt team can use the same memo for bulk monthly payment — point the memo at your tenant STONE address, not per-user micro-payments if you prefer simplicity.
+
+Status: proposed. Parser and credit logic are on the P one roadmap — two to three weeks after P zero bulk namespace ships. We will not tell you it is live until it is.
+
+You can still pay in STONE directly to the outpost if that is easier at launch.`,
+        takeaway: "Memo format: storage:<STONE_ADDR>:<bytes> · P1 roadmap · STONE direct OK at launch.",
+        ref: `Memo format:
+  storage:<STONE_ADDRESS>:<bytes>
+
+Example (1 GiB):
+  storage:STNabc123…:1073741824
+
+Payers:
+  Blurt bulk monthly  → tenant STONE address in memo
+  Optional user top-up → user's STONE address
+
+Status: PROPOSED (P1, ~2–3 weeks after P0)`
+      },
+      {
+        title: "9 — Pricing vs your S3 bill",
+        time: "4 min",
+        docs: ["Mesh Storage Partnership §3"],
+        status: "draft",
+        record: "Show €22.80 / 1.2 TB table. Partner lock rate concept — not spot-dependent.",
+        script: `Pricing anchor: your current spend — about twenty-two euros eighty per month for one point two terabytes.
+
+We quote Blurt bulk at a partner rate in STONE pegged to spot at order time, with a contracted ceiling so you are not hostage to rich-list OTC slippage. Target: meet or beat your S three spend at the bulk tier.
+
+Illustrative structure from the partnership draft:
+— Blurt bulk one point two TB: quoted monthly in STONE, comparable to twenty-two euros eighty.
+— Per-user free tier: fifty to five hundred mebibytes, subsidized from your bulk allocation — stakeholder multipliers are your governance call.
+— Direct user overage: up to about zero point zero one nine euros per gibibyte-month equivalent in STONE, via outpost or wallet.
+
+Exact STONE floats with market — you get a partner lock rate on the bulk one point two TB bundle, not a daily spot hunt on SaYQKHQr wallet number one.`,
+        takeaway: "Bulk 1.2 TB ≤ €22.80 equivalent · partner lock rate · not rich-list OTC.",
+        ref: `Your benchmark     €22.80 / month / 1.2 TB
+
+Partner bulk 1.2TB   ≤ €22.80 equiv in STONE (contract rate)
+Per-user free        50–500 MiB (from bulk pool)
+User overage         ≤ ~€0.019 / GiB-month in STONE
+
+1.2 TB = 1,228,800 MiB`
+      },
+      {
+        title: "10 — Phased rollout (P0 → P2)",
+        time: "5 min",
+        docs: ["Mesh Storage Partnership §4"],
+        status: "draft",
+        record: "Show phased table. Be explicit: P0 is weeks not months if Blurt commits.",
+        script: `Phased integration — so nobody gets fucked by scope creep.
+
+P zero — one to two weeks with Blurt commit: bulk namespace, publish token, quota API skeleton. You can start uploading namespaced assets like today's bucket.
+
+P one — two to three weeks after P zero: BLURT outpost account published, memo parser, storage credit ledger tied to outpost balance.
+
+P two — about four weeks: per-user quota dashboard in Blurt admin, usage charts, alert when bulk pool runs low.
+
+What is NOT in P zero: trustless on-chain vesting, automated peer replication payouts, livestream ingest — those are separate tracks.
+
+What we need from you to start P zero: confirm namespace convention, designate a technical contact, agree bulk STONE or BLURT payment preference, and sign off on initial one point two TB quota envelope.`,
+        takeaway: "P0 ≈ 1–2 wks · P1 outpost+memo · P2 admin dashboard · scope bounded.",
+        ref: `P0  (1–2 wk)   namespace + publish token + quota API
+P1  (2–3 wk)   outpost address + BLURT memo parser
+P2  (~4 wk)    Blurt admin quota dashboard
+
+NOT in scope yet:
+  on-chain vesting · auto replication rebates · livestream`
+      },
+      {
+        title: "11 — Co-design close & next steps",
+        time: "4 min",
+        docs: ["All published docs"],
+        status: "live",
+        record: "End on doc links. Invite Anthony to reply with payment preference + technical contact.",
+        script: `Close for Anthony and Blurt Core.
+
+Recap: we hear the concentration concern. We published the numbers, the wallet registry, the disbursement framework, and the outpost model so you are not buying STONE from three wallets.
+
+Recap technical: Model A bulk tenant, same user UX as S three, Chain Mesh live, billing and memo rail co-designed with honest timelines.
+
+What we owe you next if you want to proceed:
+— Publish outpost address at contract signature.
+— Fund it from partner bucket with visible on-chain TX.
+— Ship P zero namespace and quota API.
+— Monthly transparency report.
+
+What we need from you:
+— Confirm bulk one point two TB to start or different envelope.
+— STONE direct or BLURT memo preference at launch.
+— Technical contact for publish token and namespace review.
+— Call slot to finalize P zero checklist.
+
+Track one was consensus code. Track two is economics. Together the foundation catches up to the tech.
+
+Questions — we do not sleep either. Let's build it properly.`,
+        takeaway: "Published honesty + bounded phases · need Blurt confirm on TB, payment rail, tech contact.",
+        ref: `Docs (live):
+  Treasury disclosure (MD/DOCX)
+  Blurt partnership response
+  Mesh storage partnership WP
+  Rich list
+
+Your move:
+  1. Bulk quota size (1.2 TB?)
+  2. STONE or BLURT at launch
+  3. Tech contact for P0
+  4. Call to lock checklist`
+      }
+    ];
+
+    let idx = 0;
+    let presenter = false;
+    let scriptOnly = false;
+
+    const $main = document.getElementById("main");
+    const $list = document.getElementById("stop-list");
+    const $fill = document.getElementById("progress-fill");
+    const $plabel = document.getElementById("progress-label");
+
+    function esc(s) {
+      return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function renderList() {
+      $list.innerHTML = STOPS.map((s, i) =>
+        `<li><button type="button" data-i="${i}" class="${i === idx ? "current" : ""}">${esc(s.title)}</button></li>`
+      ).join("");
+      $list.querySelectorAll("button").forEach((b) => {
+        b.addEventListener("click", () => go(+b.dataset.i));
+      });
+    }
+
+    function renderStop() {
+      const s = STOPS[idx];
+      const docTags = (s.docs || []).map((d) => `<span class="tag doc">${esc(d)}</span>`).join("");
+      const statusTag = s.status
+        ? `<span class="tag ${s.status}">${s.status === "live" ? "● LIVE" : "◌ PROPOSED"}</span>`
+        : "";
+      const refBlock = s.ref
+        ? `<div class="${scriptOnly ? "hidden" : ""}"><div class="ref-head"><span>Reference card</span><span>screen-share this</span></div><pre><code>${esc(s.ref)}</code></pre></div>`
+        : "";
+
+      $main.innerHTML = `
+        <article class="card">
+          <h2>${esc(s.title)}</h2>
+          <div class="sub">Read aloud while recording · advance when done</div>
+          <div class="tags">
+            ${s.time ? `<span class="tag time">~${esc(s.time)}</span>` : ""}
+            ${statusTag}
+            ${docTags}
+          </div>
+          ${s.record ? `<div class="record-hint"><strong>Recording:</strong> ${esc(s.record)}</div>` : ""}
+          <div class="script-box">
+            <div class="label">Script — read this</div>
+            <div class="script-text">${esc(s.script)}</div>
+          </div>
+          ${s.takeaway ? `<div class="takeaway"><strong>Takeaway:</strong> ${esc(s.takeaway)}</div>` : ""}
+          ${refBlock}
+          <div class="nav-row">
+            <button type="button" id="nav-prev">← Previous</button>
+            <button type="button" class="primary" id="nav-next">${idx < STOPS.length - 1 ? "Next →" : "Finish"}</button>
+          </div>
+        </article>`;
+
+      document.getElementById("nav-prev").addEventListener("click", () => go(idx - 1));
+      document.getElementById("nav-next").addEventListener("click", () => go(idx + 1));
+
+      $fill.style.width = `${((idx + 1) / STOPS.length) * 100}%`;
+      $plabel.textContent = `Stop ${idx + 1} of ${STOPS.length}`;
+      renderList();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function go(i) {
+      if (i < 0 || i >= STOPS.length) return;
+      idx = i;
+      renderStop();
+    }
+
+    function togglePresenter() {
+      presenter = !presenter;
+      document.body.classList.toggle("presenter", presenter);
+      document.getElementById("btn-presenter").classList.toggle("active", presenter);
+    }
+
+    function toggleScriptOnly() {
+      scriptOnly = !scriptOnly;
+      document.getElementById("btn-script-only").classList.toggle("active", scriptOnly);
+      renderStop();
+    }
+
+    document.getElementById("btn-prev").addEventListener("click", () => go(idx - 1));
+    document.getElementById("btn-next").addEventListener("click", () => go(idx + 1));
+    document.getElementById("btn-presenter").addEventListener("click", togglePresenter);
+    document.getElementById("btn-script-only").addEventListener("click", toggleScriptOnly);
+
+    document.addEventListener("keydown", (e) => {
+      if (e.target.matches("input, textarea")) return;
+      if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); go(idx + 1); }
+      if (e.key === "ArrowLeft") { e.preventDefault(); go(idx - 1); }
+      if (e.key === "p" || e.key === "P") togglePresenter();
+      if (e.key === "s" || e.key === "S") toggleScriptOnly();
+    });
+
+    renderStop();
+  </script>
+</body>
+</html>

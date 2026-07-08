@@ -1,12 +1,16 @@
 /**
- * Android-only: mining is allowed only on external power and via the local node.
- * Users may bypass the power sensor when detection is wrong.
+ * Android-only: mining on battery requires >50% charge; low-battery bypass allows >5%.
+ * Plugged in / charging always allowed. Node sync is never gated by this module.
  */
 
 import { fleetPlugin } from "./device-fleet.js";
 import { isAndroidAppContext, whenCapacitorReady } from "./capacitor-ready.js";
 
 const POWER_BYPASS_KEY = "bloodstone-android-power-bypass";
+/** On battery without bypass: mine only above this percent. */
+const BATTERY_MIN_PERCENT_DEFAULT = 50;
+/** With bypass enabled: mine on battery down to this percent (stops at or below). */
+const BATTERY_MIN_PERCENT_BYPASS = 5;
 const POWER_RETRY_MS = 350;
 const POWER_RETRY_ATTEMPTS = 20;
 const POWER_POLL_MS = 5000;
@@ -149,24 +153,49 @@ export function cachedAndroidPowerStatus() {
   return lastStatus;
 }
 
+function batteryLevelPercent(status) {
+  const level = Number(status?.levelPercent);
+  return Number.isFinite(level) ? level : null;
+}
+
+function isOnExternalPower(status) {
+  if (!status || status.unknown) return false;
+  return Boolean(status.plugged || status.charging);
+}
+
+function batteryMinPercentForMining() {
+  return isAndroidPowerBypassEnabled()
+    ? BATTERY_MIN_PERCENT_BYPASS
+    : BATTERY_MIN_PERCENT_DEFAULT;
+}
+
 export function isAndroidPowerMiningAllowed(status = lastStatus) {
   if (!androidPowerMiningRequired()) return true;
-  if (isAndroidPowerBypassEnabled()) return true;
   if (!status || status.unknown) return true;
-  return Boolean(status.allowed);
+  if (isOnExternalPower(status)) return true;
+  const level = batteryLevelPercent(status);
+  if (level == null) return true;
+  return level > batteryMinPercentForMining();
 }
 
 export function androidPowerBlockReason(status = lastStatus) {
   if (!androidPowerMiningRequired()) return "";
-  if (isAndroidPowerBypassEnabled()) return "";
   if (!status || status.unknown) return "";
   if (isAndroidPowerMiningAllowed(status)) return "";
-  return "Plug in to charge before mining — or bypass the power sensor below.";
+  const level = batteryLevelPercent(status);
+  const min = batteryMinPercentForMining();
+  if (level != null && level <= min) {
+    if (isAndroidPowerBypassEnabled()) {
+      return `Battery at ${level}% — mining pauses at ${min}% or below. Plug in to continue.`;
+    }
+    return `Battery at ${level}% — need above ${min}% on battery, or plug in / enable low-battery bypass below.`;
+  }
+  return "Plug in to charge before mining — or enable low-battery bypass below.";
 }
 
 function sensorPowerLabel(status = lastStatus) {
   if (!status || status.unknown) return "power sensor unavailable";
-  if (status.allowed) {
+  if (isOnExternalPower(status)) {
     const parts = [];
     if (status.plugged) {
       parts.push(
@@ -188,22 +217,29 @@ function sensorPowerLabel(status = lastStatus) {
 
 export function formatAndroidPowerLabel(status = lastStatus) {
   if (!androidPowerMiningRequired()) return "";
-  if (isAndroidPowerBypassEnabled()) {
-    const sensor = sensorPowerLabel(status);
-    return `Power sensor bypassed — mining allowed (${sensor})`;
-  }
+  const min = batteryMinPercentForMining();
   if (powerFetchState === "pending" && (!status || status.unknown)) {
     return "Checking power status…";
   }
   if (!status || status.unknown) {
-    return "Power sensor unavailable — mining allowed. Plug in, or bypass below if stuck.";
+    return "Power sensor unavailable — mining allowed. Plug in if battery is low.";
   }
-  if (status.allowed) {
+  if (isAndroidPowerMiningAllowed(status)) {
     const pct = status.levelPercent != null ? ` · ${status.levelPercent}%` : "";
-    return `Power OK (${sensorPowerLabel(status)})${pct} — local node mining enabled`;
+    const onBattery = !isOnExternalPower(status);
+    const limit =
+      onBattery && isAndroidPowerBypassEnabled()
+        ? ` — low-battery bypass (stops at ${BATTERY_MIN_PERCENT_BYPASS}%)`
+        : onBattery
+          ? ` — on battery (needs >${BATTERY_MIN_PERCENT_DEFAULT}%)`
+          : "";
+    return `Power OK (${sensorPowerLabel(status)})${pct}${limit} — mining enabled`;
   }
   const pct = status.levelPercent != null ? ` (${status.levelPercent}% battery)` : "";
-  return `On battery${pct} — plug in to mine, or bypass the power sensor below`;
+  if (isAndroidPowerBypassEnabled()) {
+    return `Battery too low${pct} — bypass allows mining above ${BATTERY_MIN_PERCENT_BYPASS}% only`;
+  }
+  return `On battery${pct} — need above ${BATTERY_MIN_PERCENT_DEFAULT}%, plug in, or enable low-battery bypass`;
 }
 
 export function updateAndroidPowerBanner(status = lastStatus) {
@@ -222,9 +258,10 @@ export function updateAndroidPowerBanner(status = lastStatus) {
   }
   el.hidden = false;
   const bypassed = isAndroidPowerBypassEnabled();
-  const blocked = Boolean(status) && !status.unknown && !status.allowed && !bypassed;
-  const pending = powerFetchState === "pending" && !bypassed;
-  el.classList.toggle("power-ok", Boolean(status?.allowed) || bypassed || Boolean(status?.unknown));
+  const allowed = isAndroidPowerMiningAllowed(status);
+  const blocked = Boolean(status) && !status.unknown && !allowed;
+  const pending = powerFetchState === "pending";
+  el.classList.toggle("power-ok", allowed || Boolean(status?.unknown));
   el.classList.toggle("power-blocked", blocked);
   el.classList.toggle("power-pending", pending);
   el.classList.toggle("power-bypassed", bypassed);

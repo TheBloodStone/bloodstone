@@ -4,7 +4,9 @@ const os = require("os");
 
 const APP_NAME = "Bloodstone";
 const VPS_HOST = "64.188.22.190";
+const SECONDARY_SEED = "192.119.82.145";
 const DEFAULT_SEED = `${VPS_HOST}:17333`;
+const DEFAULT_SEEDS = [DEFAULT_SEED, `${SECONDARY_SEED}:17333`];
 const DEFAULT_RPC_PORT = 18332;
 const DEFAULT_P2P_PORT = 17333;
 const VPS_RPC_USER = "bloodstone";
@@ -104,7 +106,9 @@ function hasBundledDaemon(resourcesPath) {
 module.exports = {
   APP_NAME,
   VPS_HOST,
+  SECONDARY_SEED,
   DEFAULT_SEED,
+  DEFAULT_SEEDS,
   DEFAULT_RPC_PORT,
   DEFAULT_P2P_PORT,
   VPS_RPC_USER,

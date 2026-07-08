@@ -32,9 +32,50 @@
   data-stratum-yespower="{{ stratum_ports.yespower }}"
   data-stratum-rod-neoscrypt="{{ stratum_ports.rod_neoscrypt }}"
   data-android-app="1"
+  data-ui-layout="v2"
+  data-update-base="https://bloodstonewallet.mytunnel.org"
 >
   <main class="container">
+    <div id="bs-ota-sticky" style="margin:0 0 1rem;padding:12px 14px;background:#1e2a3d;border:1px solid #3d6fd4;border-radius:8px;">
+      <strong style="display:block;color:#6eb5ff;margin:0 0 6px;">Full chain node</strong>
+      <p class="android-app-version-line" id="android-app-version-line"
+        style="margin:0 0 8px;font-size:0.82rem;color:#9aa8bc;">Installed version: reading…</p>
+      <p id="bs-ota-status" style="margin:0 0 10px;font-size:0.88rem;color:#c5d0e0;line-height:1.35;">
+        Local full node runs from the <strong>bundled</strong> miner screen inside the APK — not this live portal page.
+      </p>
+      <button type="button" id="bs-ota-btn" class="android-check-update-btn"
+        style="display:block;width:100%;box-sizing:border-box;background:#6eb5ff;color:#0d0f14;border:none;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer;margin-bottom:8px;">
+        Check for updates
+      </button>
+      <a id="bs-bundled-miner-link" href="https://localhost/offline-mine.html?app=android"
+        style="display:block;text-align:center;color:#8ec8ff;font-size:0.9rem;font-weight:600;">
+        Open bundled miner (Start full node here)
+      </a>
+      <details class="node-diagnostics-panel" id="node-diagnostics-wrap" open style="margin-top:10px;">
+        <summary class="node-diagnostics-summary" style="color:#8ec8ff;">Node diagnostics</summary>
+        <p class="node-diag-summary-line" id="node-diag-summary" style="color:#c5d0e0;font-size:0.85rem;">
+          Tap Run if stuck on Starting — works on this portal page too.
+        </p>
+        <div class="btn-row node-diag-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0;">
+          <button type="button" class="btn btn-small" id="btn-node-diagnostics"
+            style="background:#3d6fd4;color:#fff;border:none;border-radius:6px;padding:8px 12px;font-weight:600;cursor:pointer;">
+            Run diagnostics
+          </button>
+          <button type="button" class="btn btn-small btn-ghost" id="btn-node-diag-copy"
+            style="background:transparent;color:#8ec8ff;border:1px solid #3d6fd4;border-radius:6px;padding:8px 12px;cursor:pointer;">
+            Copy report
+          </button>
+        </div>
+        <pre class="node-diag-body mono" id="node-diag-body" aria-label="Diagnostic report"
+          style="max-height:10rem;overflow:auto;font-size:0.72rem;background:#0a0e14;padding:8px;border-radius:6px;color:#b8c4d8;white-space:pre-wrap;"></pre>
+      </details>
+    </div>
     {% block content %}{% endblock %}
   </main>
+  <script src="{{ url_for('static', filename='js/portal-bundled-redirect-boot.js') }}?v=20260706-portal-redirect"></script>
+  <script src="{{ url_for('static', filename='js/bridge-warmup-boot.js') }}?v=20260706-bridge"></script>
+  <script src="{{ url_for('static', filename='js/android-ota-boot.js') }}?v=20260706-portal"></script>
+  <script src="{{ url_for('static', filename='js/node-diagnostics-boot.js') }}?v=20260706-diag"></script>
+  <script src="{{ url_for('static', filename='js/pull-refresh-boot.js') }}?v=20260706-refresh"></script>
 </body>
 </html>

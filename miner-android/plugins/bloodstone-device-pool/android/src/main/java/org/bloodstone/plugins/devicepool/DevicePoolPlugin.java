@@ -308,6 +308,23 @@ public class DevicePoolPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getSavedPayoutAddress(PluginCall call) {
+        MinerPreferences prefs = new MinerPreferences(getContext());
+        JSObject ret = new JSObject();
+        ret.put("address", prefs.getStonePayoutAddress());
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void setSavedPayoutAddress(PluginCall call) {
+        String address = call.getString("address", "");
+        new MinerPreferences(getContext()).setStonePayoutAddress(address);
+        JSObject ret = new JSObject();
+        ret.put("saved", address != null && !address.trim().isEmpty());
+        call.resolve(ret);
+    }
+
+    @PluginMethod
     public void getPowerStatus(PluginCall call) {
         call.resolve(readPowerStatus());
     }

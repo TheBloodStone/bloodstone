@@ -25,6 +25,7 @@ final class LanDiscovery {
         final int rpcPort;
         final int stratumPortNeoscrypt;
         final int stratumPortYespower;
+        final int stratumPortSha256d;
         final String mode;
 
         DiscoveredPeer(
@@ -33,6 +34,7 @@ final class LanDiscovery {
             int rpcPort,
             int stratumPortNeoscrypt,
             int stratumPortYespower,
+            int stratumPortSha256d,
             String mode
         ) {
             this.serviceName = serviceName;
@@ -40,6 +42,7 @@ final class LanDiscovery {
             this.rpcPort = rpcPort;
             this.stratumPortNeoscrypt = stratumPortNeoscrypt;
             this.stratumPortYespower = stratumPortYespower;
+            this.stratumPortSha256d = stratumPortSha256d;
             this.mode = mode;
         }
     }
@@ -58,7 +61,7 @@ final class LanDiscovery {
         ownLanIp = NetworkUtil.lanIpv4(context);
     }
 
-    void register(String serviceName, int rpcPort, String mode, int stratumNeo, int stratumYp) {
+    void register(String serviceName, int rpcPort, String mode, int stratumNeo, int stratumYp, int stratumSha256) {
         unregister();
         if (nsdManager == null) {
             return;
@@ -71,6 +74,8 @@ final class LanDiscovery {
             serviceInfo.setAttribute("mode", mode != null ? mode : "pruned");
             serviceInfo.setAttribute("stratum_neo", String.valueOf(stratumNeo));
             serviceInfo.setAttribute("stratum_yp", String.valueOf(stratumYp));
+            serviceInfo.setAttribute("stratum_sha256", String.valueOf(stratumSha256));
+            serviceInfo.setAttribute("pool_coordinator", String.valueOf(LanPoolCoordinator.HTTP_PORT));
         }
         registrationListener = new NsdManager.RegistrationListener() {
             @Override
@@ -211,7 +216,9 @@ final class LanDiscovery {
                 row.put("rpc_port", peer.rpcPort);
                 row.put("stratum_port", peer.stratumPortNeoscrypt);
                 row.put("stratum_port_yespower", peer.stratumPortYespower);
+                row.put("stratum_port_sha256d", peer.stratumPortSha256d);
                 row.put("mode", peer.mode);
+                row.put("pool_coordinator_port", LanPoolCoordinator.HTTP_PORT);
                 row.put("source", "mdns");
             } catch (Exception ignored) {
             }
@@ -236,6 +243,7 @@ final class LanDiscovery {
         String mode = "pruned";
         int stratumNeo = LocalNodeForegroundService.STRATUM_PORT_NEOSCRYPT;
         int stratumYp = LocalNodeForegroundService.STRATUM_PORT_YESPOWER;
+        int stratumSha256 = LocalNodeForegroundService.STRATUM_PORT_SHA256D;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             if (info.getAttributes().containsKey("mode")) {
                 mode = new String(info.getAttributes().get("mode"), java.nio.charset.StandardCharsets.UTF_8);
@@ -252,6 +260,12 @@ final class LanDiscovery {
                     stratumYp
                 );
             }
+            if (info.getAttributes().containsKey("stratum_sha256")) {
+                stratumSha256 = parsePort(
+                    new String(info.getAttributes().get("stratum_sha256"), java.nio.charset.StandardCharsets.UTF_8),
+                    stratumSha256
+                );
+            }
         }
         DiscoveredPeer peer = new DiscoveredPeer(
             info.getServiceName(),
@@ -259,6 +273,7 @@ final class LanDiscovery {
             rpcPort,
             stratumNeo,
             stratumYp,
+            stratumSha256,
             mode
         );
         removePeer(info.getServiceName());

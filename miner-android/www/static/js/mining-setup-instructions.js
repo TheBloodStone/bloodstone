@@ -96,6 +96,8 @@ export function updateLanStratumSetup(info, address = payoutAddress()) {
     setField("lan-port-neoscrypt", "—");
     setField("lan-host-yespower", "—");
     setField("lan-port-yespower", "—");
+    setField("lan-host-sha256d", "—");
+    setField("lan-port-sha256d", "—");
     setField("lan-rpc-url", "—");
     setField("lan-rpc-port", "—");
     setField("lan-rpc-user", "—");
@@ -111,6 +113,7 @@ export function updateLanStratumSetup(info, address = payoutAddress()) {
   const portsOpen = Boolean(info.portsOpen);
   const neoPort = info.neoscryptPort ?? 3437;
   const ypPort = info.yespowerPort ?? 3438;
+  const shaPort = info.sha256dPort ?? 3429;
   const rpcPort = info.rpcPort ?? 18340;
   const p2pPort = info.p2pPort ?? 17333;
 
@@ -118,6 +121,8 @@ export function updateLanStratumSetup(info, address = payoutAddress()) {
   setField("lan-port-neoscrypt", portsOpen ? String(neoPort) : `${neoPort} (closed)`);
   setField("lan-host-yespower", host);
   setField("lan-port-yespower", portsOpen ? String(ypPort) : `${ypPort} (closed)`);
+  setField("lan-host-sha256d", host);
+  setField("lan-port-sha256d", portsOpen ? String(shaPort) : `${shaPort} (closed)`);
   setField("lan-rpc-url", info.rpcUrl || (portsOpen && host !== "Wi‑Fi required" ? `http://${host}:${rpcPort}/` : "—"));
   setField("lan-rpc-port", portsOpen ? String(rpcPort) : `${rpcPort} (closed)`);
   setField("lan-rpc-user", info.rpcUser || "—");
@@ -129,6 +134,8 @@ export function updateLanStratumSetup(info, address = payoutAddress()) {
   setCopyTarget("btn-copy-lan-port-neoscrypt", "lan-port-neoscrypt");
   setCopyTarget("btn-copy-lan-host-yespower", "lan-host-yespower");
   setCopyTarget("btn-copy-lan-port-yespower", "lan-port-yespower");
+  setCopyTarget("btn-copy-lan-host-sha256d", "lan-host-sha256d");
+  setCopyTarget("btn-copy-lan-port-sha256d", "lan-port-sha256d");
   setCopyTarget("btn-copy-lan-rpc-url", "lan-rpc-url");
   setCopyTarget("btn-copy-lan-rpc-port", "lan-rpc-port");
   setCopyTarget("btn-copy-lan-rpc-user", "lan-rpc-user");
@@ -147,7 +154,7 @@ export function updateLanStratumSetup(info, address = payoutAddress()) {
         "Local node is in battery-save mode. Tap Start full node to open stratum ports.";
     } else {
       statusEl.textContent =
-        `Tap Start full node to open ports :${neoPort} (neoscrypt) and :${ypPort} (yespower) on ${host}.`;
+        `Tap Start full node to open ports :${neoPort} (neoscrypt), :${ypPort} (yespower), and :${shaPort} (SHA256d) on ${host}.`;
     }
   }
   if (details && info.lanIp) details.open = true;

@@ -1,5 +1,7 @@
 /** Decentralized VPS device pool — Capacitor Android fleet node helpers. */
 
+import { isAndroidAppContext } from "./capacitor-ready.js";
+
 export const FLEET_ROLE = "decentralized-vps-node";
 
 let fleetIdentity = null;
@@ -23,10 +25,18 @@ export function setFleetNodeStatus(status) {
 
 export function isCapacitorAndroid() {
   try {
-    return window.Capacitor?.getPlatform?.() === "android";
+    if (window.Capacitor?.getPlatform?.() === "android") return true;
+    // Remote portal inside the APK WebView still has native plugins via nativePromise.
+    if (
+      isAndroidAppContext()
+      && typeof window.Capacitor?.nativePromise === "function"
+    ) {
+      return true;
+    }
   } catch (_) {
     return false;
   }
+  return false;
 }
 
 export function fleetPlugin() {
@@ -127,7 +137,13 @@ function updateLocalVpsLine() {
 function readNodeModePreference() {
   try {
     const raw = localStorage.getItem("bloodstone-local-node-mode");
-    if (raw === "full" || raw === "mesh" || raw === "pruned") return raw;
+    if (
+    raw === "full"
+    || raw === "mesh"
+    || raw === "pruned"
+    || raw === "consensus"
+    || raw === "consensus-witness"
+  ) return raw;
   } catch (_) {
     /* ignore */
   }
@@ -147,7 +163,7 @@ export function updateFleetPanel({
 
   const isOffload =
     isCapacitorAndroid() && transport === "native-tcp";
-  const inApp = isCapacitorAndroid();
+  const inApp = isAndroidAppContext() || isCapacitorAndroid();
   panel.hidden = !inApp && !isOffload && !identity?.deviceId;
 
   const roleEl = document.getElementById("fleet-role");
@@ -212,8 +228,8 @@ export function updateFleetPanel({
       } else if (lastNodeStatus.batteryDormant && !lastNodeStatus.running) {
         statusEl.textContent =
           mode === "full"
-            ? "Full node dormant — tap Start mining to activate"
-            : "Node dormant — tap Start mining";
+            ? "Full node dormant — tap Start full node"
+            : "Node dormant — tap Start node";
       } else if (lastNodeStatus.running && nodeIsSyncing(lastNodeStatus)) {
         const raw = Number(lastNodeStatus.syncProgress);
         const local = Number(lastNodeStatus.blockHeight) || 0;
@@ -228,8 +244,8 @@ export function updateFleetPanel({
       } else if (lastNodeStatus.running) {
         statusEl.textContent =
           mode === "full"
-            ? "Full node active — tap Start to mine"
-            : "Local node active — tap Start to mine";
+            ? "Full node active — mining optional"
+            : "Local node active — mining optional";
       } else {
         statusEl.textContent = "Starting local node…";
       }

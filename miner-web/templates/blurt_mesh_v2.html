@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}Blurt Mesh v2.0-Lite · Bloodstone{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Chain Mesh v2.0-Lite</h1>
+  <p class="hero-sub muted">
+    Trustless storage layer aligned with
+    <a href="https://blurt.blog/rfc/@megadrive/rfc-bloodstone-chain-mesh-v2-0-lite-trustless-storage-layer-for-blurt" target="_blank" rel="noopener">Megadrive's RFC</a>:
+    Blurt <code>custom_json</code> registry + provider chunk plane + cryptographic verification.
+    Runs alongside the v1 coordinator (hybrid migration).
+  </p>
+  <div class="btn-row">
+    <a class="btn btn-small" href="{{ url_for('blurt_mesh_traffic_page') }}">Blurt traffic</a>
+    <a class="btn btn-ghost btn-small" href="/api/chain-mesh/v2/system">System JSON</a>
+    <a class="btn btn-ghost btn-small" href="/api/chain-mesh/v2/flow">Publish flow JSON</a>
+  </div>
+</section>
+
+<div class="stats-grid" id="v2-stats">
+  <div class="stat-card highlight">
+    <div class="stat-label">Spec</div>
+    <div class="stat-value" id="v2-spec">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Providers</div>
+    <div class="stat-value" id="v2-providers">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Registry</div>
+    <div class="stat-value mono small" id="v2-registry-id">—</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Trust model</div>
+    <div class="stat-value small" id="v2-trust">—</div>
+  </div>
+</div>
+
+<section class="panel">
+  <div class="panel-head"><h2>Architecture</h2></div>
+  <div class="panel-body">
+    <pre class="mono small" id="v2-layers" style="white-space:pre-wrap;margin:0"></pre>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Manifest lookup</h2></div>
+  <div class="panel-body stack">
+    <label class="muted small">
+      Asset key (e.g. <code>assets/blurt/media/99182/screen.mp4</code>)
+      <input type="text" id="v2-asset-key" class="mono" style="width:100%;margin-top:0.35rem;padding:0.5rem" placeholder="assets/blurt/…">
+    </label>
+    <div class="btn-row">
+      <button type="button" class="btn btn-small" id="v2-resolve">Resolve manifest</button>
+      <button type="button" class="btn btn-ghost btn-small" id="v2-verify">Trustless verify</button>
+    </div>
+    <pre class="mono small" id="v2-result" style="max-height:320px;overflow:auto;background:#0a0c10;padding:0.75rem;border-radius:8px"></pre>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Registered providers</h2></div>
+  <div class="panel-body">
+    <div class="table-wrap">
+      <table class="data-table" id="v2-provider-table">
+        <thead>
+          <tr><th>Peer ID</th><th>Roles</th><th>Tenant</th><th>Last seen</th></tr>
+        </thead>
+        <tbody><tr><td colspan="4" class="muted">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(async function () {
+  const api = (path) => fetch(path, { cache: "no-store" }).then((r) => r.json());
+
+  function esc(s) {
+    return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  }
+
+  async function loadSystem() {
+    const data = await api("/api/chain-mesh/v2/system");
+    if (!data?.ok) return;
+    document.getElementById("v2-spec").textContent = data.spec || "—";
+    document.getElementById("v2-providers").textContent = String(data.provider_count ?? "—");
+    document.getElementById("v2-registry-id").textContent = data.custom_json_id || "—";
+    document.getElementById("v2-trust").textContent = (data.trust_model || "—").replace(/_/g, " ");
+    const layers = data.layers || {};
+    document.getElementById("v2-layers").textContent = [
+      "Layer 1 — Blurt registry: " + (layers.registry || []).join(", "),
+      "Layer 2 — Chunk plane: " + (layers.chunk_plane || []).join(", "),
+      "Verification: " + (layers.verification || []).join(", "),
+      "",
+      ...(data.notes || []).map((n) => "• " + n),
+    ].join("\n");
+
+    const tbody = document.querySelector("#v2-provider-table tbody");
+    const providers = data.providers || [];
+    if (!providers.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="muted">No providers registered.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = providers.map((p) => {
+      const seen = p.last_seen ? new Date(p.last_seen * 1000).toLocaleString() : "—";
+      return `<tr>
+        <td class="mono small">${esc(p.peer_id)}</td>
+        <td>${esc((p.roles || []).join(", "))}</td>
+        <td>${esc(p.tenant || "—")}</td>
+        <td class="muted small">${esc(seen)}</td>
+      </tr>`;
+    }).join("");
+  }
+
+  async function runLookup(verify) {
+    const key = document.getElementById("v2-asset-key").value.trim();
+    const out = document.getElementById("v2-result");
+    if (!key) {
+      out.textContent = "Enter an asset_key.";
+      return;
+    }
+    const path = verify
+      ? `/api/chain-mesh/v2/verify?asset_key=${encodeURIComponent(key)}`
+      : `/api/chain-mesh/v2/manifest?asset_key=${encodeURIComponent(key)}`;
+    const data = await api(path);
+    out.textContent = JSON.stringify(data, null, 2);
+  }
+
+  document.getElementById("v2-resolve").addEventListener("click", () => runLookup(false));
+  document.getElementById("v2-verify").addEventListener("click", () => runLookup(true));
+
+  await loadSystem();
+})();
+</script>
+{% endblock %}

@@ -3,6 +3,19 @@
  * shells still get a visible update control and automatic UI bundle download.
  */
 (function () {
+  if (
+    document.documentElement?.dataset?.desktopApp === "1"
+    || document.body?.dataset?.desktopApp === "1"
+    || window.__bloodstoneDesktopBridgeSealed
+    || window.__bloodstoneDesktop
+  ) {
+    return;
+  }
+  try {
+    if (window.Capacitor?.getPlatform?.() === "desktop") return;
+  } catch (_) {
+    /* ignore */
+  }
   if (document.body?.dataset?.androidApp !== "1") return;
 
   var UPDATE_BASE = (document.body.dataset.updateBase || "https://bloodstonewallet.mytunnel.org").replace(/\/$/, "");
@@ -12,7 +25,7 @@
   ];
   var bootInFlight = false;
 
-  var MIN_WEB_UI = "1.3.53-web";
+  var MIN_WEB_UI = "1.3.73-web";
 
   function hasCurrentLayout() {
     return (
@@ -96,7 +109,9 @@
     if (!cap) return null;
     var raw = cap.Plugins && cap.Plugins.BloodstoneDevicePool;
     var hasNative = typeof cap.nativePromise === "function";
-    if (!raw && !hasNative) return null;
+    var platform =
+      typeof cap.getPlatform === "function" ? cap.getPlatform() : "";
+    if (!raw && !hasNative && platform !== "android") return null;
 
     function call(method, args) {
       args = args || {};
@@ -108,10 +123,6 @@
       }
       throw new Error("BloodstoneDevicePool." + method + " unavailable");
     }
-
-    var hasOta =
-      (raw && typeof raw.downloadAndApplyWebBundle === "function") || hasNative;
-    if (!hasOta) return null;
 
     var adapter = {
       getWebBundleInfo: function () {
@@ -141,7 +152,18 @@
   }
 
   function waitForPlugin(maxMs) {
-    maxMs = maxMs || 30000;
+    maxMs = maxMs || 45000;
+    if (typeof window.__bloodstoneWaitForBridge === "function") {
+      return window.__bloodstoneWaitForBridge(maxMs).then(function () {
+        var adapter = buildPluginAdapter();
+        if (adapter) return adapter;
+        return waitForPluginPoll(maxMs);
+      });
+    }
+    return waitForPluginPoll(maxMs);
+  }
+
+  function waitForPluginPoll(maxMs) {
     var deadline = Date.now() + maxMs;
     return new Promise(function (resolve) {
       (function poll() {
@@ -154,9 +176,24 @@
           resolve(null);
           return;
         }
-        setTimeout(poll, 100);
+        setTimeout(poll, 150);
       })();
     });
+  }
+
+  function openApkDownloadFallback(manifest, reason) {
+    var url =
+      (manifest && (manifest.apk_url_latest || manifest.apk_url))
+      || UPDATE_BASE + "/downloads/bloodstone-miner-android-latest.apk";
+    var ver = (manifest && (manifest.apk_version || manifest.version)) || "latest";
+    setStatus(
+      (reason || "Native bridge not ready")
+        + " — opening APK v"
+        + ver
+        + " download…",
+      "#f0c674",
+    );
+    window.location.href = url;
   }
 
   function fetchJson(url) {
@@ -257,28 +294,108 @@
     return 0;
   }
 
-  function readInstalledApkVersion() {
+  function normalizeApkVersion(info) {
+    if (!info || typeof info !== "object") return "";
+    var name = String(info.versionName || "").trim();
+    if (name && name !== "0") return name;
+    var code = Number(info.versionCode) || 0;
+    return code > 0 ? "build-" + code : "";
+  }
+
+  function probeApkVersionOnce() {
     var cap = window.Capacitor;
-    if (cap && typeof cap.nativePromise === "function") {
+    if (!cap) return Promise.resolve("");
+    if (typeof cap.nativePromise === "function") {
       return cap
         .nativePromise("BloodstoneDevicePool", "getAppVersion", {})
         .then(function (info) {
-          return String((info && info.versionName) || "").trim();
+          return normalizeApkVersion(info);
         })
         .catch(function () {
           return "";
         });
     }
-    var raw = cap && cap.Plugins && cap.Plugins.BloodstoneDevicePool;
+    var raw = cap.Plugins && cap.Plugins.BloodstoneDevicePool;
     if (raw && typeof raw.getAppVersion === "function") {
-      return raw.getAppVersion().then(function (info) {
-        return String((info && info.versionName) || "").trim();
-      }).catch(function () {
-        return "";
-      });
+      return raw
+        .getAppVersion()
+        .then(function (info) {
+          return normalizeApkVersion(info);
+        })
+        .catch(function () {
+          return "";
+        });
     }
-    var stamped = document.body.getAttribute("data-app-version") || "";
-    return Promise.resolve(String(stamped).trim());
+    return Promise.resolve("");
+  }
+
+  function readInstalledApkVersion(maxMs) {
+    maxMs = maxMs || 12000;
+    var deadline = Date.now() + maxMs;
+    return new Promise(function (resolve) {
+      (function poll() {
+        probeApkVersionOnce().then(function (version) {
+          if (version) {
+            resolve(version);
+            return;
+          }
+          if (Date.now() >= deadline) {
+            resolve("");
+            return;
+          }
+          setTimeout(poll, 200);
+        });
+      })();
+    });
+  }
+
+  function setVersionLines(apkVersion, webVersion) {
+    var apk = String(apkVersion || "").trim();
+    var web = String(webVersion || "").trim();
+    var text =
+      apk && web
+        ? "Installed: APK v" + apk + " · UI " + web
+        : apk
+          ? "Installed: APK v" + apk
+          : web
+            ? "Installed UI: " + web + " (APK version loading…)"
+            : "Installed version: reading…";
+    document.querySelectorAll(".android-app-version-line, #android-app-version-line").forEach(function (el) {
+      el.textContent = text;
+    });
+    if (apk) {
+      document.body.setAttribute("data-native-apk-version", apk);
+    }
+  }
+
+  function refreshVersionDisplay() {
+    return waitForPlugin(8000).then(function (plugin) {
+      return Promise.all([
+        readInstalledApkVersion(10000),
+        plugin ? readInstalledWebVersion(plugin) : Promise.resolve(""),
+        fetchManifest().catch(function () {
+          return null;
+        }),
+      ]).then(function (parts) {
+        var apk = parts[0];
+        var web = parts[1];
+        var manifest = parts[2];
+        setVersionLines(apk, web);
+        if (!manifest) return;
+        var remoteApk = String(manifest.apk_version || manifest.version || "").trim();
+        if (apk && remoteApk && compareVersions(apk, remoteApk) < 0) {
+          setStatus(
+            "APK update available: v" + apk + " → v" + remoteApk + " — tap Check for updates",
+            "#f0c674",
+          );
+        } else if (!apk && remoteApk) {
+          setStatus(
+            "Install APK v" + remoteApk + " from Downloads or tap Check for updates",
+            "#f0c674",
+          );
+        }
+      });
+    });
   }
 
   function ensureApkInstallPermission(plugin) {
@@ -355,9 +472,13 @@
     return waitForPlugin()
       .then(function (plugin) {
         if (!plugin) {
-          throw new Error(
-            "Native update bridge not ready — wait a few seconds and try again, or install the latest APK from Downloads",
-          );
+          return fetchManifest().then(function (manifest) {
+            openApkDownloadFallback(
+              manifest,
+              "Native update bridge not ready — install the latest APK",
+            );
+            return null;
+          });
         }
         return Promise.all([
           readInstalledWebVersion(plugin),
@@ -379,8 +500,12 @@
             installedWeb = "";
           }
           if (!layoutStale && !versionIsOlder(installedWeb, remoteWeb)) {
-            if (!remoteApk || !installedApk || compareVersions(installedApk, remoteApk) >= 0) {
+            var apkBehind =
+              remoteApk && installedApk && compareVersions(installedApk, remoteApk) < 0;
+            var apkUnknown = remoteApk && !installedApk;
+            if (!apkBehind && !apkUnknown) {
               setStatus("Up to date (UI " + (installedWeb || remoteWeb) + ")", "#7dcea0");
+              setVersionLines(installedApk, installedWeb);
               return null;
             }
             return applyApk(plugin, manifest, installedApk);
@@ -396,6 +521,16 @@
       })
       .catch(function (err) {
         var msg = (err && err.message) || String(err);
+        if (/bridge not ready|plugin unavailable|unavailable/i.test(msg)) {
+          fetchManifest()
+            .then(function (manifest) {
+              openApkDownloadFallback(manifest, msg);
+            })
+            .catch(function () {
+              openApkDownloadFallback(null, msg);
+            });
+          return;
+        }
         setStatus("Update failed: " + msg, "#f5a6a6");
       })
       .finally(function () {
@@ -403,9 +538,38 @@
       });
   }
 
+  function maybeAutoUpdate(plugin) {
+    if (!plugin) return Promise.resolve();
+    return fetchManifest()
+      .then(function (manifest) {
+        var remoteWeb = String(manifest.web_bundle_version || "").trim();
+        if (!remoteWeb) return null;
+        return readInstalledWebVersion(plugin).then(function (installedWeb) {
+          var layoutStale = !hasCurrentLayout() || needsWebLogicUpgrade();
+          if (!layoutStale && !versionIsOlder(installedWeb, remoteWeb)) {
+            return null;
+          }
+          setStatus(
+            "Downloading UI " + remoteWeb + (installedWeb ? " (was " + installedWeb + ")" : "") + "…",
+            "#f0c674",
+          );
+          return runUpdate({ auto: true });
+        });
+      })
+      .catch(function () {
+        return null;
+      });
+  }
+
   function boot() {
     if (!visibleUpdateButton()) ensureStickyBar();
     hookButtons(runUpdate);
+    setTimeout(function () {
+      void refreshVersionDisplay();
+    }, 400);
+    setInterval(function () {
+      void refreshVersionDisplay();
+    }, 30000);
     if (!hasCurrentLayout()) {
       try {
         localStorage.removeItem("bloodstone-web-bundle-version");
@@ -416,7 +580,15 @@
       setTimeout(function () {
         runUpdate({ auto: true });
       }, 1200);
+      return;
     }
+    window.addEventListener("bloodstone-bridge-ready", function () {
+      void refreshVersionDisplay();
+      waitForPlugin(5000).then(maybeAutoUpdate);
+    });
+    setTimeout(function () {
+      waitForPlugin().then(maybeAutoUpdate);
+    }, 2500);
   }
 
   if (document.readyState === "loading") {

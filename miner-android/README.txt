@@ -31,7 +31,7 @@ Build APK
 Local node modes (Android)
 --------------------------
   pruned — ~550 MiB tip node (default)
-  full   — entire blockchain on device; peers on :17333 (no wallet)
+  full   — entire blockchain on device; peers on :17333; on-device wallet
   mesh   — pruned tip + up to 256 chain-mesh chunks (~64 MiB backups)
 
 Capacitor plugins

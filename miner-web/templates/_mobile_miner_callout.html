@@ -8,6 +8,19 @@
     </p>
     <div class="mobile-miner-grid">
       <article class="mobile-miner-card">
+        <h3>Windows / Linux PC</h3>
+        <p class="muted small">Same fleet miner UI as the Android app — local chain node, pool CPU mining, and LAN hashrate reporting for household ASICs.</p>
+        {% if run_locally and run_locally.miner_desktop_linux %}
+        <a class="btn" href="{{ run_locally.miner_desktop_linux.url }}">Download desktop miner (Linux) v{{ run_locally.miner_desktop_version }}</a>
+        {% endif %}
+        {% if run_locally and run_locally.miner_desktop_win %}
+        <a class="btn btn-ghost btn-small" href="{{ run_locally.miner_desktop_win.url }}">Windows portable v{{ run_locally.miner_desktop_version }}</a>
+        {% endif %}
+        {% if run_locally and run_locally.miner_desktop_src %}
+        <a class="btn btn-ghost btn-small" href="{{ run_locally.miner_desktop_src.url }}">Desktop source (Electron)</a>
+        {% endif %}
+      </article>
+      <article class="mobile-miner-card">
         <h3>Android</h3>
         <ol class="mobile-steps">
           <li>Open <a href="{{ url_for('mine', _external=true) }}">Web Miner</a> in Chrome</li>

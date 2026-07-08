@@ -57,6 +57,28 @@
 
     <section class="panel">
       <div class="panel-head">
+        <h2>Exchange node package (CEX)</h2>
+        <p class="panel-sub">Dedicated full node with txindex + hot wallet — do not use the pool VPS RPC.</p>
+      </div>
+      <div class="panel-body">
+        {% if listing.infrastructure.downloads.exchange_node_linux %}
+        <div class="info-box"><strong>Exchange node package available</strong> — includes setup and verify scripts.</div>
+        <dl class="detail-dl">
+          <dt>Download</dt>
+          <dd><a href="{{ listing.infrastructure.downloads.exchange_node_linux.url }}">{{ listing.exchange_node.package }}</a></dd>
+          <dt>Hot wallet</dt><dd class="mono">{{ listing.exchange_node.wallet_name }}</dd>
+          <dt>datadir (example)</dt><dd class="mono">{{ listing.exchange_node.datadir_example }}</dd>
+          <dt>Required</dt><dd class="mono">txindex=1 · wallet enabled · no disablewallet</dd>
+        </dl>
+        <p class="muted small">Quick start: extract tarball → <code class="mono">sudo ./setup-exchange-node.sh</code> → <code class="mono">./verify-exchange-node.sh</code></p>
+        {% else %}
+        <div class="warn-box">Exchange node package building — check <a href="{{ listing.infrastructure.downloads }}">Downloads</a> shortly.</div>
+        {% endif %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
         <h2>Node &amp; seeds</h2>
         <p class="panel-sub">Run your own node or peer to our seeds — RPC is not exposed publicly.</p>
       </div>
@@ -100,6 +122,9 @@
           <li><a href="{{ listing.infrastructure.downloads }}">Downloads</a> — node core, Windows node GUI, wallet GUI</li>
           {% if listing.infrastructure.downloads.wallet_gui_windows %}
           <li><a href="{{ listing.infrastructure.downloads.wallet_gui_windows.url }}">Wallet &amp; Node GUI v{{ listing.software.wallet_gui_version }}</a> (Windows)</li>
+          {% endif %}
+          {% if listing.infrastructure.downloads.exchange_node_linux %}
+          <li><a href="{{ listing.infrastructure.downloads.exchange_node_linux.url }}">Exchange node (Linux) v{{ listing.software.node_core_version }}</a> — CEX deposits/withdrawals</li>
           {% endif %}
           {% if listing.infrastructure.downloads.node_linux %}
           <li><a href="{{ listing.infrastructure.downloads.node_linux.url }}">Linux node v{{ listing.software.node_core_version }}</a></li>

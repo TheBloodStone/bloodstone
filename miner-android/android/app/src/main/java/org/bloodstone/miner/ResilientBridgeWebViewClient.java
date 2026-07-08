@@ -13,6 +13,8 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
 import com.getcapacitor.Bridge;
 import com.getcapacitor.BridgeWebViewClient;
 
@@ -43,18 +45,38 @@ public class ResilientBridgeWebViewClient extends BridgeWebViewClient {
     private final ExecutorService downloadExecutor = Executors.newSingleThreadExecutor();
     private int retryCount = 0;
     private Runnable pendingRetry;
+    private SwipeRefreshLayout swipeRefreshLayout;
 
     public ResilientBridgeWebViewClient(Bridge bridge) {
         super(bridge);
         this.bridge = bridge;
     }
 
+    public void setSwipeRefreshLayout(SwipeRefreshLayout layout) {
+        this.swipeRefreshLayout = layout;
+    }
+
+    private void stopRefreshing() {
+        if (swipeRefreshLayout != null) {
+            swipeRefreshLayout.setRefreshing(false);
+        }
+    }
+
+    private static final String BUNDLED_MINER_URL =
+        "https://localhost/offline-mine.html?app=android";
+
     @Override
     public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
         if (request != null && request.isForMainFrame()) {
             Uri uri = request.getUrl();
-            if (uri != null && handleReleaseDownload(view, uri.toString())) {
-                return true;
+            if (uri != null) {
+                if (shouldRedirectToBundledMiner(uri.toString())) {
+                    view.loadUrl(BUNDLED_MINER_URL);
+                    return true;
+                }
+                if (handleReleaseDownload(view, uri.toString())) {
+                    return true;
+                }
             }
         }
         return super.shouldOverrideUrlLoading(view, request);
@@ -63,8 +85,14 @@ public class ResilientBridgeWebViewClient extends BridgeWebViewClient {
     @Override
     @SuppressWarnings("deprecation")
     public boolean shouldOverrideUrlLoading(WebView view, String url) {
-        if (url != null && handleReleaseDownload(view, url)) {
-            return true;
+        if (url != null) {
+            if (shouldRedirectToBundledMiner(url)) {
+                view.loadUrl(BUNDLED_MINER_URL);
+                return true;
+            }
+            if (handleReleaseDownload(view, url)) {
+                return true;
+            }
         }
         return super.shouldOverrideUrlLoading(view, url);
     }
@@ -87,6 +115,7 @@ public class ResilientBridgeWebViewClient extends BridgeWebViewClient {
             scheduleRetry(view);
             return;
         }
+        stopRefreshing();
         super.onReceivedError(view, request, error);
     }
 
@@ -101,6 +130,7 @@ public class ResilientBridgeWebViewClient extends BridgeWebViewClient {
             scheduleRetry(view);
             return;
         }
+        stopRefreshing();
         super.onReceivedHttpError(view, request, errorResponse);
     }
 
@@ -109,6 +139,11 @@ public class ResilientBridgeWebViewClient extends BridgeWebViewClient {
         if (isRemoteMinerUrl(url)) {
             retryCount = 0;
             cancelPendingRetry();
+        }
+        stopRefreshing();
+        if (shouldRedirectToBundledMiner(url)) {
+            view.loadUrl(BUNDLED_MINER_URL);
+            return;
         }
         injectInstalledAppVersion(view);
         super.onPageFinished(view, url);
@@ -202,13 +237,14 @@ public class ResilientBridgeWebViewClient extends BridgeWebViewClient {
             String safe = version.replace("\\", "\\\\").replace("'", "\\'");
             String js =
                 "(function(){var b=document.body;if(!b)return;" +
-                "b.dataset.appVersion='" +
+                "b.dataset.nativeApkVersion='" +
                 safe +
                 "';" +
-                "var el=document.getElementById('android-app-version-line');" +
-                "if(el){el.textContent='Installed version: v" +
+                "var text='Installed: APK v" +
                 safe +
-                "';}})();";
+                "';" +
+                "document.querySelectorAll('.android-app-version-line,#android-app-version-line')" +
+                ".forEach(function(el){el.textContent=text;});})();";
             view.evaluateJavascript(js, null);
         } catch (Exception ignored) {
             // PackageManager unavailable — web layer falls back to nativePromise.
@@ -266,6 +302,27 @@ public class ResilientBridgeWebViewClient extends BridgeWebViewClient {
             handler.removeCallbacks(pendingRetry);
             pendingRetry = null;
         }
+    }
+
+    /** Portal miner pages lack Capacitor JS — only localhost bundle has the native bridge. */
+    private static boolean shouldRedirectToBundledMiner(String url) {
+        if (url == null || url.isEmpty()) {
+            return false;
+        }
+        Uri uri = Uri.parse(url);
+        String path = uri.getPath();
+        if (path == null) {
+            return false;
+        }
+        if (path.contains("/downloads")) {
+            return false;
+        }
+        if (!isRemoteMinerUrl(url)) {
+            return false;
+        }
+        return path.startsWith("/mining/mine")
+            || "/mining/mine".equals(path)
+            || (path.startsWith("/mining/") && path.endsWith("/mine"));
     }
 
     private static boolean isRemoteMinerUrl(String url) {

@@ -252,11 +252,17 @@ def sync_to_qt_projects() -> List[str]:
             icon_1024 = _resize_png_nearest(source, 1024)
             _write_png(qt_icon, icon_1024)
             updated.append(qt_icon)
+            qt_ico = os.path.join(chain_root, "src/qt/res/icons/bitcoin.ico")
+            if os.path.isfile(icon_ico_path()):
+                shutil.copy2(icon_ico_path(), qt_ico)
+                updated.append(qt_ico)
 
         if os.path.isdir(pixmaps_dir):
             for size in QT_ICON_SIZES:
                 out = os.path.join(pixmaps_dir, f"bitcoin{size}.png")
                 _write_png(out, _resize_png_nearest(source, size))
+            if os.path.isfile(icon_ico_path()):
+                shutil.copy2(icon_ico_path(), os.path.join(pixmaps_dir, "bitcoin.ico"))
             updated.append(pixmaps_dir)
 
     return updated

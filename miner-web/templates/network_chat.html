@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Network Chat — Bloodstone Mining{% endblock %}
+
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/network-chat.css') }}?v=20260707b">
+
+<section class="panel" style="border:none;background:transparent;padding:0;">
+  <div class="nc-app" id="network-chat-app">
+    <div class="nc-titlebar">
+      <div class="nc-title">
+        <span class="nc-icon">BS</span>
+        <span>Bloodstone Network Chat</span>
+      </div>
+      <span class="nc-counts" id="nc-online-counts">…</span>
+    </div>
+
+    <div class="nc-body">
+      <aside class="nc-sidebar">
+        <div class="nc-me">
+          <label for="nc-nick">Screen name</label>
+          <input id="nc-nick" type="text" maxlength="64" placeholder="Your nick" autocomplete="nickname">
+          <label for="nc-status-msg" style="margin-top:0.35rem;">Status</label>
+          <input id="nc-status-msg" type="text" maxlength="120" placeholder="On the mesh" autocomplete="off">
+        </div>
+        <div class="nc-buddy-head">Buddies &amp; nodes</div>
+        <div class="nc-buddy-list" id="nc-buddy-list"></div>
+      </aside>
+
+      <div class="nc-main">
+        <div class="nc-chat-head" id="nc-chat-head">Network Lobby</div>
+        <div class="nc-messages" id="nc-messages" aria-live="polite"></div>
+        <div class="nc-compose">
+          <textarea id="nc-compose" rows="2" maxlength="1200" placeholder="Type a message… (Enter to send)"></textarea>
+          <button type="button" class="nc-send" id="nc-send">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="nc-statusbar" id="nc-statusbar">Loading…</div>
+  </div>
+
+  <p class="muted small" style="margin-top:1rem;max-width:980px;margin-left:auto;margin-right:auto;">
+    Messages ride the <strong>BSM3 mesh packet</strong> layer — the same virtual LAN used on the
+    <a href="{{ url_for('network_data') }}#nd-packet-lan-panel">Network Data Portal</a>.
+    Android nodes and browsers share the <strong>Network Lobby</strong>; click any online node for a private DM.
+  </p>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script type="module">
+  import { initNetworkChat } from "{{ url_for('static', filename='js/network-chat-ui.js') }}?v=20260707b";
+  initNetworkChat(document);
+</script>
+{% endblock %}

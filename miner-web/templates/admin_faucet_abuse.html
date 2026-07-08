@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Faucet abuse · Admin{% endblock %}
+{% block content %}
+<section class="page-head">
+  <h1>Faucet abuse &amp; IP stats</h1>
+  <p class="muted">
+    Accounts per IP and per browser cookie (<code>bs_device_id</code>). Limits are configured on the
+    <a href="{{ url_for('admin') }}">main admin page</a> under Faucet.
+  </p>
+  <div class="btn-row">
+    <a class="btn btn-ghost" href="{{ url_for('admin') }}">← Back to admin</a>
+    <form action="{{ url_for('admin_logout') }}" method="post" style="display:inline">
+      <button type="submit" class="btn btn-ghost">Logout</button>
+    </form>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head"><h2>Active limits</h2></div>
+  <div class="panel-body admin-grid">
+    <div class="stat-card">
+      <div class="stat-label">Max accounts per IP</div>
+      <div class="stat-value">{{ limits.max_accounts_per_ip }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Max accounts per browser</div>
+      <div class="stat-value">{{ limits.max_accounts_per_device }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">One faucet account per browser</div>
+      <div class="stat-value">{{ "Yes" if limits.enforce_device_binding else "No" }}</div>
+    </div>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Registrations by IP</h2>
+    <p class="panel-sub muted small">Wallet signups grouped by registration IP (new accounts only).</p>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>IP address</th>
+          <th>Accounts</th>
+          <th>Usernames</th>
+          <th>First signup</th>
+          <th>Last signup</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in registration_ips %}
+        <tr{% if row.account_count > limits.max_accounts_per_ip %} class="row-warn"{% endif %}>
+          <td class="mono"><a href="{{ url_for('admin_faucet_abuse_ip', ip=row.ip) }}">{{ row.ip }}</a></td>
+          <td>{{ row.account_count }}</td>
+          <td class="small">{{ row.usernames or "—" }}</td>
+          <td class="small">{{ row.first_created or "—" }}</td>
+          <td class="small">{{ row.last_created or "—" }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="muted">No registration IPs recorded yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Faucet claims by IP</h2>
+    <p class="panel-sub muted small">Distinct wallet accounts that claimed from each IP.</p>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>IP address</th>
+          <th>Distinct accounts</th>
+          <th>Total claims</th>
+          <th>Addresses</th>
+          <th>Last claim</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in claim_ips %}
+        <tr{% if row.distinct_users > 1 %} class="row-warn"{% endif %}>
+          <td class="mono"><a href="{{ url_for('admin_faucet_abuse_ip', ip=row.ip) }}">{{ row.ip }}</a></td>
+          <td>{{ row.distinct_users }}</td>
+          <td>{{ row.claim_count }}</td>
+          <td>{{ row.distinct_addresses }}</td>
+          <td class="small">{{ fmt_time(row.last_claim) if row.last_claim else "—" }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="muted">No faucet claims yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <div class="panel-head">
+    <h2>Registrations by browser cookie</h2>
+    <p class="panel-sub muted small">Same person clearing cookies gets a new token — combine with IP stats.</p>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Device token</th>
+          <th>Accounts</th>
+          <th>Usernames</th>
+          <th>Last signup</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in registration_devices %}
+        <tr{% if row.account_count > limits.max_accounts_per_device %} class="row-warn"{% endif %}>
+          <td class="mono small">{{ row.device_token[:8] }}…{{ row.device_token[-4:] }}</td>
+          <td>{{ row.account_count }}</td>
+          <td class="small">{{ row.usernames or "—" }}</td>
+          <td class="small">{{ row.last_created or "—" }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="muted">No device tokens recorded yet (applies to new signups).</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% if ip_detail %}
+<section class="panel">
+  <div class="panel-head"><h2>IP detail: {{ ip_detail }}</h2></div>
+  <div class="panel-body">
+    <h3 class="small">Registered accounts</h3>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th>ID</th><th>Username</th><th>Created</th><th>Primary address</th><th>Device</th></tr>
+        </thead>
+        <tbody>
+          {% for u in ip_users %}
+          <tr>
+            <td>{{ u.id }}</td>
+            <td>{{ u.username }}</td>
+            <td class="small">{{ u.created_at }}</td>
+            <td class="mono small">{{ u.primary_receive_address or "—" }}</td>
+            <td class="mono small">{% if u.device_token %}{{ u.device_token[:8] }}…{% else %}—{% endif %}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="muted">No accounts registered from this IP.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <h3 class="small" style="margin-top:1.25rem">Recent faucet claims</h3>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr><th>User ID</th><th>Address</th><th>Amount</th><th>TX</th><th>When</th></tr>
+        </thead>
+        <tbody>
+          {% for c in ip_claims %}
+          <tr>
+            <td>{{ c.user_id or "—" }}</td>
+            <td class="mono small">{{ c.address }}</td>
+            <td>{{ c.amount }}</td>
+            <td class="mono small">{{ (c.txid or "")[:16] }}…</td>
+            <td class="small">{{ fmt_time(c.created_at) }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="muted">No claims from this IP.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<style>
+  .row-warn td { background: rgba(200, 80, 80, 0.12); }
+</style>
+{% endblock %}

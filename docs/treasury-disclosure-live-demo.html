@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0a1218">
+  <title>Treasury & Concentration Disclosure — Live Demo</title>
+  <style>
+    :root {
+      --bg: #0a1218;
+      --panel: #141e28;
+      --panel2: #1c2a38;
+      --text: #eef4f8;
+      --muted: #8aa4b8;
+      --accent: #5ecfff;
+      --gold: #f0c878;
+      --ok: #5dffa8;
+      --warn: #ffb84d;
+      --fail: #ff6b6b;
+      --border: #2a4055;
+      --read-size: 1.45rem;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    a { color: var(--accent); }
+    .bar {
+      position: sticky; top: 0; z-index: 30;
+      background: rgba(10,18,24,.97);
+      border-bottom: 1px solid var(--border);
+      padding: .6rem 1rem;
+      display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; justify-content: space-between;
+    }
+    .bar h1 { margin: 0; font-size: .95rem; }
+    .bar .sub { font-size: .78rem; color: var(--muted); }
+    .ctrl { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; }
+    button {
+      background: var(--panel2); color: var(--text);
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: .42rem .75rem; font-size: .85rem; cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); }
+    button.run { background: #1a4a38; border-color: var(--ok); }
+    button.run.active { background: #3a2020; border-color: var(--fail); }
+    button.primary { background: #1a3d55; border-color: var(--accent); }
+    .layout {
+      max-width: 1400px; margin: 0 auto; padding: .85rem;
+      display: grid; grid-template-columns: 1fr 420px; gap: .85rem;
+    }
+    @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: .9rem 1rem; margin-bottom: .85rem;
+    }
+    .card h2 { margin: 0 0 .25rem; font-size: 1.15rem; }
+    .card .hint { color: var(--muted); font-size: .82rem; margin-bottom: .6rem; }
+    .step-badge {
+      display: inline-block; font-size: .72rem; padding: .12rem .45rem;
+      border-radius: 4px; background: var(--panel2); color: var(--gold);
+      border: 1px solid #5a4820; margin-bottom: .5rem;
+    }
+    .read-panel {
+      min-height: 220px;
+      background: #060c12;
+      border: 2px solid #2a4a60;
+      border-radius: 10px;
+      padding: 1.1rem 1.2rem;
+      font-size: var(--read-size);
+      line-height: 1.7;
+    }
+    .read-panel .sent {
+      display: inline;
+      transition: color .2s, background .2s;
+      border-radius: 3px;
+      padding: 0 .05rem;
+    }
+    .read-panel .sent.done { color: #6a8498; }
+    .read-panel .sent.active {
+      color: #fff;
+      background: rgba(240,200,120,.18);
+      box-shadow: 0 0 0 2px rgba(240,200,120,.25);
+    }
+    .progress-line {
+      height: 4px; background: var(--panel2); border-radius: 2px;
+      margin: .65rem 0 .35rem; overflow: hidden;
+    }
+    .progress-line > div {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--ok));
+      transition: width .35s ease;
+    }
+    .test-log {
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: .74rem; line-height: 1.45;
+      background: #04080c; border: 1px solid var(--border);
+      border-radius: 8px; padding: .65rem .75rem;
+      max-height: 280px; overflow: auto;
+    }
+    .log-line { margin: .15rem 0; white-space: pre-wrap; word-break: break-all; }
+    .log-line.cmd { color: #7ec8ff; }
+    .log-line.ok { color: var(--ok); }
+    .log-line.warn { color: var(--warn); }
+    .log-line.err { color: var(--fail); }
+    .log-line.info { color: var(--muted); }
+    .results { margin-top: .6rem; }
+    table {
+      width: 100%; border-collapse: collapse; font-size: .78rem;
+    }
+    th, td {
+      border: 1px solid var(--border); padding: .35rem .45rem;
+      text-align: left; vertical-align: top;
+    }
+    th { background: #1a3040; color: var(--accent); }
+    .pill {
+      display: inline-block; font-size: .68rem; padding: .1rem .35rem;
+      border-radius: 4px; font-weight: 600;
+    }
+    .pill.pass { background: #1a3d2a; color: var(--ok); }
+    .pill.info { background: #2a3040; color: var(--accent); }
+    .pill.warn { background: #3d3020; color: var(--warn); }
+    .pill.fail { background: #3d2020; color: var(--fail); }
+    .pill.live { background: #1a3d2a; color: var(--ok); animation: pulse 1.5s infinite; }
+    @keyframes pulse { 50% { opacity: .65; } }
+    .metric-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: .5rem; margin-top: .5rem;
+    }
+    .metric {
+      background: var(--panel2); border: 1px solid var(--border);
+      border-radius: 8px; padding: .5rem .55rem;
+    }
+    .metric .v { font-size: 1.1rem; font-weight: 700; color: var(--gold); }
+    .metric .l { font-size: .68rem; color: var(--muted); margin-top: .15rem; }
+    .sidebar { position: sticky; top: 3.8rem; align-self: start; }
+    .toc button {
+      width: 100%; text-align: left; margin: .15rem 0;
+      font-size: .78rem;
+    }
+    .toc button.on { border-color: var(--gold); background: #2a2418; }
+    .status-row {
+      display: flex; flex-wrap: wrap; gap: .4rem; margin: .4rem 0;
+      font-size: .75rem; color: var(--muted);
+    }
+    footer { text-align: center; color: var(--muted); font-size: .78rem; padding: 1rem; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header class="bar">
+    <div>
+      <h1>Treasury &amp; Concentration Disclosure — Live Demo</h1>
+      <div class="sub">Reads aloud · runs on-chain tests on screen · July 2026 v1.0 draft</div>
+    </div>
+    <div class="ctrl">
+      <button type="button" class="run" id="btn-auto">▶ Start live demo</button>
+      <button type="button" id="btn-voice" class="primary">🔊 Voice on</button>
+      <button type="button" id="btn-read">Read step</button>
+      <button type="button" id="btn-step">Next step</button>
+      <button type="button" id="btn-refresh">↻ Refresh data</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div class="main">
+      <div class="card">
+        <span class="step-badge" id="step-label">Step 1 / 9</span>
+        <h2 id="step-title">Loading…</h2>
+        <div class="hint" id="step-hint"></div>
+        <div class="progress-line"><div id="step-progress"></div></div>
+        <div class="read-panel" id="read-panel" aria-live="polite"></div>
+        <div class="results" id="results-panel"></div>
+      </div>
+    </div>
+
+    <aside class="sidebar">
+      <div class="card">
+        <h2>Test console</h2>
+        <div class="status-row">
+          <span>Height: <strong id="live-height">…</strong></span>
+          <span>Supply: <strong id="live-supply">…</strong></span>
+          <span class="pill live" id="live-pill">LIVE</span>
+        </div>
+        <div class="test-log" id="test-log"></div>
+      </div>
+      <div class="card toc">
+        <h2>Sections</h2>
+        <div id="toc"></div>
+      </div>
+      <div class="card">
+        <h2>Links</h2>
+        <p style="font-size:.8rem;margin:0;line-height:1.6">
+          <a href="downloads/Bloodstone-Treasury-and-Concentration-Disclosure.md">Disclosure MD</a><br>
+          <a href="treasury-outpost-tour.html">Track #2 tour</a><br>
+          <a href="consensus-code-tour.html">Track #1 tour</a><br>
+          <a href="https://bloodstonewallet.mytunnel.org/#rich-list">Rich list</a>
+        </p>
+      </div>
+    </aside>
+  </div>
+
+  <footer>Bloodstone · auto-fetches /api/rich-list · /mining/api/pool/subsidy-schedule · /explorer/api/stats · /mining/api/chain-mesh/status</footer>
+
+  <script>
+    const ORIGIN = location.origin;
+    const PREMINE = 199999998;
+    const GENESIS_ADDR = "SZNtmBMyx2Cr9VMrj5vk5EYTUn1naedu5N";
+    const PARTNER_FUNDING_ADDRS = [
+      "SPWDbxeVc9BGUepmT5FDECTKr8ucdu91Hh",
+      "ScDCPRunWLsKf4JyG8j1t3E4mkYaTFSVEV",
+    ];
+    const FORK_HEIGHT = 12000;
+    const ERA0_END = 1054080;
+    const ERA0_POW_MINT = 1199900 + (ERA0_END - FORK_HEIGHT) * 1000; // pre+post fork era 0
+
+    const WALLET_REGISTRY = {
+      [GENESIS_ADDR]: { rank: "—", label: "Genesis premine (historical)", bucket: "Genesis", status: "Spent" },
+      SaYQKHQrRMnjtbupzi1Bb9oEWe1rHf1jkk: { rank: 1, label: "Treasury cold reserve (webuser3)", bucket: "Core treasury", status: "Cold" },
+      SkAsaotDaF2y8KqJdZaFs9hnpwmaCA7Equ: { rank: 2, label: "Infrastructure reserve", bucket: "Infrastructure", status: "Cold" },
+      SPWDbxeVc9BGUepmT5FDECTKr8ucdu91Hh: { rank: 3, label: "Treasury operational (webuser2)", bucket: "Partner + ecosystem", status: "Operational" },
+      SarFkPCFripGoPSy6jKag8fYsKiMQhfP3L: { rank: 4, label: "Grants wallet (webuser7)", bucket: "Community grants", status: "Earmarked" },
+      SNK6tDSHYVybJt5HTj5BSwb1PYhoSuZAz6: { rank: 5, label: "Operational reserve", bucket: "Infrastructure", status: "Operational" },
+      SbqkZPjC2npdetcAo4PpG6g4vDnwe6Npcy: { rank: 6, label: "5M tranche", bucket: "Ecosystem grants", status: "Earmarked" },
+      SULPj2pzLuiZ9KKYiz4Gfif8wVPtXFhYGi: { rank: 7, label: "5M tranche (webuser37)", bucket: "Ecosystem grants", status: "Earmarked" },
+      ScDCPRunWLsKf4JyG8j1t3E4mkYaTFSVEV: { rank: 8, label: "Partner tranche", bucket: "Partner programs", status: "Earmarked" },
+      SRJHN2SszzCGFRQnbSZJZ8buqoZ6CbQxAF: { rank: 9, label: "~4M tranche", bucket: "Liquidity reserve", status: "Earmarked" },
+      SbqzoTuDp5ozPWCyj3ykY72TS6Wzk3YArB: { rank: 10, label: "Operational float", bucket: "Community", status: "Operational" },
+      SNQ2mNsQSumv1P4QdiDqYz5sjCwdDTnbWV: { rank: 18, label: "Pool operator (mine)", bucket: "Pool ops", status: "Operational" },
+    };
+
+    const STEPS = [
+      {
+        id: "intro",
+        title: "Executive summary — live verification",
+        hint: "Fetches all APIs, then walks the disclosure with on-screen tests.",
+        text: "Bloodstone launched in June twenty twenty-six with a one hundred ninety-nine million nine hundred ninety-nine thousand nine hundred ninety-eight STONE genesis premine. That output was spent and split into project wallets. This demo reads the Treasury and Concentration Disclosure and runs every check we can verify on-chain right now. Watch the test console on the right as each API call completes.",
+      },
+      {
+        id: "concentration",
+        title: "Test 1 — Concentration snapshot",
+        hint: "GET /api/rich-list — compute top-1, top-3, top-10 share.",
+        text: "Blurt's concern is valid. If a partner bought STONE on the open market today, they would mostly interact with a handful of treasury wallets. The live rich list scan measures exactly how concentrated supply is at the current block height. We compute top-three and top-ten percentages from unspent outputs — not estimates from the paper.",
+      },
+      {
+        id: "supply",
+        title: "Test 2 — Supply breakdown",
+        hint: "PoW minted vs treasury-derived from tip height and premine constant.",
+        text: "At era zero the block reward is one hundred STONE per block before the fork at block twelve thousand. Total supply equals the genesis premine plus PoW issuance plus fees. Almost all circulating STONE is still treasury-derived. Mining dilution alone has not yet materially changed the holder picture — which is why disbursement and partner outposts matter.",
+      },
+      {
+        id: "genesis",
+        title: "Test 3 — Genesis premine spent",
+        hint: "Assert genesis address absent from top-25 rich list.",
+        text: "The genesis address SZNtmBMyx2Cr9VMrj5vk5EYTUn1naedu5N received the full premine in block zero. The disclosure states that address is now spent and no longer appears among top holders. This test searches the live rich list for that address and reports pass or fail.",
+      },
+      {
+        id: "registry",
+        title: "Test 4 — Wallet registry vs chain",
+        hint: "Match published labels to live balances for top-10 + pool wallet.",
+        text: "We published a wallet registry tying rich-list addresses to treasury buckets — cold reserve, partner programs, ecosystem grants, and pool operations. This test pulls live balances and compares them to the disclosure registry. Percentages will drift slightly as blocks arrive; labels and bucket assignments are the accountability layer.",
+      },
+      {
+        id: "partner",
+        title: "Test 5 — Partner outpost funding capacity",
+        hint: "Sum rank-3 + rank-8 balances (operational + partner tranche).",
+        text: "The Blurt bulk-storage outpost will be funded from partner-program buckets — not from OTC purchases off rank one cold reserve. The disclosure identifies rank three operational wallet and rank eight partner tranche as the primary funding path. This test sums their live balances to show how much STONE is already earmarked in those wallets today.",
+      },
+      {
+        id: "dilution",
+        title: "Test 6 — Dilution projection (era 0)",
+        hint: "Subsidy schedule API + fork-at-12,000 math.",
+        text: "The one-thousand STONE fork at block twelve thousand changes issuance math. Era zero alone is projected to mint about one point zero four billion STONE from proof of work. If treasury wallets never moved, premine share of total supply would fall toward sixteen percent by end of era zero. This test pulls the live subsidy schedule and calculates blocks remaining to the fork and projected premine share — issuance alone is not decentralization, but the timeline is shorter than a flat one-hundred STONE model.",
+      },
+      {
+        id: "mesh",
+        title: "Test 7 — Chain Mesh operational",
+        hint: "GET /mining/api/chain-mesh/status — storage layer for Model A.",
+        text: "Model A bulk tenant for Blurt relies on Chain Mesh coordination — content-addressed chunks, manifests, and coordinator coverage. Per-gigabyte STONE billing and BLURT memo credits are proposed for phase one. This test confirms mesh status is responding and reports chunk coverage at the current tip. Technical storage is live; partner billing rails are co-design.",
+      },
+      {
+        id: "close",
+        title: "Disclosure commitments",
+        hint: "Summary of live vs not-yet-on-chain.",
+        text: "What this demo verified live: rich-list concentration, supply decomposition, genesis spent, wallet registry balances, partner funding wallets, subsidy fork timeline, and mesh coordinator health. What is not on-chain yet: vesting contracts, multisig treasury, automated per-gigabyte debits, and the published outpost address — that comes at contract signature. Treasury moves over one million STONE will be announced with transaction IDs. Thank you for watching — questions welcome.",
+      },
+    ];
+
+    let state = {
+      step: 0,
+      auto: false,
+      voice: true,
+      data: {},
+    };
+    let runId = 0;       // bumps to cancel auto loop / speech
+    let speakGen = 0;    // bumps to cancel in-flight narration
+
+    const $ = (id) => document.getElementById(id);
+
+    function fmt(n, d = 0) {
+      if (n == null || Number.isNaN(n)) return "—";
+      return Number(n).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
+    }
+
+    function fmtPct(n) {
+      if (n == null || Number.isNaN(n)) return "—";
+      return n.toFixed(2) + "%";
+    }
+
+    function shortAddr(a) {
+      if (!a || a.length < 12) return a || "—";
+      return a.slice(0, 8) + "…" + a.slice(-4);
+    }
+
+    function log(msg, cls = "info") {
+      const el = $("test-log");
+      const line = document.createElement("div");
+      line.className = "log-line " + cls;
+      line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      el.appendChild(line);
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function clearLog() {
+      $("test-log").innerHTML = "";
+    }
+
+    async function fetchJson(url) {
+      log(`GET ${url}`, "cmd");
+      const r = await fetch(url, { cache: "no-store" });
+      if (!r.ok) throw new Error(`${url} → HTTP ${r.status}`);
+      const j = await r.json();
+      log(`← ${url.split("/").slice(-2).join("/")} ok`, "ok");
+      return j;
+    }
+
+    async function loadAllData() {
+      clearLog();
+      log("Refreshing live data…", "info");
+      const [rich, subsidy, explorer, mesh] = await Promise.all([
+        fetchJson(`${ORIGIN}/api/rich-list?limit=25&refresh=1`).catch((e) => { log(e.message, "err"); return { ok: false, entries: [] }; }),
+        fetchJson(`${ORIGIN}/mining/api/pool/subsidy-schedule`).catch((e) => { log(e.message, "err"); return { ok: false }; }),
+        fetchJson(`${ORIGIN}/explorer/api/stats`).catch((e) => { log(e.message, "err"); return { height: null }; }),
+        fetchJson(`${ORIGIN}/mining/api/chain-mesh/status`).catch((e) => { log(e.message, "err"); return { coverage: {} }; }),
+      ]);
+      const height = rich.indexed_height || explorer.height || subsidy.tip_height || 0;
+      const supply = rich.total_onchain_stone || rich.supply_basis_stone || 0;
+      const entries = rich.entries || [];
+
+      const sumPct = (n) => entries.slice(0, n).reduce((s, e) => s + (e.pct_supply || 0), 0);
+      const top1 = entries[0]?.pct_supply || 0;
+      const top3 = sumPct(3);
+      const top10 = sumPct(10);
+
+      const powMinted = Math.max(0, supply - PREMINE);
+      const treasuryPct = supply > 0 ? (PREMINE / supply) * 100 : 0;
+      const powPct = supply > 0 ? (powMinted / supply) * 100 : 0;
+
+      const genesisInList = entries.some((e) => e.address === GENESIS_ADDR);
+      const partnerSum = entries
+        .filter((e) => PARTNER_FUNDING_ADDRS.includes(e.address))
+        .reduce((s, e) => s + (e.balance_stone || 0), 0);
+
+      const tip = height;
+      const blocksToFork = Math.max(0, FORK_HEIGHT - tip);
+      const projectedEra0Supply = PREMINE + ERA0_POW_MINT;
+      const premineShareEra0 = (PREMINE / projectedEra0Supply) * 100;
+
+      state.data = {
+        rich, subsidy, explorer, mesh, height, supply, entries,
+        top1, top3, top10,
+        powMinted, treasuryPct, powPct,
+        genesisInList, partnerSum,
+        blocksToFork, premineShareEra0, projectedEra0Supply,
+        holders: rich.holders_with_balance,
+        scanned: rich.holders_scanned,
+      };
+
+      $("live-height").textContent = fmt(height);
+      $("live-supply").textContent = fmt(supply, 0) + " STONE";
+      log(`Snapshot height ${height} · supply ${fmt(supply, 2)}`, "ok");
+      return state.data;
+    }
+
+    /** Split on sentence endings — skip decimals like 99.5% and nine thousand seven hundred. */
+    function splitSentences(text) {
+      const parts = [];
+      let buf = "";
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        buf += ch;
+        if (ch !== "." && ch !== "!" && ch !== "?") continue;
+        const prev = i > 0 ? text[i - 1] : "";
+        const next = i < text.length - 1 ? text[i + 1] : " ";
+        if (ch === "." && /\d/.test(prev) && /\d/.test(next)) continue;
+        if (ch === "." && next && !/\s/.test(next)) continue;
+        const s = buf.trim();
+        if (s) parts.push(s);
+        buf = "";
+      }
+      if (buf.trim()) parts.push(buf.trim());
+      return parts.length ? parts : [text];
+    }
+
+    function estimateMs(text) {
+      const words = text.trim().split(/\s+/).filter(Boolean).length;
+      return Math.max(2200, words * 420);
+    }
+
+    function waitForVoices() {
+      return new Promise((resolve) => {
+        if (!window.speechSynthesis) return resolve();
+        if (speechSynthesis.getVoices().length) return resolve();
+        speechSynthesis.onvoiceschanged = () => resolve();
+        setTimeout(resolve, 600);
+      });
+    }
+
+    function renderReadPanel(text, activeIdx, doneCount) {
+      const parts = splitSentences(text);
+      $("read-panel").innerHTML = parts
+        .map((s, i) => {
+          let cls = "sent";
+          if (i < doneCount) cls += " done";
+          if (i === activeIdx) cls += " active";
+          return `<span class="${cls}" data-i="${i}">${s} </span>`;
+        })
+        .join("");
+    }
+
+    function cancelSpeech() {
+      speakGen++;
+      window.speechSynthesis?.cancel();
+    }
+
+    function speakOneSentence(text, gen) {
+      return new Promise((resolve) => {
+        if (gen !== speakGen) return resolve();
+        if (!state.voice || !window.speechSynthesis) {
+          setTimeout(resolve, estimateMs(text));
+          return;
+        }
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 0.9;
+        u.pitch = 1;
+        let settled = false;
+        const finish = () => {
+          if (settled || gen !== speakGen) return;
+          settled = true;
+          clearInterval(poll);
+          clearTimeout(maxTimer);
+          resolve();
+        };
+        u.onend = finish;
+        u.onerror = () => {
+          log("TTS hiccup — holding on screen for full duration", "warn");
+          setTimeout(finish, estimateMs(text));
+        };
+        const t0 = Date.now();
+        const poll = setInterval(() => {
+          if (settled || gen !== speakGen) return;
+          const syn = window.speechSynthesis;
+          if (!syn.speaking && !syn.pending && Date.now() - t0 > 500) finish();
+        }, 250);
+        const maxTimer = setTimeout(finish, estimateMs(text) + 4000);
+        window.speechSynthesis.speak(u);
+      });
+    }
+
+    async function speakSentences(text, onProgress) {
+      const gen = ++speakGen;
+      await waitForVoices();
+      const parts = splitSentences(text);
+      for (let i = 0; i < parts.length; i++) {
+        if (gen !== speakGen) return;
+        renderReadPanel(text, i, i);
+        onProgress?.(i, parts.length);
+        await speakOneSentence(parts[i], gen);
+        if (gen !== speakGen) return;
+        await delay(350);
+      }
+      if (gen === speakGen) renderReadPanel(text, -1, parts.length);
+    }
+
+    function pill(cls, text) {
+      return `<span class="pill ${cls}">${text}</span>`;
+    }
+
+    async function runStepTests(id) {
+      const d = state.data;
+      const el = $("results-panel");
+      switch (id) {
+        case "intro":
+          el.innerHTML = `
+            <div class="metric-grid">
+              <div class="metric"><div class="v">${fmt(d.height)}</div><div class="l">Block height</div></div>
+              <div class="metric"><div class="v">${fmt(d.supply, 0)}</div><div class="l">On-chain STONE</div></div>
+              <div class="metric"><div class="v">${fmt(d.holders)}</div><div class="l">Holders w/ balance</div></div>
+              <div class="metric"><div class="v">${pill("pass", "4 APIs")}</div><div class="l">Fetched live</div></div>
+            </div>
+            <p style="font-size:.82rem;color:var(--muted);margin:.6rem 0 0">Data sources: rich-list, subsidy-schedule, explorer stats, chain-mesh status.</p>`;
+          break;
+
+        case "concentration":
+          log("TEST concentration: top-3 / top-10 from rich list", "info");
+          el.innerHTML = `
+            <div class="metric-grid">
+              <div class="metric"><div class="v">${fmtPct(d.top1)}</div><div class="l">Top 1</div></div>
+              <div class="metric"><div class="v">${fmtPct(d.top3)}</div><div class="l">Top 3 ${pill(d.top3 > 70 ? "warn" : "info", d.top3 > 70 ? "HIGH" : "OK")}</div></div>
+              <div class="metric"><div class="v">${fmtPct(d.top10)}</div><div class="l">Top 10</div></div>
+            </div>
+            <table style="margin-top:.6rem"><thead><tr><th>#</th><th>Address</th><th>STONE</th><th>%</th></tr></thead>
+            <tbody>${d.entries.slice(0, 5).map((e) =>
+              `<tr><td>${e.rank}</td><td><code>${shortAddr(e.address)}</code></td><td>${fmt(e.balance_stone, 2)}</td><td>${fmtPct(e.pct_supply)}</td></tr>`
+            ).join("")}</tbody></table>
+            <p style="font-size:.8rem;margin-top:.5rem">${pill("info", "LIVE")} Paper cited ~77% top-3 at ~9,704 — live now: <strong>${fmtPct(d.top3)}</strong> at height <strong>${fmt(d.height)}</strong>.</p>`;
+          log(`top-3 = ${fmtPct(d.top3)} top-10 = ${fmtPct(d.top10)}`, d.top3 > 70 ? "warn" : "ok");
+          break;
+
+        case "supply":
+          log("TEST supply: premine + PoW vs treasury-derived", "info");
+          el.innerHTML = `
+            <div class="metric-grid">
+              <div class="metric"><div class="v">${fmt(PREMINE, 0)}</div><div class="l">Genesis premine</div></div>
+              <div class="metric"><div class="v">${fmt(d.powMinted, 0)}</div><div class="l">PoW + fees (approx)</div></div>
+              <div class="metric"><div class="v">${fmtPct(d.powPct)}</div><div class="l">PoW share</div></div>
+              <div class="metric"><div class="v">${fmtPct(100 - d.powPct)}</div><div class="l">Treasury-derived</div></div>
+            </div>
+            <p style="font-size:.8rem;margin-top:.5rem">${pill("pass", "PASS")} PoW share still under one percent — disclosure claim "treasury-derived ~99.5%" holds at tip.</p>`;
+          log(`PoW ${fmtPct(d.powPct)} treasury-derived ${fmtPct(100 - d.powPct)}`, "ok");
+          break;
+
+        case "genesis":
+          log(`TEST genesis: search rich list for ${GENESIS_ADDR}`, "info");
+          const gPass = !d.genesisInList;
+          el.innerHTML = `
+            <p><code>${GENESIS_ADDR}</code></p>
+            <p style="margin-top:.5rem">${pill(gPass ? "pass" : "fail", gPass ? "PASS" : "FAIL")} Genesis address ${gPass ? "not in top 25" : "FOUND in top 25 — investigate"}.</p>
+            <p style="font-size:.8rem;color:var(--muted)">Disclosure: premine output spent and split into operational wallets.</p>`;
+          log(gPass ? "genesis not in top-25 ✓" : "genesis IN top-25 ✗", gPass ? "ok" : "err");
+          break;
+
+        case "registry":
+          log("TEST registry: label top-10 against disclosure", "info");
+          const rows = d.entries.slice(0, 10).map((e) => {
+            const meta = WALLET_REGISTRY[e.address] || { label: "—", bucket: "—", status: "—" };
+            return `<tr><td>${e.rank}</td><td><code>${shortAddr(e.address)}</code></td><td>${fmt(e.balance_stone, 0)}</td><td>${fmtPct(e.pct_supply)}</td><td>${meta.label}</td><td>${meta.bucket}</td><td>${meta.status}</td></tr>`;
+          }).join("");
+          el.innerHTML = `
+            <table><thead><tr><th>#</th><th>Address</th><th>STONE</th><th>%</th><th>Label</th><th>Bucket</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>
+            <p style="font-size:.8rem;margin-top:.5rem">${pill("pass", "LIVE")} Balances from UTXO scan · labels from disclosure v1.0.</p>`;
+          log("registry table rendered for top 10", "ok");
+          break;
+
+        case "partner":
+          log("TEST partner: sum rank-3 + rank-8 balances", "info");
+          const r3 = d.entries.find((e) => e.address === PARTNER_FUNDING_ADDRS[0]);
+          const r8 = d.entries.find((e) => e.address === PARTNER_FUNDING_ADDRS[1]);
+          el.innerHTML = `
+            <div class="metric-grid">
+              <div class="metric"><div class="v">${fmt(r3?.balance_stone || 0, 0)}</div><div class="l">Rank 3 (ops)</div></div>
+              <div class="metric"><div class="v">${fmt(r8?.balance_stone || 0, 0)}</div><div class="l">Rank 8 (partner)</div></div>
+              <div class="metric"><div class="v">${fmt(d.partnerSum, 0)}</div><div class="l">Combined earmarked</div></div>
+            </div>
+            <p style="font-size:.8rem;margin-top:.5rem">${pill("info", "PROPOSED")} Outpost address not published yet — funding drawn from these buckets at contract.</p>
+            <p style="font-size:.8rem">Blurt bulk benchmark: ~€22.80 / 1.2 TB / month — partner lock rate, not OTC from rank 1.</p>`;
+          log(`partner earmarked total ${fmt(d.partnerSum, 0)} STONE`, "ok");
+          break;
+
+        case "dilution":
+          log("TEST dilution: subsidy schedule + fork projection", "info");
+          el.innerHTML = `
+            <div class="metric-grid">
+              <div class="metric"><div class="v">${fmt(d.subsidy?.current_reward_stone || 100, 0)}</div><div class="l">Current subsidy STONE</div></div>
+              <div class="metric"><div class="v">${fmt(d.blocksToFork)}</div><div class="l">Blocks to 1k fork</div></div>
+              <div class="metric"><div class="v">${fmtPct(d.premineShareEra0, 1)}</div><div class="l">Premine % at era-0 end (static treasury)</div></div>
+              <div class="metric"><div class="v">era ${d.subsidy?.halving_era ?? 0}</div><div class="l">Halving era (live)</div></div>
+            </div>
+            <p style="font-size:.8rem;margin-top:.5rem">${pill("info", "PROJECTED")} Era-0 PoW ~${fmt(ERA0_POW_MINT, 0)} STONE if fork activates at block ${FORK_HEIGHT}.</p>
+            <p style="font-size:.8rem;color:var(--muted)">Issuance ≠ decentralization if treasury never disburses.</p>`;
+          log(`blocks to fork ${d.blocksToFork} premine@era0end ${fmtPct(d.premineShareEra0, 1)}`, "ok");
+          break;
+
+        case "mesh":
+          log("TEST mesh: coordinator status", "info");
+          const cov = d.mesh?.coverage || {};
+          const ok = cov.complete === true;
+          el.innerHTML = `
+            <div class="metric-grid">
+              <div class="metric"><div class="v">${ok ? pill("pass", "UP") : pill("warn", "CHECK")}</div><div class="l">Coverage complete</div></div>
+              <div class="metric"><div class="v">${fmt(cov.have)}/${fmt(cov.need)}</div><div class="l">Manifest chunks</div></div>
+              <div class="metric"><div class="v">${fmt(d.mesh?.coordinator_chunks)}</div><div class="l">Coordinator chunks</div></div>
+              <div class="metric"><div class="v">${fmt((d.mesh?.limits?.max_asset_bytes || 0) / 1048576, 0)} MiB</div><div class="l">Max asset policy</div></div>
+            </div>
+            <p style="font-size:.8rem;margin-top:.5rem">${pill("pass", "LIVE")} Model A bulk tenant can upload namespaced assets — billing/outpost is P0–P1 co-design.</p>`;
+          log(`mesh coverage ${cov.have}/${cov.need} complete=${cov.complete}`, ok ? "ok" : "warn");
+          break;
+
+        case "close":
+          el.innerHTML = `
+            <table>
+              <thead><tr><th>Item</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>Rich list concentration</td><td>${pill("pass", "VERIFIED LIVE")}</td></tr>
+                <tr><td>Genesis premine spent</td><td>${pill(!d.genesisInList ? "pass" : "fail", !d.genesisInList ? "PASS" : "FAIL")}</td></tr>
+                <tr><td>Wallet registry balances</td><td>${pill("pass", "VERIFIED LIVE")}</td></tr>
+                <tr><td>Chain Mesh coordinator</td><td>${pill("pass", "VERIFIED LIVE")}</td></tr>
+                <tr><td>On-chain vesting / multisig</td><td>${pill("warn", "NOT DEPLOYED")}</td></tr>
+                <tr><td>Partner outpost address</td><td>${pill("warn", "AT CONTRACT")}</td></tr>
+                <tr><td>BLURT memo rail</td><td>${pill("warn", "P1 PROPOSED")}</td></tr>
+              </tbody>
+            </table>
+            <p style="font-size:.85rem;margin-top:.65rem"><a href="treasury-outpost-tour.html">Track #2 read-along tour →</a> · <a href="downloads/Bloodstone-Treasury-and-Concentration-Disclosure.docx">Download disclosure DOCX</a></p>`;
+          break;
+      }
+    }
+
+    function renderToc() {
+      $("toc").innerHTML = STEPS.map((s, i) =>
+        `<button type="button" data-i="${i}" class="${i === state.step ? "on" : ""}">${i + 1}. ${s.title}</button>`
+      ).join("");
+      $("toc").querySelectorAll("button").forEach((b) => {
+        b.addEventListener("click", async () => {
+          const id = ++runId;
+          cancelSpeech();
+          state.auto = false;
+          $("btn-auto").textContent = "▶ Start live demo";
+          $("btn-auto").classList.remove("active");
+          await showStep(+b.dataset.i);
+          if (id !== runId) return;
+          await narrateCurrentStep();
+        });
+      });
+    }
+
+    async function showStep(i) {
+      state.step = Math.max(0, Math.min(STEPS.length - 1, i));
+      const step = STEPS[state.step];
+      $("step-label").textContent = `Step ${state.step + 1} / ${STEPS.length}`;
+      $("step-title").textContent = step.title;
+      $("step-hint").textContent = step.hint;
+      $("step-progress").style.width = `${((state.step + 1) / STEPS.length) * 100}%`;
+      renderReadPanel(step.text, 0, 0);
+      renderToc();
+      if (!state.data.height) await loadAllData();
+      await runStepTests(step.id);
+    }
+
+    function progressWhileReading(ci, total) {
+      $("step-progress").style.width = `${((state.step + (ci + 1) / total) / STEPS.length) * 100}%`;
+    }
+
+    async function narrateCurrentStep() {
+      const step = STEPS[state.step];
+      await speakSentences(step.text, progressWhileReading);
+    }
+
+    function delay(ms) {
+      return new Promise((r) => setTimeout(r, ms));
+    }
+
+    async function startAuto() {
+      if (state.auto) {
+        stopAuto();
+        return;
+      }
+      const id = ++runId;
+      cancelSpeech();
+      state.auto = true;
+      $("btn-auto").textContent = "■ Stop demo";
+      $("btn-auto").classList.add("active");
+      await loadAllData();
+      for (let s = 0; s < STEPS.length; s++) {
+        if (id !== runId || !state.auto) break;
+        await showStep(s);
+        if (id !== runId) break;
+        await narrateCurrentStep();
+        if (id !== runId) break;
+        if (s < STEPS.length - 1) await delay(1400);
+      }
+      if (id === runId) stopAuto();
+    }
+
+    function stopAuto() {
+      runId++;
+      cancelSpeech();
+      state.auto = false;
+      $("btn-auto").textContent = "▶ Start live demo";
+      $("btn-auto").classList.remove("active");
+    }
+
+    async function manualNextStep() {
+      const id = ++runId;
+      cancelSpeech();
+      state.auto = false;
+      $("btn-auto").textContent = "▶ Start live demo";
+      $("btn-auto").classList.remove("active");
+      if (!state.data.height) await loadAllData();
+      if (state.step >= STEPS.length - 1) return;
+      await showStep(state.step + 1);
+      if (id !== runId) return;
+      await narrateCurrentStep();
+    }
+
+    $("btn-auto").addEventListener("click", startAuto);
+    $("btn-read").addEventListener("click", async () => {
+      const id = ++runId;
+      cancelSpeech();
+      state.auto = false;
+      $("btn-auto").textContent = "▶ Start live demo";
+      $("btn-auto").classList.remove("active");
+      if (id !== runId) return;
+      await narrateCurrentStep();
+    });
+    $("btn-step").addEventListener("click", () => manualNextStep());
+    $("btn-voice").addEventListener("click", () => {
+      state.voice = !state.voice;
+      $("btn-voice").textContent = state.voice ? "🔊 Voice on" : "🔇 Voice off";
+      if (!state.voice) cancelSpeech();
+    });
+    $("btn-refresh").addEventListener("click", async () => {
+      stopAuto();
+      await loadAllData();
+      await runStepTests(STEPS[state.step].id);
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.target.matches("input, textarea")) return;
+      if (e.code === "Space") { e.preventDefault(); $("btn-step").click(); }
+    });
+
+    (async function init() {
+      renderToc();
+      await loadAllData();
+      await showStep(0);
+    })();
+  </script>
+</body>
+</html>

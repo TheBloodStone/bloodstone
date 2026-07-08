@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Bloodstone web mining dashboard."""
 
+import base64
 import json
 import os
 import re
@@ -29,6 +30,7 @@ from flask import (
 from werkzeug.security import check_password_hash, generate_password_hash
 
 import bloodstone_branding
+import bloodstone_beta_codes
 import bloodstone_downloads
 import faucet_settings
 import installer_branding
@@ -38,6 +40,7 @@ import server_services
 import ssh_keys
 import merge_mining_info
 import node_rpc
+import wallet_oauth_settings
 from mining_config import MULTI_ALGO_FORK_HEIGHT, YESPOWER_FORK_HEIGHT
 from prefix_redirect import prefixed_path, safe_redirect_target  # noqa: E402
 from stratum_status import (
@@ -886,6 +889,26 @@ def network_data():
     return render_template("network_data.html")
 
 
+@app.route("/network-chat")
+def network_chat_page():
+    """Old-school network chat — lobby + buddy DMs over BSM3 mesh packets."""
+    return render_template("network_chat.html")
+
+
+@app.route("/network/blurt-mesh-traffic")
+def blurt_mesh_traffic_page():
+    """Public Blurt ↔ Bloodstone mesh bandwidth totals."""
+    return render_template("blurt_mesh_traffic.html")
+
+
+@app.route("/api/chain-mesh/partner/blurt/traffic")
+def api_blurt_mesh_traffic():
+    """Public JSON: Blurt partner mesh traffic by week, month, and year."""
+    import chain_mesh.blurt_traffic as bt
+
+    return jsonify(bt.public_payload())
+
+
 @app.route("/mesh-search")
 def mesh_search_page():
     """Full-screen mesh file search (like /miners/map)."""
@@ -1179,12 +1202,129 @@ def api_pool_dashboard():
     return jsonify(pool_dashboard_data(address))
 
 
+def _request_client_ip() -> str:
+    forwarded = (request.headers.get("X-Forwarded-For") or "").strip()
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return (request.remote_addr or "").strip()
+
+
+def _beta_token_from_request() -> str:
+    return (
+        request.headers.get("X-Bloodstone-Beta-Token")
+        or request.args.get("beta_token")
+        or ""
+    ).strip()
+
+
+def _lan_ip_from_request() -> str:
+    return (
+        request.headers.get("X-Bloodstone-Lan-Ip")
+        or request.args.get("lan_ip")
+        or ""
+    ).strip()
+
+
+def _update_release_channel_from_request() -> str:
+    channel = (request.args.get("channel") or "").strip()
+    return bloodstone_beta_codes.resolve_release_channel(
+        beta_token=_beta_token_from_request(),
+        channel=channel,
+    )
+
+
 @app.route("/api/android-miner/update")
+@app.route("/mining/api/android-miner/update")
 def api_android_miner_update():
     public_root = os.environ.get(
         "BLOODSTONE_PUBLIC_ROOT", "https://bloodstonewallet.mytunnel.org"
     ).rstrip("/")
-    return jsonify(bloodstone_downloads.android_miner_update_manifest(public_root))
+    channel = _update_release_channel_from_request()
+    return jsonify(
+        bloodstone_downloads.android_miner_update_manifest(
+            public_root,
+            release_channel=channel,
+            lan_ip=_lan_ip_from_request(),
+        )
+    )
+
+
+@app.route("/api/beta/redeem", methods=["POST"])
+@app.route("/mining/api/beta/redeem", methods=["POST"])
+def api_beta_redeem():
+    payload = request.get_json(silent=True) or {}
+    code = (payload.get("code") or request.form.get("code") or "").strip()
+    device_id = (payload.get("device_id") or "").strip()
+    lan_ip = (payload.get("lan_ip") or "").strip()
+    result = bloodstone_beta_codes.redeem_code(
+        code,
+        device_id=device_id,
+        client_ip=_request_client_ip(),
+        lan_ip=lan_ip,
+    )
+    status = 200 if result.get("ok") else 400
+    return jsonify(result), status
+
+
+@app.route("/api/beta/status")
+@app.route("/mining/api/beta/status")
+def api_beta_status():
+    token = _beta_token_from_request()
+    lan_ip = _lan_ip_from_request()
+    active = bloodstone_beta_codes.verify_access_token(token) if token else False
+    lan_key = bloodstone_beta_codes.lan_key_from_ip(lan_ip) if lan_ip else None
+    lan_release = (
+        bloodstone_beta_codes.get_lan_validated_release(lan_key) if lan_key else None
+    )
+    return jsonify(
+        {
+            "ok": True,
+            "beta_active": active,
+            "release_channel": "beta" if active else "stable",
+            "lan_key": lan_key,
+            "lan_validated": bool(lan_release),
+            "lan_apk_version": (lan_release or {}).get("apk_version"),
+            "lan_web_bundle_version": (lan_release or {}).get("web_bundle_version"),
+        }
+    )
+
+
+@app.route("/api/beta/validate-lan", methods=["POST"])
+@app.route("/mining/api/beta/validate-lan", methods=["POST"])
+def api_beta_validate_lan():
+    payload = request.get_json(silent=True) or {}
+    token = _beta_token_from_request() or str(payload.get("beta_token") or "").strip()
+    lan_ip = str(payload.get("lan_ip") or _lan_ip_from_request() or "").strip()
+    device_id = str(payload.get("device_id") or "").strip()
+    beta_apk_version, beta_apk_filename = bloodstone_downloads._resolve_android_apk("beta")
+    beta_web_version, beta_web_filename = bloodstone_downloads._resolve_android_web_bundle(
+        "beta"
+    )
+    result = bloodstone_beta_codes.validate_lan_release(
+        beta_token=token,
+        lan_ip=lan_ip,
+        device_id=device_id,
+        apk_version=beta_apk_version,
+        apk_filename=beta_apk_filename,
+        web_bundle_version=beta_web_version,
+        web_bundle_filename=beta_web_filename,
+    )
+    status = 200 if result.get("ok") else 400
+    return jsonify(result), status
+
+
+@app.route("/api/desktop-miner/update")
+@app.route("/mining/api/desktop-miner/update")
+def api_desktop_miner_update():
+    public_root = os.environ.get(
+        "BLOODSTONE_PUBLIC_ROOT", "https://bloodstonewallet.mytunnel.org"
+    ).rstrip("/")
+    channel = _update_release_channel_from_request()
+    return jsonify(
+        bloodstone_downloads.desktop_miner_update_manifest(
+            public_root, release_channel=channel
+        )
+    )
 
 
 @app.route("/api/node-patch/update")
@@ -1381,7 +1521,7 @@ def api_pool_mobile_contribution():
         connected_sec = 0.0
 
     miner_kind = (payload.get("miner_kind") or "browser").strip().lower()
-    if miner_kind not in ("browser", "android", "ios"):
+    if miner_kind not in ("browser", "android", "ios", "asic", "lan", "cgminer"):
         miner_kind = "browser"
 
     transport = (payload.get("transport") or "websocket").strip().lower()
@@ -1614,6 +1754,55 @@ def api_network_nodes():
     return jsonify(nn.network_nodes_payload())
 
 
+@app.route("/api/network/lan-nodes")
+@app.route("/mining/api/network/lan-nodes")
+def api_network_lan_nodes():
+    """LAN Android/local nodes with blocks-behind vs VPS chain tip."""
+    import network_nodes as nn
+
+    lookback = request.args.get("lookback_sec", type=int) or 86400
+    active = request.args.get("active_sec", type=int)
+    include_inactive = request.args.get("include_stale", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    return jsonify(
+        nn.lan_nodes_lag_payload(
+            lookback_sec=lookback,
+            active_sec=active,
+            include_inactive=include_inactive,
+        )
+    )
+
+
+@app.route("/api/admin/lan-nodes")
+@admin_api_required
+def api_admin_lan_nodes():
+    """Admin JSON — same payload as public LAN lag endpoint."""
+    import network_nodes as nn
+
+    lookback = request.args.get("lookback_sec", type=int) or 86400
+    active = request.args.get("active_sec", type=int)
+    return jsonify(
+        nn.lan_nodes_lag_payload(
+            lookback_sec=lookback,
+            active_sec=active,
+            include_inactive=True,
+        )
+    )
+
+
+@app.route("/api/pool/lan-devices")
+@app.route("/mining/api/pool/lan-devices")
+def api_pool_lan_devices():
+    """Active LAN-reported miners with live hashrate (forwarded from household Wi‑Fi)."""
+    import network_nodes as nn
+
+    stats = nn._lan_device_stats()
+    return jsonify({"ok": True, **stats})
+
+
 @app.route("/api/chain-mesh/manifest")
 def api_chain_mesh_manifest():
     """Current blockchain chunk manifest for decentralized storage peers."""
@@ -1695,9 +1884,91 @@ def api_chain_mesh_partner_upload_batch():
     if not _verify_mesh_publish_token(payload):
         return jsonify({"ok": False, "error": "invalid publish token"}), 403
     try:
-        return jsonify(cm.upload_batch(payload))
+        result = cm.upload_batch(payload)
+        import chain_mesh.blurt_traffic as bt
+
+        bt.record_partner_upload(payload)
+        return jsonify(result)
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/chain-mesh/v2/system")
+@app.route("/mining/api/chain-mesh/v2/system")
+def api_chain_mesh_v2_system():
+    """Chain Mesh v2.0-Lite architecture status (Megadrive RFC)."""
+    import chain_mesh.api as cm
+
+    return jsonify(cm.mesh_v2_system_payload())
+
+
+@app.route("/api/chain-mesh/v2/manifest")
+@app.route("/mining/api/chain-mesh/v2/manifest")
+def api_chain_mesh_v2_manifest():
+    """Resolve manifest: Blurt custom_json registry first, coordinator catalog fallback."""
+    import chain_mesh.api as cm
+
+    asset_key = (request.args.get("asset_key") or request.args.get("key") or "").strip()
+    if not asset_key:
+        return jsonify({"ok": False, "error": "asset_key required"}), 400
+    return jsonify(cm.mesh_v2_manifest_payload(asset_key))
+
+
+@app.route("/api/chain-mesh/v2/verify", methods=["GET", "POST"])
+@app.route("/mining/api/chain-mesh/v2/verify", methods=["GET", "POST"])
+def api_chain_mesh_v2_verify():
+    """Trustless retrieval self-check — verify all chunks match manifest on coordinator."""
+    import chain_mesh.api as cm
+
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        asset_key = str(data.get("asset_key") or data.get("key") or "").strip()
+    else:
+        asset_key = (request.args.get("asset_key") or request.args.get("key") or "").strip()
+    if not asset_key:
+        return jsonify({"ok": False, "error": "asset_key required"}), 400
+    return jsonify(cm.mesh_v2_trustless_verify_payload(asset_key))
+
+
+@app.route("/api/chain-mesh/v2/flow")
+@app.route("/mining/api/chain-mesh/v2/flow")
+def api_chain_mesh_v2_flow():
+    """Publishing flow diagram for Blurt v2.0-Lite integration."""
+    import chain_mesh.api as cm
+
+    return jsonify(cm.mesh_v2_publish_flow_payload())
+
+
+@app.route("/api/chain-mesh/v2/providers", methods=["GET", "POST"])
+@app.route("/mining/api/chain-mesh/v2/providers", methods=["GET", "POST"])
+def api_chain_mesh_v2_providers():
+    """List or register mesh storage/bootstrap provider nodes."""
+    import chain_mesh.api as cm
+
+    if request.method == "POST":
+        payload = request.get_json(silent=True) or {}
+        try:
+            return jsonify(cm.mesh_v2_register_provider_payload(payload))
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": str(exc)}), 400
+    tenant = (request.args.get("tenant") or "").strip()
+    role = (request.args.get("role") or "").strip()
+    return jsonify(cm.mesh_v2_list_providers_payload(tenant=tenant, role=role))
+
+
+@app.route("/api/chain-mesh/v2/blurt/sync", methods=["POST"])
+@admin_api_required
+def api_chain_mesh_v2_blurt_sync():
+    """Admin: index chain_mesh_anchor custom_json ops from configured Blurt accounts."""
+    import chain_mesh.api as cm
+
+    return jsonify(cm.mesh_v2_sync_blurt_registry_payload())
+
+
+@app.route("/network/blurt-mesh-v2")
+def blurt_mesh_v2_page():
+    """Operator page — v2.0-Lite trustless storage system overview."""
+    return render_template("blurt_mesh_v2.html")
 
 
 @app.route("/api/chain-mesh/partner/publish-asset", methods=["POST"])
@@ -1951,10 +2222,19 @@ def api_chain_mesh_asset_versions(asset_key):
 @app.route("/api/chain-mesh/asset/<path:asset_key>/preview")
 def api_chain_mesh_asset_preview(asset_key):
     import chain_mesh.api as cm
+    import chain_mesh.blurt_traffic as bt
 
     payload = cm.asset_preview(asset_key)
     if not payload.get("ok"):
         return jsonify(payload), 404
+    if bt.is_blurt_asset_key(asset_key):
+        preview_bytes = 0
+        if payload.get("preview_kind") == "image" and payload.get("data_b64"):
+            preview_bytes = len(base64.b64decode(payload["data_b64"]))
+        elif payload.get("preview_kind") == "text" and payload.get("text"):
+            preview_bytes = len(str(payload["text"]).encode("utf-8"))
+        if preview_bytes > 0:
+            bt.record_outbound(preview_bytes)
     return jsonify(payload)
 
 
@@ -2026,9 +2306,14 @@ def api_chain_mesh_asset_download(asset_key):
         )
 
     try:
+        import chain_mesh.blurt_traffic as bt
+
+        track_blurt = bt.is_blurt_asset_key(asset_key)
         if byte_range:
             start, end = byte_range
             blob = mesh_assets.reconstruct_asset_byte_range(asset_key, start, end)
+            if track_blurt and len(blob) > 0:
+                bt.record_outbound(len(blob))
             return Response(
                 blob,
                 status=206,
@@ -2039,6 +2324,8 @@ def api_chain_mesh_asset_download(asset_key):
                 },
             )
         blob = mesh_assets.reconstruct_asset_bytes(asset_key)
+        if track_blurt and len(blob) > 0:
+            bt.record_outbound(len(blob))
         return Response(
             blob,
             status=200,
@@ -2138,6 +2425,84 @@ def api_chain_mesh_transfer_inbox(recipient):
 
     status = request.args.get("status", "")
     return jsonify(cm.transfer_list_for_recipient(recipient, status=status))
+
+
+@app.route("/api/network-chat/presence")
+@app.route("/mining/api/network-chat/presence")
+def api_network_chat_presence():
+    import chain_mesh.api as cm
+
+    public_ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "").split(",")[0].strip()
+    include_offline = request.args.get("include_offline", "").lower() in ("1", "true", "yes")
+    limit = int(request.args.get("limit") or 120)
+    return jsonify(
+        cm.network_chat_presence_payload(
+            public_ip=public_ip,
+            include_offline=include_offline,
+            limit=limit,
+        )
+    )
+
+
+@app.route("/api/network-chat/heartbeat", methods=["POST"])
+@app.route("/mining/api/network-chat/heartbeat", methods=["POST"])
+def api_network_chat_heartbeat():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    public_ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "").split(",")[0].strip()
+    try:
+        return jsonify(cm.network_chat_heartbeat_payload(payload, public_ip=public_ip))
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/network-chat/lobby")
+@app.route("/mining/api/network-chat/lobby")
+def api_network_chat_lobby():
+    import chain_mesh.api as cm
+
+    if request.args.get("inbox", "").lower() in ("1", "true", "yes"):
+        since_seq = int(request.args.get("since_seq") or 0)
+        limit = int(request.args.get("limit") or 80)
+        return jsonify(cm.network_chat_lobby_inbox_payload(since_seq=since_seq, limit=limit))
+    return jsonify(cm.network_chat_lobby_payload())
+
+
+@app.route("/api/network-chat/lobby/send", methods=["POST"])
+@app.route("/mining/api/network-chat/lobby/send", methods=["POST"])
+def api_network_chat_lobby_send():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.network_chat_lobby_send_payload(payload))
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/network-chat/dm/open", methods=["POST"])
+@app.route("/mining/api/network-chat/dm/open", methods=["POST"])
+def api_network_chat_dm_open():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.network_chat_dm_open_payload(payload))
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/network-chat/channels/<participant>")
+@app.route("/mining/api/network-chat/channels/<participant>")
+def api_network_chat_channels(participant):
+    import chain_mesh.api as cm
+
+    limit = int(request.args.get("limit") or 40)
+    try:
+        return jsonify(cm.network_chat_channels_payload(participant, limit=limit))
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
 
 @app.route("/api/chain-mesh/packet/protocol")
@@ -2940,6 +3305,48 @@ def admin_fleet_device_save():
     return redirect(url_for("admin"))
 
 
+@app.route("/admin/api/beta-codes/generate", methods=["POST"])
+@admin_required
+@master_creator_required
+def admin_generate_beta_code():
+    payload = request.get_json(silent=True) or {}
+    label = (payload.get("label") or request.form.get("label") or "").strip()
+    try:
+        count = int(payload.get("count") or request.form.get("count") or 1)
+    except (TypeError, ValueError):
+        count = 1
+    count = max(1, min(count, 20))
+    codes = []
+    for _ in range(count):
+        row = bloodstone_beta_codes.generate_code(
+            label=label,
+            created_by="master-creator",
+        )
+        codes.append(row["code"])
+    return jsonify({"ok": True, "count": len(codes), "codes": codes})
+
+
+@app.route("/admin/api/beta-codes")
+@admin_required
+@master_creator_required
+def admin_list_beta_codes():
+    include_redeemed = (request.args.get("include_redeemed") or "1").strip() not in (
+        "0",
+        "false",
+        "no",
+    )
+    rows = bloodstone_beta_codes.list_codes(include_redeemed=include_redeemed)
+    return jsonify({"ok": True, "codes": rows})
+
+
+@app.route("/admin/api/lan-validations")
+@admin_required
+@master_creator_required
+def admin_list_lan_validations():
+    rows = bloodstone_beta_codes.list_lan_validations()
+    return jsonify({"ok": True, "validations": rows})
+
+
 @app.route("/admin/fleet/settings", methods=["POST"])
 @admin_required
 @master_creator_required
@@ -2981,6 +3388,7 @@ def admin():
     import pool_db
 
     blocked_addresses = pool_db.list_blocked_addresses()
+    x_ctx = wallet_oauth_settings.x_admin_context()
     return render_template(
         "admin.html",
         pools=pools,
@@ -3000,6 +3408,60 @@ def admin():
         blocked_addresses=blocked_addresses,
         fmt_time=fmt_time,
         mesh_admin=True,
+        **x_ctx,
+    )
+
+
+@app.route("/admin/faucet-abuse")
+@admin_required
+def admin_faucet_abuse():
+    import faucet_settings
+
+    sys.path.insert(0, "/root/bloodstone-faucet")
+    sys.path.insert(0, "/root/bloodstone-wallet-web")
+    import faucet_db
+    import users_db
+
+    faucet_db.init_db()
+    users_db.init_db()
+    limits = faucet_settings.load_faucet_settings()
+    return render_template(
+        "admin_faucet_abuse.html",
+        limits=limits,
+        registration_ips=users_db.registration_ip_stats(200),
+        registration_devices=users_db.registration_device_stats(100),
+        claim_ips=faucet_db.claim_ip_stats(200),
+        ip_detail=None,
+        ip_users=[],
+        ip_claims=[],
+        fmt_time=fmt_time,
+    )
+
+
+@app.route("/admin/faucet-abuse/ip/<path:ip>")
+@admin_required
+def admin_faucet_abuse_ip(ip):
+    import faucet_settings
+
+    sys.path.insert(0, "/root/bloodstone-faucet")
+    sys.path.insert(0, "/root/bloodstone-wallet-web")
+    import faucet_db
+    import users_db
+
+    faucet_db.init_db()
+    users_db.init_db()
+    limits = faucet_settings.load_faucet_settings()
+    ip = (ip or "").strip()
+    return render_template(
+        "admin_faucet_abuse.html",
+        limits=limits,
+        registration_ips=users_db.registration_ip_stats(200),
+        registration_devices=users_db.registration_device_stats(100),
+        claim_ips=faucet_db.claim_ip_stats(200),
+        ip_detail=ip,
+        ip_users=users_db.users_for_ip(ip, 100),
+        ip_claims=faucet_db.claims_for_ip(ip, 50),
+        fmt_time=fmt_time,
     )
 
 
@@ -3130,6 +3592,34 @@ def admin_node_patch_auto_apply():
         return jsonify({"ok": False, "error": str(exc)}), 400
 
 
+@app.route("/admin/x-settings", methods=["POST"])
+@admin_required
+def admin_save_x_settings():
+    """Save X OAuth credentials for the wallet web app (shared referrals DB)."""
+    try:
+        wallet_oauth_settings.save_x_settings(request.form)
+        ctx = wallet_oauth_settings.x_admin_context()
+        if ctx.get("x_oauth_ready") and ctx.get("x_oauth_probe_ok"):
+            flash(
+                "X sign-in settings saved. Credentials verified with X.",
+                "success",
+            )
+        elif ctx.get("x_oauth_ready"):
+            flash(
+                "X settings saved, but X rejected the credentials: "
+                + (ctx.get("x_oauth_probe_error") or "unknown error"),
+                "error",
+            )
+        else:
+            flash(
+                "X settings saved. Add both client ID and client secret to enable sign-in.",
+                "success",
+            )
+    except Exception as exc:
+        flash(f"Could not save X settings: {exc}", "error")
+    return redirect(url_for("admin"))
+
+
 @app.route("/admin/settings", methods=["POST"])
 @admin_required
 @master_creator_required
@@ -3151,11 +3641,26 @@ def admin_save_settings():
         ):
             raise ValueError("Invalid faucet values")
 
+        max_accounts_per_ip = int(
+            float(request.form.get("max_accounts_per_ip", "2"))
+        )
+        max_accounts_per_device = int(
+            float(request.form.get("max_accounts_per_device", "2"))
+        )
+        enforce_device_binding = str(
+            request.form.get("enforce_device_binding", "1")
+        ).strip() not in ("0", "false", "no", "off")
+        if max_accounts_per_ip < 1 or max_accounts_per_device < 1:
+            raise ValueError("Account limits must be at least 1")
+
         faucet_settings.save_faucet_settings(
             claim_amount,
             claim_cooldown_min_hours,
             claim_cooldown_max_hours,
             min_faucet_balance,
+            max_accounts_per_ip=max_accounts_per_ip,
+            max_accounts_per_device=max_accounts_per_device,
+            enforce_device_binding=enforce_device_binding,
         )
 
         payout_chunk_max = float(request.form.get("payout_chunk_max", "1000"))
@@ -3328,6 +3833,30 @@ def admin_rebuild_android_miner():
         start_new_session=True,
     )
     flash("Android miner source zip rebuild started.", "success")
+    return redirect(url_for("admin"))
+
+
+@app.route("/admin/rebuild-miner-desktop", methods=["POST"])
+@admin_required
+def admin_rebuild_miner_desktop():
+    script = "/root/build-bloodstone-miner-desktop.sh"
+    if not os.path.isfile(script):
+        flash("Desktop miner build script not found on this VPS.", "error")
+        return redirect(url_for("admin"))
+    log_path = "/var/log/bloodstone-miner-desktop-build.log"
+    with open(log_path, "a", encoding="utf-8") as logfh:
+        logfh.write(f"\n--- rebuild started {bloodstone_time.now_pacific()} ---\n")
+    subprocess.Popen(
+        ["/bin/bash", script],
+        stdout=open(log_path, "a", encoding="utf-8"),
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+    flash(
+        "Desktop miner build started (Linux tarball + source zip). "
+        "Check /downloads/ in several minutes.",
+        "success",
+    )
     return redirect(url_for("admin"))
 
 

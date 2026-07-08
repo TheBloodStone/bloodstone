@@ -5,6 +5,7 @@
   <h1>Service admin</h1>
   <p class="muted">Edit faucet, pool payout, and stratum settings for each mining algorithm.</p>
   <div class="btn-row">
+    <a class="btn btn-ghost" href="{{ url_for('admin_faucet_abuse') }}">Faucet abuse / IP stats</a>
     <a class="btn btn-ghost" href="{{ url_for('admin_generators') }}">Document generators</a>
     <a class="btn btn-ghost" href="{{ url_for('admin_change_password') }}">Change password</a>
     <form action="{{ url_for('admin_logout') }}" method="post" style="display:inline">
@@ -42,6 +43,34 @@
   </div>
 
   {% if master_creator %}
+  <div class="panel-body">
+    <h3>Beta tester codes</h3>
+    <p class="muted small">
+      One-time invite codes unlock <strong>beta OTA</strong> on a tester&apos;s LAN.
+      After they tap <strong>Approve for this LAN</strong>, everyone on that Wi‑Fi gets the build as stable OTA.
+      Other LANs are unaffected until their own beta testers validate.
+      <span class="mono">promote-beta-to-stable.sh</span> is only the global downloads-page baseline for brand-new LANs.
+    </p>
+    <div class="admin-grid" style="max-width:28rem">
+      <label class="field">
+        <span>Label (optional)</span>
+        <input type="text" id="beta-codes-label" placeholder="e.g. Alice Pixel 8">
+      </label>
+      <label class="field">
+        <span>Count</span>
+        <input type="number" id="beta-codes-count" min="1" max="20" value="1">
+      </label>
+      <button type="button" class="btn btn-small" id="beta-codes-generate-btn">Generate beta code(s)</button>
+    </div>
+    <p class="muted small" id="beta-codes-admin-status"></p>
+    <ul id="beta-codes-admin-list" class="mono small" style="margin:0.5rem 0 0;padding-left:1.1rem"></ul>
+    <table class="admin-table" style="margin-top:1rem">
+      <thead>
+        <tr><th>ID</th><th>Label</th><th>Status</th><th>Device</th></tr>
+      </thead>
+      <tbody id="beta-codes-admin-table"></tbody>
+    </table>
+  </div>
   <div class="panel-body">
     <h3>Device fleet</h3>
     <p class="muted small">Edit registered miners from <span class="mono">device_fleet</span> (addresses, workers, labels).</p>
@@ -131,6 +160,57 @@
     </form>
   </div>
   {% endif %}
+</section>
+
+<section class="panel" id="lan-nodes-lag-panel">
+  <div class="panel-head">
+    <h2>LAN node sync lag</h2>
+    <p class="panel-sub muted small">
+      Household Android / local nodes vs VPS chain tip — refreshes every 10s.
+      <span id="admin-lan-lag-updated">—</span>
+    </p>
+  </div>
+  <div class="panel-body">
+    <div class="admin-grid" style="margin-bottom:1rem">
+      <div class="stat-card">
+        <div class="stat-label">VPS tip</div>
+        <div class="stat-value mono" id="admin-lan-lag-tip">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active / registered</div>
+        <div class="stat-value mono" id="admin-lan-lag-active">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Max blocks behind</div>
+        <div class="stat-value mono" id="admin-lan-lag-max-behind">—</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="admin-table" id="admin-lan-lag-table">
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>LAN IP</th>
+            <th>Mode</th>
+            <th>Height</th>
+            <th>Behind</th>
+            <th>Sync</th>
+            <th>Status</th>
+            <th>Last seen</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="8" class="muted small">Loading LAN nodes…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted small" style="margin-top:0.75rem">
+      <strong>Syncing</strong> — starting or catching up (height 0 while bootstrapping counts here).
+      <strong>Behind</strong> — 50+ blocks behind tip.
+      <strong>Stale</strong> — no heartbeat in 5+ minutes (phones off Wi‑Fi or app closed).
+      Public dashboard hides stale rows; admin shows full 24h lookback.
+    </p>
+  </div>
 </section>
 
 <section class="panel" id="blocked-addresses-panel">
@@ -242,6 +322,25 @@
         <span>Minimum faucet balance (STONE)</span>
         <input type="number" step="any" min="0" name="min_faucet_balance" value="{{ fleet_fields.min_faucet_balance }}" required{% if not master_creator %} disabled{% endif %}>
       </label>
+      <label class="field">
+        <span>Max wallet accounts per IP</span>
+        <input type="number" step="1" min="1" name="max_accounts_per_ip" value="{{ fleet_fields.max_accounts_per_ip }}" required{% if not master_creator %} disabled{% endif %}>
+      </label>
+      <label class="field">
+        <span>Max wallet accounts per browser cookie</span>
+        <input type="number" step="1" min="1" name="max_accounts_per_device" value="{{ fleet_fields.max_accounts_per_device }}" required{% if not master_creator %} disabled{% endif %}>
+      </label>
+      <label class="field">
+        <span>One faucet account per browser (1=yes, 0=no)</span>
+        <input type="number" step="1" min="0" max="1" name="enforce_device_binding" value="{{ fleet_fields.enforce_device_binding }}" required{% if not master_creator %} disabled{% endif %}>
+      </label>
+    </div>
+    <div class="panel-body">
+      <p class="muted small">
+        Limits new wallet signups and faucet claims. Each visitor gets a long-lived <code>bs_device_id</code> cookie;
+        IP is taken from <code>X-Real-IP</code> behind nginx. View live stats on
+        <a href="{{ url_for('admin_faucet_abuse') }}">Faucet abuse / IP stats</a>.
+      </p>
     </div>
   </section>
 
@@ -593,6 +692,10 @@
       <button type="submit" class="btn btn-ghost">Rebuild Windows installers now</button>
       <p class="muted small">Runs both GUI build scripts in the background (may take several minutes).</p>
     </form>
+    <form method="post" action="{{ url_for('admin_rebuild_miner_desktop') }}" style="margin-top:1rem;">
+      <button type="submit" class="btn btn-ghost">Rebuild desktop miner (PC)</button>
+      <p class="muted small">Electron app — same UI as Android APK. Publishes Linux tarball + source to /downloads/.</p>
+    </form>
     <form method="post" action="{{ url_for('admin_rebuild_miner_pack') }}" style="margin-top:1rem;">
       <button type="submit" class="btn btn-ghost">Rebuild Windows CPU miner zip</button>
       <p class="muted small">Packages cpuminer-opt with current pool ports and publishes to /downloads/.</p>
@@ -699,6 +802,59 @@
   </div>
 </section>
 
+<section class="panel" id="x-login-settings-panel">
+  <div class="panel-head">
+    <h2>X sign-in (wallet app)</h2>
+    <p class="panel-sub muted small">
+      OAuth credentials for <span class="mono">Continue with X</span> on the Bloodstone wallet.
+      Stored in the wallet referrals database — same values as
+      <a href="{{ wallet_admin_url }}" target="_blank" rel="noopener">wallet admin</a>.
+    </p>
+  </div>
+  <form method="post" action="{{ url_for('admin_save_x_settings') }}" class="panel-body admin-grid">
+    <div class="stat-card" style="grid-column:1/-1">
+      <div class="stat-label">Status</div>
+      <div class="stat-value">
+        {% if x_oauth_ready and x_oauth_probe_ok %}
+        <span class="badge badge-active">X sign-in active</span>
+        <span class="muted small">Credentials verified with X.</span>
+        {% elif x_oauth_ready %}
+        <span class="badge badge-down">Credentials rejected</span>
+        {% if x_oauth_probe_error %}<span class="muted small">{{ x_oauth_probe_error }}</span>{% endif %}
+        {% else %}
+        <span class="badge badge-down">Not configured</span>
+        {% endif %}
+      </div>
+    </div>
+    <label class="field">
+      <span>X OAuth client ID</span>
+      <input type="text" name="x_client_id" class="mono" value="{{ x_settings.get('x_client_id', '') }}" autocomplete="off" placeholder="From developer.x.com">
+    </label>
+    <label class="field">
+      <span>X OAuth client secret</span>
+      <input type="password" name="x_client_secret" class="mono" value="" autocomplete="new-password"
+             placeholder="{% if x_settings.get('x_client_secret') %}leave blank to keep current{% else %}required{% endif %}">
+    </label>
+    <label class="field" style="grid-column:1/-1">
+      <span>OAuth redirect URI (optional)</span>
+      <input type="url" name="x_redirect_uri" class="mono" value="{{ x_settings.get('x_redirect_uri', '') }}"
+             placeholder="Auto: {{ x_oauth_redirect_uri }}">
+    </label>
+    <p class="muted small admin-hint" style="grid-column:1/-1">
+      Create an app at
+      <a href="https://developer.x.com/en/portal/dashboard" target="_blank" rel="noopener">developer.x.com</a>
+      with <strong>OAuth 2.0 user authentication</strong>. Under User authentication settings, set type
+      <strong>Web App</strong>, enable callback
+      <span class="mono">{{ x_oauth_redirect_uri }}</span>, and scope
+      <span class="mono">users.read</span> (App permissions: Read).
+      After saving, test at <a href="{{ wallet_login_url }}" target="_blank" rel="noopener">{{ wallet_login_url }}</a>.
+    </p>
+    <div class="btn-row" style="grid-column:1/-1">
+      <button type="submit" class="btn">Save X settings</button>
+    </div>
+  </form>
+</section>
+
 <section class="panel admin-services-panel">
   <div class="panel-head">
     <h2>Server services</h2>
@@ -766,8 +922,16 @@
   {% if master_creator %}
   import { initNodePatchAdmin } from "{{ url_for('static', filename='js/node-patch-admin.js') }}?v=20260704-node-patch";
   initNodePatchAdmin();
+  import { initBetaCodesAdmin } from "{{ url_for('static', filename='js/beta-codes-admin.js') }}?v=20260708-beta";
+  initBetaCodesAdmin();
   import { initTimeCapsuleAdmin } from "{{ url_for('static', filename='js/time-capsule-admin.js') }}?v=20260704-time-capsule";
   initTimeCapsuleAdmin();
   {% endif %}
+  import { startLanNodesLagPolling } from "{{ url_for('static', filename='js/lan-nodes-lag.js') }}?v=20260707-lan-lag-fast";
+  startLanNodesLagPolling(5000, {
+    admin: true,
+    summaryPrefix: "admin-lan-lag",
+    tableId: "admin-lan-lag-table",
+  });
 </script>
 {% endblock %}

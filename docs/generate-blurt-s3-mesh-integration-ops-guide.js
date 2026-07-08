@@ -23,7 +23,8 @@ const {
 const border = { style: BorderStyle.SINGLE, size: 1, color: "CCCCCC" };
 const borders = { top: border, bottom: border, left: border, right: border };
 
-const PUBLISH_TOKEN = "40948527d4bc3687cfcf80bff57d0de35ae79ab93edf3323469da650fb73080a";
+// Partner token is issued out-of-band only — never embed in public downloads or mesh docs.
+const TOKEN_PLACEHOLDER = "<your-partner-token-from-bloodstone-ops>";
 const COORDINATOR = "https://bloodstonewallet.mytunnel.org";
 
 function h1(text) {
@@ -184,10 +185,10 @@ const children = [
 
   h1("2. Mesh Publish Token"),
   p(
-    "The coordinator issues one partner publish token for Blurt bulk operations. Treat it as a password — it allows chunk upload and manifest publish on keys under assets/blurt/."
+    "The coordinator issues one partner publish token for Blurt bulk operations. Bloodstone delivers it out-of-band (not in this public operations guide). Treat it as a password — it allows chunk upload and manifest publish on keys under assets/blurt/."
   ),
-  h3("Token value"),
-  mono(PUBLISH_TOKEN),
+  h3("Token placeholder (replace with your issued secret)"),
+  mono(TOKEN_PLACEHOLDER),
   h3("How to send it"),
   bullet("bullets", "HTTP header: X-Chain-Mesh-Publish-Token: <token>"),
   bullet("bullets", 'JSON body field: "publish_token": "<token>"'),
@@ -255,7 +256,7 @@ const children = [
   mono("export AWS_ACCESS_KEY_ID=…"),
   mono("export AWS_SECRET_ACCESS_KEY=…"),
   mono("export AWS_REGION=eu-central-1"),
-  mono("export CHAIN_MESH_PUBLISH_TOKEN=" + PUBLISH_TOKEN),
+  mono("export CHAIN_MESH_PUBLISH_TOKEN=" + TOKEN_PLACEHOLDER),
   mono("export BLOODSTONE_COORDINATOR=" + COORDINATOR),
   mono(""),
   mono("python3 blurt-s3-mesh-mirror.py \\"),

@@ -7,7 +7,18 @@ const CORE_PLUGINS = [
   "BloodstoneLocalNode",
 ];
 
+export function isDesktopAppContext() {
+  if (document.body?.dataset?.desktopApp === "1") return true;
+  try {
+    if (window.Capacitor?.getPlatform?.() === "desktop") return true;
+  } catch (_) {
+    /* ignore */
+  }
+  return false;
+}
+
 export function isAndroidAppContext() {
+  if (isDesktopAppContext()) return true;
   if (document.body?.dataset?.androidApp === "1") return true;
   const params = new URLSearchParams(window.location.search);
   if (params.get("app") === "android") return true;
@@ -19,17 +30,62 @@ export function isAndroidAppContext() {
   return false;
 }
 
+export function isNativeMinerAppContext() {
+  return isAndroidAppContext() || isDesktopAppContext();
+}
+
+/** True when UI is served from the APK/OTA bundle (https://localhost/...), not the live portal. */
+export function isBundledMinerOrigin() {
+  if (isDesktopAppContext()) return true;
+  try {
+    const host = String(window.location.hostname || "").toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host.endsWith(".localhost");
+  } catch (_) {
+    return false;
+  }
+}
+
+/** Open the offline bundled miner — required for reliable native local-node plugins. */
+export function openBundledMinerScreen(query = "") {
+  const q = query || "?app=android";
+  const suffix = q.startsWith("?") ? q : `?${q}`;
+  window.location.href = `${window.location.protocol}//localhost/offline-mine.html${suffix}`;
+}
+
+export function hasNativeCapacitorBridge() {
+  const cap = window.Capacitor;
+  if (!cap) return false;
+  if (typeof cap.nativePromise === "function") return true;
+  return CORE_PLUGINS.some((name) => Boolean(cap.Plugins?.[name]));
+}
+
 function hasCapacitorPlugin(cap, name) {
   return Boolean(cap?.Plugins?.[name]);
 }
 
+function hasNativeBridge(cap) {
+  return typeof cap?.nativePromise === "function";
+}
+
 function capacitorBridgeReady(cap) {
   if (!cap) return false;
+  if (hasNativeBridge(cap)) return true;
+  if (cap.getPlatform?.() === "android" || cap.getPlatform?.() === "desktop") {
+    return CORE_PLUGINS.some((name) => hasCapacitorPlugin(cap, name));
+  }
   return CORE_PLUGINS.every((name) => hasCapacitorPlugin(cap, name));
 }
 
 export async function whenCapacitorReady(maxMs = 12000) {
   if (!isAndroidAppContext()) return window.Capacitor || null;
+  if (isDesktopAppContext() && hasNativeCapacitorBridge()) {
+    return window.Capacitor;
+  }
+  if (typeof window.__bloodstoneWaitForBridge === "function") {
+    await window.__bloodstoneWaitForBridge(
+      isDesktopAppContext() ? Math.min(maxMs, 3000) : Math.max(maxMs, 15000),
+    );
+  }
   const deadline = Date.now() + maxMs;
   while (Date.now() < deadline) {
     const cap = window.Capacitor;
@@ -38,6 +94,24 @@ export async function whenCapacitorReady(maxMs = 12000) {
     }
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
+  return window.Capacitor || null;
+}
+
+/** Wait until DevicePool or LocalNode plugin responds (OTA + chain node). */
+export async function waitForBloodstoneBridge(maxMs = 45000) {
+  if (!isAndroidAppContext()) return null;
+  if (isDesktopAppContext() && hasNativeCapacitorBridge()) {
+    return window.Capacitor;
+  }
+  if (typeof window.__bloodstoneWaitForBridge === "function") {
+    const state = await window.__bloodstoneWaitForBridge(
+      isDesktopAppContext() ? Math.min(maxMs, 3000) : maxMs,
+    );
+    if (state?.ready || (isDesktopAppContext() && hasNativeCapacitorBridge())) {
+      return window.Capacitor || null;
+    }
+  }
+  await whenCapacitorReady(isDesktopAppContext() ? Math.min(maxMs, 5000) : maxMs);
   return window.Capacitor || null;
 }
 

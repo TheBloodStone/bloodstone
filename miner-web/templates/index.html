@@ -81,7 +81,7 @@
     <p class="muted small">Browse and download files published to the mesh. Submit new files on the <a href="{{ url_for('network_data') }}">Network Data Portal</a> (admin review required).</p>
     <label class="mesh-upload-field">
       <span class="muted small">Filter</span>
-      <input type="search" id="mesh-library-search" class="mono" placeholder="Search name or key…" autocomplete="off">
+      <input type="search" id="mesh-library-search" class="mono" placeholder="Search name or key to browse…" autocomplete="off">
     </label>
     <p class="muted small" id="mesh-library-status"></p>
     <div class="table-wrap">
@@ -98,7 +98,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr><td colspan="7" class="muted">Loading…</td></tr>
+          <tr><td colspan="7" class="muted">Type in the filter above to search published mesh files.</td></tr>
         </tbody>
       </table>
     </div>
@@ -135,8 +135,52 @@
       <div class="stat-label">LAN registered</div>
       <div class="stat-value" id="network-nodes-lan">—</div>
     </div>
+    <div class="stat-card">
+      <div class="stat-label">LAN miners reported</div>
+      <div class="stat-value" id="network-nodes-lan-reported">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">LAN hashrate</div>
+      <div class="stat-value" id="network-nodes-lan-hashrate">—</div>
+    </div>
   </div>
   <p class="muted small" id="network-nodes-breakdown" style="margin-top:0.5rem">Loading network peers…</p>
+  <details class="setup-details" id="lan-lag-details" style="margin-top:0.75rem" open>
+    <summary>LAN node sync lag <span class="muted small" id="lan-lag-updated">—</span></summary>
+    <div class="stats-grid" style="margin:0.5rem 0">
+      <div class="stat-card">
+        <div class="stat-label">VPS tip</div>
+        <div class="stat-value mono" id="lan-lag-tip">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active LAN nodes</div>
+        <div class="stat-value mono" id="lan-lag-active">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Max behind</div>
+        <div class="stat-value mono" id="lan-lag-max-behind">—</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="admin-table" id="lan-lag-table">
+        <thead>
+          <tr>
+            <th>Device</th>
+            <th>LAN IP</th>
+            <th>Mode</th>
+            <th>Height</th>
+            <th>Behind</th>
+            <th>Sync</th>
+            <th>Status</th>
+            <th>Last seen</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="8" class="muted small">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
 </section>
 
 <section class="panel">
@@ -592,7 +636,9 @@
 {% endblock %}
 {% block extra_scripts %}
 <script type="module">
-  import { initMeshAssetLibrary } from "{{ url_for('static', filename='js/mesh-asset-library.js') }}?v=20260704-mesh-admin";
-  initMeshAssetLibrary({ limit: 50, pollMs: 120000 });
+  import { initMeshAssetLibrary } from "{{ url_for('static', filename='js/mesh-asset-library.js') }}?v=20260707-mesh-search-default";
+  import { startLanNodesLagPolling } from "{{ url_for('static', filename='js/lan-nodes-lag.js') }}?v=20260707-lan-lag-fast";
+  initMeshAssetLibrary({ limit: 50, requireSearch: true });
+  startLanNodesLagPolling(5000);
 </script>
 {% endblock %}

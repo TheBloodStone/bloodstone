@@ -2,8 +2,12 @@
 #define SHA256_HASH_H__ 1
 
 #include <stddef.h>
-#include "simd-utils.h"
+#include <stdint.h>
 #include "cpuminer-config.h"
+#if ( defined(__x86_64__) && defined(__SHA__) ) \
+ || ( defined(__ARM_NEON) && defined(__ARM_FEATURE_SHA2) )
+#include "simd-utils.h"
+#endif
 
 static const uint32_t SHA256_IV[8];
 
@@ -182,8 +186,9 @@ int sha256_8x32_transform_le_short( __m256i *state_out, const __m256i *data,
 
 #endif  // AVX2
 
-#if defined(__SSE2__) || defined(__ARM_NEON)
-// SHA-256 4 way x86_64 with SSE2 or AArch64 with NEON
+#if ( defined(__x86_64__) && defined(__SHA__) ) \
+ || ( defined(__ARM_NEON) && defined(__ARM_FEATURE_SHA2) )
+// SHA-256 4 way x86_64 with SHA-NI or AArch64 with SHA2
 
 typedef struct
 {

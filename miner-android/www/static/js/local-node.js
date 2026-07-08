@@ -2,7 +2,15 @@
 
 import { apiUrl } from "./miner-paths.js";
 import { isCapacitorAndroid } from "./device-fleet.js";
-import { isAndroidAppContext, whenCapacitorReady } from "./capacitor-ready.js";
+import {
+  hasNativeCapacitorBridge,
+  isAndroidAppContext,
+  isBundledMinerOrigin,
+  isNativeMinerAppContext,
+  openBundledMinerScreen,
+  whenCapacitorReady,
+} from "./capacitor-ready.js";
+
 
 const NODE_MODE_KEY = "bloodstone-local-node-mode";
 const NODE_ONLY_SESSION_KEY = "bloodstone-node-only-active";
@@ -17,6 +25,7 @@ const NEARBY_TTL_MS = 45000;
 const LOCAL_STRATUM_PORTS = {
   neoscrypt: 3437,
   yespower: 3438,
+  sha256d: 3429,
   rod_neoscrypt: 3440,
 };
 
@@ -29,6 +38,11 @@ export const NODE_MODES = {
   CONSENSUS_WITNESS: "consensus-witness",
 };
 
+export function supportsOnDeviceWallet(mode) {
+  const m = String(mode || "").toLowerCase();
+  return m === NODE_MODES.PRUNED || m === NODE_MODES.FULL || m === NODE_MODES.MESH;
+}
+
 let discoveredLanPeersCache = [];
 let activeLanPeer = null;
 let lanDiscoveryTimer = null;
@@ -36,10 +50,125 @@ let chainDownloadPanelForced = false;
 let nodeActivateInFlight = false;
 let lastBloodstonedDeathAt = 0;
 let nodeStartAttemptAt = 0;
-const NODE_START_STALE_MS = 90000;
+let lastStatusPollError = "";
+let lastInitialSyncRetryAt = 0;
+const INITIAL_SYNC_RETRY_MS = 30000;
+const NODE_START_STALE_MS = 45000;
+const NODE_BRIDGE_STALE_MS = 20000;
+
+export function getLastStatusPollError() {
+  return lastStatusPollError;
+}
 
 export function setChainDownloadPanelForced(forced) {
   chainDownloadPanelForced = forced === true;
+}
+
+/** True when this device has never stored chain data — background sync cannot do initial download. */
+export function needsInitialChainSync(status) {
+  if (!shouldHostLocalNode(getNodeModePreference())) return false;
+  const local = Number(status?.blockHeight) || 0;
+  const disk = Number(status?.chainBytes) || 0;
+  return local === 0 && disk < 512 * 1024;
+}
+
+/** First sync uses full chain + bootstrap tarball — pruned/witness P2P-from-zero rarely works on phones. */
+export function preferredModeForChainDownload(mode, status) {
+  if (!needsInitialChainSync(status)) return mode;
+  if (
+    mode === NODE_MODES.PRUNED
+    || mode === NODE_MODES.CONSENSUS
+    || mode === NODE_MODES.CONSENSUS_WITNESS
+  ) {
+    return NODE_MODES.FULL;
+  }
+  return mode;
+}
+
+/** Force foreground bloodstoned when chain is empty but UI fell into battery-save / scheduled mode. */
+export async function ensureForegroundChainSync({ onLog, onStatus } = {}) {
+  if (!isCapacitorAndroid() && !isAndroidAppContext()) return null;
+  const mode = readNodeModeFromUi();
+  if (!shouldHostLocalNode(mode)) return null;
+  const status = await getLocalNodeStatus();
+  if (status?.running || status?.nodeStarting || status?.chainBootstrapping) {
+    return status;
+  }
+  if (!needsInitialChainSync(status)) return status;
+  if (Date.now() - lastInitialSyncRetryAt < INITIAL_SYNC_RETRY_MS) return status;
+  lastInitialSyncRetryAt = Date.now();
+  const msg =
+    "No blockchain on device yet — starting bloodstoned in the foreground (battery-save mode cannot do the first download).";
+  onLog?.(msg, "warn");
+  setNodeOnlyStatusMessage(msg, "warn");
+  setNodeOnlyActive(true);
+  setChainDownloadPanelForced(true);
+  const result = await activateNodeWithoutMining({ onLog, onStatus });
+  onStatus?.(result);
+  return result;
+}
+
+const SYNC_CAUGHT_UP_MAX_BEHIND = 64;
+const SYNC_CAUGHT_UP_MIN_RATIO = 0.99;
+
+export function isChainCaughtUp(status) {
+  if (!status?.bloodstonedAlive) return false;
+  const local = Number(status.blockHeight) || 0;
+  if (local <= 0) return false;
+  const tip = Math.max(
+    Number(status.networkBlockHeight) || 0,
+    Number(status.headerHeight) || 0,
+    local,
+  );
+  if (tip <= 0) return false;
+  const behind = Math.max(0, tip - local);
+  if (behind <= SYNC_CAUGHT_UP_MAX_BEHIND) return true;
+  return local / tip >= SYNC_CAUGHT_UP_MIN_RATIO;
+}
+
+/** Show chain download panel before native bloodstoned boots. */
+export function primeChainDownloadUi(status) {
+  setChainDownloadPanelForced(true);
+  setNodeOnlyActive(true);
+  updateNodeSyncProgress(status || nodeStartPlaceholderStatus());
+}
+
+/** First-time chain download — must run bloodstoned in the foreground on Android. */
+export async function beginChainDownloadOnDevice({ onLog, onStatus } = {}) {
+  const status = await getLocalNodeStatus();
+  primeChainDownloadUi(status);
+  onLog?.(
+    "Starting chain download on device — keep Bloodstone open on Wi‑Fi",
+    "warn",
+  );
+  return activateNodeWithoutMining({ onLog, onStatus });
+}
+
+export function showPostSyncMiningCta() {
+  const actions = document.getElementById("local-node-sync-actions");
+  if (actions) actions.hidden = false;
+  const wrap = document.getElementById("local-node-sync-wrap");
+  if (wrap) wrap.classList.add("is-complete");
+}
+
+export function scrollToMiningControls({ pulseStart = false } = {}) {
+  const target =
+    document.getElementById("android-miner-controls")
+    || document.getElementById("btn-start")
+    || document.getElementById("web-miner");
+  if (!target) return;
+  try {
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (_) {
+    target.scrollIntoView();
+  }
+  if (pulseStart) {
+    const btn = document.getElementById("btn-start");
+    if (btn) {
+      btn.classList.add("pulse-attention");
+      window.setTimeout(() => btn.classList.remove("pulse-attention"), 2400);
+    }
+  }
 }
 
 function buildLocalNodePluginAdapter() {
@@ -62,9 +191,13 @@ function buildLocalNodePluginAdapter() {
     stopLocalNode: (opts) => call("stopLocalNode", opts),
     getLocalNodeStatus: () => call("getLocalNodeStatus"),
     getNodeStorageInfo: () => call("getNodeStorageInfo"),
+    getLanRpcUrl: () => call("getLanRpcUrl"),
     registerLan: () => call("registerLan"),
     discoverLanPeers: () => call("discoverLanPeers"),
     resetLocalNodeChain: (opts) => call("resetLocalNodeChain", opts),
+    createLocalWallet: (opts) => call("createLocalWallet", opts),
+    getNewLocalAddress: (opts) => call("getNewLocalAddress", opts),
+    listLocalWallets: () => call("listLocalWallets"),
   };
 }
 
@@ -74,6 +207,54 @@ export function localNodePlugin() {
   } catch (_) {
     return null;
   }
+}
+
+function describeCapacitorBridge() {
+  const cap = window.Capacitor;
+  if (!cap) return "Capacitor not loaded";
+  const platform = typeof cap.getPlatform === "function" ? cap.getPlatform() : "?";
+  const hasPlugin = Boolean(cap.Plugins?.BloodstoneLocalNode);
+  const hasNative = typeof cap.nativePromise === "function";
+  return `platform=${platform} plugin=${hasPlugin ? "yes" : "no"} nativePromise=${hasNative ? "yes" : "no"}`;
+}
+
+export async function waitForLocalNodePlugin(maxWaitMs = 30000) {
+  if (
+    isAndroidAppContext()
+    && !isBundledMinerOrigin()
+    && window.Capacitor?.getPlatform?.() !== "desktop"
+  ) {
+    openBundledMinerScreen("?app=android&node=1");
+    const err = new Error(
+      "Full node must run on the bundled miner screen — redirecting to localhost…",
+    );
+    err.code = "REDIRECT_BUNDLED_MINER";
+    throw err;
+  }
+  const deadline = Date.now() + maxWaitMs;
+  let lastDiag = "";
+  while (Date.now() < deadline) {
+    await whenCapacitorReady(Math.min(5000, deadline - Date.now()));
+    const plugin = localNodePlugin();
+    if (plugin?.startLocalNode) return plugin;
+    lastDiag = describeCapacitorBridge();
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  let hint =
+    "Install APK 1.3.44 from Updates → Downloads, then Check for updates (UI 1.3.68-web+).";
+  if (isAndroidAppContext() && !isBundledMinerOrigin()) {
+    hint =
+      "You are on the live portal inside the app — full node needs the bundled miner screen. "
+      + "Switching now…";
+    openBundledMinerScreen("?app=android");
+  } else if (!hasNativeCapacitorBridge()) {
+    hint += " Open the Bloodstone app icon (not Chrome).";
+  }
+  const err = new Error(
+    `Local node bridge unavailable (${lastDiag || describeCapacitorBridge()}). ${hint}`,
+  );
+  err.code = "LOCAL_NODE_PLUGIN_MISSING";
+  throw err;
 }
 
 export function getNodeModePreference() {
@@ -208,8 +389,18 @@ export async function activateNodeWithoutMining({ onLog, onStatus } = {}) {
     setNodeOnlyStatusMessage(msg, "warn");
     return getLocalNodeStatus();
   }
-  await whenCapacitorReady();
-  const mode = readNodeModeFromUi();
+  let mode = readNodeModeFromUi();
+  const preStatus = await getLocalNodeStatus();
+  const bootstrapMode = preferredModeForChainDownload(mode, preStatus);
+  if (bootstrapMode !== mode) {
+    mode = setNodeModePreference(bootstrapMode);
+    const select = document.getElementById("local-node-mode-select");
+    if (select) select.value = mode;
+    onLog?.(
+      "No chain on device — switching to Full chain for bootstrap download (~5 MB snapshot), then you can switch back to Pruned.",
+      "warn",
+    );
+  }
   if (!shouldHostLocalNode(mode)) {
     const msg =
       "LAN client mode does not host a node — pick Pruned, Full chain, or Mesh in the dropdown above, then tap Start again.";
@@ -217,11 +408,21 @@ export async function activateNodeWithoutMining({ onLog, onStatus } = {}) {
     setNodeOnlyStatusMessage(msg, "error");
     return null;
   }
-  const plugin = localNodePlugin();
-  if (!plugin?.startLocalNode) {
-    const msg = "Local node plugin missing — install APK 1.3.43+ from Downloads";
+  let plugin = null;
+  try {
+    plugin = await waitForLocalNodePlugin(15000);
+  } catch (err) {
+    const msg = String(err?.message || err || "Local node plugin missing");
     onLog?.(msg, "error");
     setNodeOnlyStatusMessage(msg, "error");
+    if (typeof window.__bloodstoneRunAndroidUpdate === "function") {
+      onLog?.("Trying UI/APK update to restore native bridge…", "warn");
+      try {
+        await window.__bloodstoneRunAndroidUpdate({ auto: true });
+      } catch (_) {
+        /* ignore */
+      }
+    }
     return null;
   }
   nodeActivateInFlight = true;
@@ -254,7 +455,12 @@ export async function activateNodeWithoutMining({ onLog, onStatus } = {}) {
     setNodeOnlyStatusMessage(msg, "error");
     return null;
   }
-  if (startResult?.startError) {
+  if (
+    startResult?.startError
+    && !startResult?.running
+    && !startResult?.nodeStarting
+    && !startResult?.chainBootstrapping
+  ) {
     const status = startResult;
     const errText = formatNodeStartError(status, mode);
     updateNodeSyncProgress(status);
@@ -491,14 +697,46 @@ export async function stopLocalNode(options = {}) {
   }
 }
 
-export async function getLocalNodeStatus() {
-  const plugin = localNodePlugin();
-  if (!plugin) return enrichNodeStartStatus(null);
-  try {
-    return enrichNodeStartStatus(await plugin.getLocalNodeStatus());
-  } catch (_) {
-    return enrichNodeStartStatus(null);
+function normalizePluginPayload(raw) {
+  if (raw == null) return null;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw);
+    } catch (_) {
+      return null;
+    }
   }
+  if (typeof raw !== "object") return null;
+  if (raw.value != null && typeof raw.value === "object") return raw.value;
+  return raw;
+}
+
+async function rawGetLocalNodeStatus() {
+  const plugin = localNodePlugin();
+  if (plugin?.getLocalNodeStatus) {
+    try {
+      const status = normalizePluginPayload(await plugin.getLocalNodeStatus());
+      if (status) return status;
+    } catch (_) {
+      /* fall through */
+    }
+  }
+  const cap = window.Capacitor;
+  if (typeof cap?.nativePromise === "function") {
+    try {
+      const status = normalizePluginPayload(
+        await cap.nativePromise("BloodstoneLocalNode", "getLocalNodeStatus", {}),
+      );
+      if (status) return status;
+    } catch (_) {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
+export async function getLocalNodeStatus() {
+  return enrichNodeStartStatus(await rawGetLocalNodeStatus());
 }
 
 export async function registerLanOnNetwork() {
@@ -520,15 +758,42 @@ export async function registerLanOnNetwork() {
   return result;
 }
 
-/** Host nodes push LAN endpoints to the pool registry (also runs every 60s natively). */
+/** Host nodes push LAN endpoints to the pool registry (native also posts every ~15s). */
 export async function ensureLanRegistration() {
-  if (!isCapacitorAndroid() || isLanClientMode()) return null;
+  if (!isNativeMinerAppContext() || isLanClientMode()) return null;
   try {
     return await registerLanOnNetwork();
   } catch (err) {
     console.warn("LAN register:", err?.message || err);
     return null;
   }
+}
+
+let lanRegistrationTimer = null;
+
+/** Keep VPS LAN lag table fresh while the local node is running (JS backup for native registrar). */
+export function startLanRegistrationHeartbeat(intervalMs = 30000) {
+  if (!isNativeMinerAppContext() || isLanClientMode()) return () => {};
+  if (lanRegistrationTimer) clearInterval(lanRegistrationTimer);
+  const tick = async () => {
+    try {
+      const status = await getLocalNodeStatus();
+      if (!status?.running && !status?.nodeStarting && !status?.chainBootstrapping) return;
+      await ensureLanRegistration();
+    } catch (_) {
+      /* ignore */
+    }
+  };
+  void tick();
+  lanRegistrationTimer = setInterval(() => {
+    void tick();
+  }, Math.max(15000, intervalMs));
+  return () => {
+    if (lanRegistrationTimer) {
+      clearInterval(lanRegistrationTimer);
+      lanRegistrationTimer = null;
+    }
+  };
 }
 
 export async function discoverMdnsLanNodes() {
@@ -563,6 +828,9 @@ function localStratumPort(status, poolKey) {
   if (poolKey === "yespower") {
     return Number(ports.yespower || status.stratumPortYespower || LOCAL_STRATUM_PORTS.yespower);
   }
+  if (poolKey === "sha256d") {
+    return Number(ports.sha256d || status.stratumPortSha256d || LOCAL_STRATUM_PORTS.sha256d);
+  }
   if (poolKey === "rod_neoscrypt") {
     return Number(ports.rod_neoscrypt || LOCAL_STRATUM_PORTS.rod_neoscrypt);
   }
@@ -572,6 +840,11 @@ function localStratumPort(status, poolKey) {
 function nearbyStratumPort(node, poolKey) {
   if (poolKey === "yespower") {
     return Number(node.stratum_port_yespower || node.stratum_port || LOCAL_STRATUM_PORTS.yespower);
+  }
+  if (poolKey === "sha256d") {
+    return Number(
+      node.stratum_port_sha256d || node.stratumPortSha256d || LOCAL_STRATUM_PORTS.sha256d,
+    );
   }
   return Number(node.stratum_port || LOCAL_STRATUM_PORTS.neoscrypt);
 }
@@ -606,7 +879,8 @@ function isStratumPeer(node) {
   if (node.consensus_only === true || node.consensus_only === 1) return false;
   const neo = Number(node.stratum_port || 0);
   const yp = Number(node.stratum_port_yespower || 0);
-  return neo > 0 || yp > 0;
+  const sha = Number(node.stratum_port_sha256d || node.stratumPortSha256d || 0);
+  return neo > 0 || yp > 0 || sha > 0;
 }
 
 function peerMatchesFilter(node, options = {}) {
@@ -671,6 +945,9 @@ function formatNodeStartError(status, mode = getNodeModePreference()) {
     if (/storage|space|ENOSPC/i.test(raw)) {
       return "Not enough free storage — free at least 400 MB on the phone";
     }
+    if (/bootstrap|checksum mismatch/i.test(raw)) {
+      return `Chain download failed: ${raw} — check Wi‑Fi, tap Stop then Start, or free cache in app settings`;
+    }
     return `Local node failed: ${raw}`;
   }
   const storage = status?.storageWarning === "low_storage";
@@ -678,9 +955,17 @@ function formatNodeStartError(status, mode = getNodeModePreference()) {
     return "Low free storage — free at least 400 MB, plug in on Wi‑Fi, then tap Start full node";
   }
   if (status?.bloodstonedAlive === false) {
+    const failure = String(status?.bloodstonedFailureReason || "").trim();
+    if (failure) return failure;
     const restarts = Number(status?.bloodstonedRestartAttempts) || 0;
+    if (restarts >= 8) {
+      return "Chain index recovery failed — tap Stop node, wait 5 seconds, then Start (re-downloads bootstrap)";
+    }
     if (restarts > 0) {
-      return `bloodstoned crashed — auto-restart ${restarts}/8 in progress. Keep app open on Wi‑Fi, plugged in, battery saver off`;
+      return `bloodstoned stopped — auto-restart ${restarts}/8 in progress. Keep app open on Wi‑Fi, plugged in, battery saver off`;
+    }
+    if (status?.running) {
+      return "bloodstoned stopped — tap Stop node, wait 5 seconds, then Start again";
     }
     return "bloodstoned did not start — 64-bit ARM required, ~400 MB free, stay on Wi‑Fi plugged in";
   }
@@ -877,6 +1162,7 @@ export function estimateSyncProgress(status) {
       return 0.08;
     }
   }
+  if (status?.running && status?.nodeStarting && status?.bloodstonedAlive) return 0.08;
   if (isActivelyStartingNode(status)) return 0.02;
   if (status?.running && status?.bloodstonedAlive !== false) {
     return 0.05;
@@ -917,15 +1203,82 @@ export function isLocalNodeStratumReady(status) {
   return localStratumAvailable(status);
 }
 
+export function isLocalLanPoolCoordinator(status) {
+  return Boolean(status?.poolCoordinator?.localPoolActive);
+}
+
+async function lanPeerPoolCoordinatorActive(host) {
+  const h = String(host || "").trim();
+  if (!h) return false;
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 4000);
+    const res = await fetch(`http://${h}:18342/api/lan-pool/snapshot`, {
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) return false;
+    const snap = await res.json();
+    return Boolean(snap.coordinator_active || snap.verified);
+  } catch (_) {
+    return false;
+  }
+}
+
 /** Stratum routing for Android — LAN full node first, local host, then VPS. */
 export async function resolveAndroidStratumOptions(miningMode = "pool", poolKey = "yespower") {
   if (!isAndroidAppContext()) return {};
   const nodeMode = getNodeModePreference();
   const status = await getLocalNodeStatus();
+  const poolMode = miningMode !== "solo";
+  const localCoord = isLocalLanPoolCoordinator(status);
+  if (poolKey === "sha256d") {
+    const hosting = shouldHostLocalNode(nodeMode);
+    const ready = hosting && shouldHostStratum(nodeMode) && isLocalNodeStratumReady(status);
+    const syncing = isNodeSyncing(status);
+    if (poolMode && ready && localCoord) {
+      return {
+        localNodeOnly: true,
+        lanPoolRelay: false,
+        lanLocalPool: true,
+        noVpsFallback: true,
+        forceVps: false,
+        nodeStatus: status,
+        chainSyncing: syncing,
+      };
+    }
+    if (poolMode && ready) {
+      return {
+        localNodeOnly: true,
+        lanPoolRelay: true,
+        noVpsFallback: false,
+        forceVps: false,
+        nodeStatus: status,
+        chainSyncing: syncing,
+      };
+    }
+    if (!poolMode && ready && !syncing) {
+      return {
+        localNodeOnly: true,
+        lanPoolRelay: false,
+        noVpsFallback: true,
+        forceVps: false,
+        nodeStatus: status,
+        chainSyncing: false,
+      };
+    }
+    return {
+      localNodeOnly: false,
+      lanPoolRelay: false,
+      noVpsFallback: !poolMode,
+      forceVps: true,
+      nodeStatus: status,
+      chainSyncing: syncing,
+    };
+  }
   const syncing = isNodeSyncing(status);
   const hosting = shouldHostLocalNode(nodeMode);
   const ready = hosting && shouldHostStratum(nodeMode) && isLocalNodeStratumReady(status);
-  const poolMode = miningMode !== "solo";
 
   if (isConsensusMode(nodeMode)) {
     const peer = await resolveLanStratumEndpoint(poolKey, {
@@ -958,11 +1311,13 @@ export async function resolveAndroidStratumOptions(miningMode = "pool", poolKey 
 
   if (isLanClientMode(nodeMode)) {
     const peer = await resolveLanStratumEndpoint(poolKey, { skipLocal: true, fullOnly: true });
+    const peerCoord = peer ? await lanPeerPoolCoordinatorActive(peer.host) : false;
     if (peer) {
       return {
         localNodeOnly: false,
-        lanPoolRelay: poolMode,
-        noVpsFallback: !poolMode,
+        lanPoolRelay: poolMode && !peerCoord,
+        lanLocalPool: peerCoord,
+        noVpsFallback: peerCoord || !poolMode,
         forceVps: false,
         nodeStatus: status,
         chainSyncing: false,
@@ -1003,6 +1358,17 @@ export async function resolveAndroidStratumOptions(miningMode = "pool", poolKey 
     };
   }
 
+  if (poolMode && ready && localCoord) {
+    return {
+      localNodeOnly: true,
+      lanPoolRelay: false,
+      lanLocalPool: true,
+      noVpsFallback: true,
+      nodeStatus: status,
+      chainSyncing: false,
+    };
+  }
+
   if (poolMode && ready) {
     return {
       localNodeOnly: true,
@@ -1028,10 +1394,12 @@ export async function resolveAndroidStratumOptions(miningMode = "pool", poolKey 
     fullOnly: poolMode,
   });
   if (peer && peer.source !== "local-node") {
+    const peerCoord = poolMode ? await lanPeerPoolCoordinatorActive(peer.host) : false;
     return {
       localNodeOnly: false,
-      lanPoolRelay: poolMode,
-      noVpsFallback: !poolMode,
+      lanPoolRelay: poolMode && !peerCoord,
+      lanLocalPool: peerCoord,
+      noVpsFallback: peerCoord || !poolMode,
       forceVps: false,
       nodeStatus: status,
       chainSyncing: syncing,
@@ -1064,27 +1432,36 @@ function clearNodeStartAttempt() {
 /** Surface actionable errors when native status never arrives or boot stalls. */
 function enrichNodeStartStatus(status) {
   const mode = effectiveNodeMode(status || nodeStartPlaceholderStatus());
+  if (status?.startError && !status?.running && !status?.nodeStarting) {
+    return status;
+  }
   if (
     status?.running
     || status?.nodeStarting
     || status?.chainBootstrapping
     || (status?.bloodstonedAlive && status?.running)
   ) {
-    if (status?.running || status?.bloodstonedAlive) clearNodeStartAttempt();
+    if (status?.running && (status?.bloodstonedAlive || Number(status?.chainBytes) > 0)) {
+      clearNodeStartAttempt();
+    }
     return status;
   }
   if (!shouldHostLocalNode(mode) || (!isNodeOnlyActive() && !chainDownloadPanelForced)) {
     return status;
   }
-  if (!isNodeStartStale()) return status;
+  const bridgeStale =
+    status == null
+    && nodeStartAttemptAt > 0
+    && Date.now() - nodeStartAttemptAt > NODE_BRIDGE_STALE_MS;
+  if (!isNodeStartStale() && !bridgeStale) return status;
   const plugin = localNodePlugin();
   const bridgeHint = plugin?.getLocalNodeStatus
     ? ""
-    : " Install UI 1.3.65-web (Updates → Check for updates) or APK 1.3.44.";
+    : " Open Updates → Check for updates (need UI 1.3.66-web+) and APK 1.3.44+.";
   const err =
     status?.startError
     || (status == null
-      ? `Native node bridge not responding — allow notifications, keep app open on Wi‑Fi.${bridgeHint}`
+      ? `Native node bridge not responding — keep app open on Wi‑Fi, allow notifications.${bridgeHint}`
       : "Node start timed out — allow notifications, disable battery saver, tap Stop then Start again.");
   return {
     ...(status || nodeStartPlaceholderStatus(mode)),
@@ -1108,7 +1485,13 @@ function isActivelyStartingNode(status) {
 
 function chainDownloadPhase(status, progress, local, network) {
   const mode = effectiveNodeMode(status);
+  if (status?.startError && !status?.nodeStarting && !status?.running) return "unavailable";
   if (status?.chainBootstrapping) return "bootstrap";
+  if (status?.nodeStarting && status?.running) {
+    const chainBytes = Number(status?.chainBytes) || 0;
+    if (status?.bloodstonedAlive || chainBytes > 512 * 1024 || local > 0) return "loading";
+    return "starting";
+  }
   if (status?.bloodstonedAlive === false && shouldHostLocalNode(mode)) {
     return status?.running ? "unavailable" : "unavailable";
   }
@@ -1368,12 +1751,28 @@ export function initLocalNodeStatusPolling(onStatus) {
   const tick = async () => {
     try {
       let status = await getLocalNodeStatus();
-      if (status?.startError && isNodeStartStale()) {
+      if (status?.startError) {
         setNodeOnlyStatusMessage(status.startError, "error");
+        setChainDownloadPanelForced(true);
       }
       trackBloodstonedDeath(status);
       if (status?.nodeStarting || isActivelyStartingNode(status)) {
         setChainDownloadPanelForced(true);
+      }
+      if (
+        needsInitialChainSync(status)
+        && !status?.running
+        && !status?.nodeStarting
+        && !status?.chainBootstrapping
+        && !nodeActivateInFlight
+        && (!status?.bloodstonedAlive || status?.startError)
+      ) {
+        void ensureForegroundChainSync({
+          onStatus,
+          onLog: (msg, kind) => {
+            setNodeOnlyStatusMessage(msg, kind === "error" ? "error" : "warn");
+          },
+        });
       }
       if (status?.running || status?.nodeStarting) {
         const local = Number(status.blockHeight) || 0;
@@ -1388,11 +1787,16 @@ export function initLocalNodeStatusPolling(onStatus) {
           }
         }
       }
+      lastStatusPollError = "";
+      void import("./node-diagnostics.js")
+        .then((m) => m.trackNodePhaseForDiagnostics(status))
+        .catch(() => {});
       updateLocalNodePanel(status);
       updateNodeSyncProgress(status);
       onStatus?.(status);
     } catch (err) {
-      console.warn("local node status poll failed:", err?.message || err);
+      lastStatusPollError = String(err?.message || err || "status poll failed");
+      console.warn("local node status poll failed:", lastStatusPollError);
       if (isNodeOnlyActive() || chainDownloadPanelForced) {
         updateNodeSyncProgress(nodeStartPlaceholderStatus());
       }
@@ -1467,7 +1871,6 @@ export function initLanPeerDiscovery(intervalMs = 15000) {
 }
 
 export function updateLocalNodePanel(status) {
-  updateNodeSyncProgress(status);
   const line = document.getElementById("local-node-line");
   if (!line) return;
   const rpcEl = document.getElementById("local-node-rpc");
@@ -1513,7 +1916,7 @@ export function updateLocalNodePanel(status) {
     }
     if (detailEl) {
       detailEl.textContent =
-        "WorkManager wakes the node when 20+ blocks behind, syncs briefly, then sleeps.";
+        "WorkManager wakes the node when 8+ blocks behind, syncs up to 30 minutes, then sleeps.";
     }
     return;
   }
@@ -1544,9 +1947,18 @@ export function updateLocalNodePanel(status) {
         status.mode === NODE_MODES.CONSENSUS
           ? " — pruned validator on device; participates in P2P consensus on :17333, no LAN stratum or mesh hosting."
           : " — lightweight witness; validates chain via outbound peers only, no stratum or mining on this phone.";
+    } else if (status.poolCoordinator?.localPoolActive) {
+      detailEl.textContent =
+        ` — LAN pool coordinator active (verified with ${status.poolCoordinator.peerAgreements || 1} peer). Jobs, shares, and payouts run on this phone — no VPS pool.`;
+    } else if (status.poolCoordinator?.verified) {
+      detailEl.textContent =
+        " — pool coordinator verified with a LAN peer; activating local jobs/shares/payouts.";
+    } else if (status.poolCoordinator?.running) {
+      detailEl.textContent =
+        ` — pool coordinator waiting: ${status.poolCoordinator.detail || "need another synced node on Wi‑Fi to compare notes"}.`;
     } else if (status.mode === NODE_MODES.FULL) {
       detailEl.textContent =
-        " — full bloodstoned on device (no wallet); validates chain, serves LAN RPC/stratum, and peers on :17333 so the central VPS can be retired once enough devices sync.";
+        " — full bloodstoned on device; validates chain, hosts on-device wallet, serves LAN RPC/stratum, and peers on :17333.";
     } else if (status.mode === NODE_MODES.MESH) {
       detailEl.textContent =
         " — pruned tip node plus federated block-file backups across phones; helps rebuild chain data if the VPS goes offline.";
@@ -1597,20 +2009,27 @@ export async function initLocalNodeModeUi() {
   wrap.hidden = false;
   try {
     const stored = localStorage.getItem(NODE_MODE_KEY);
-    select.value = stored || select.value || NODE_MODES.PRUNED;
+    select.value = stored || select.value || NODE_MODES.FULL;
   } catch (_) {
-    select.value = select.value || NODE_MODES.PRUNED;
+    select.value = select.value || NODE_MODES.FULL;
+  }
+  await whenCapacitorReady();
+  const bootStatus = await getLocalNodeStatus();
+  const preferred = preferredModeForChainDownload(select.value, bootStatus);
+  if (preferred !== select.value) {
+    select.value = preferred;
   }
   setNodeModePreference(select.value);
-  await whenCapacitorReady();
   const storage = await getNodeStorageInfo();
   if (hint) {
     if (isLanClientMode(select.value)) {
       hint.textContent = "Searches Wi‑Fi for a synced full node — no bloodstoned on this phone.";
     } else if (isConsensusMode(select.value)) {
-      hint.textContent = select.value === NODE_MODES.CONSENSUS
-        ? "Validates blocks and witnesses consensus — no LAN stratum. Mine via Pool or a household full node."
-        : "Lightest witness mode — outbound sync only, no stratum hosting.";
+      hint.textContent = needsInitialChainSync(bootStatus)
+        ? "Witness modes do not bootstrap the chain — pick Full chain first, then switch here if needed."
+        : select.value === NODE_MODES.CONSENSUS
+          ? "Validates blocks and witnesses consensus — no LAN stratum. Mine via Pool or a household full node."
+          : "Lightest witness mode — outbound sync only, no stratum hosting.";
     } else if (storage) {
       hint.textContent = `Free ${formatBytes(storage.freeBytes)} · full node needs ${formatBytes(storage.fullNodeMinFreeBytes)}+ free`;
       if (!storage.canRunFullNode) {

@@ -23,7 +23,7 @@ import java.util.List;
 @CapacitorPlugin(name = "BloodstoneChainMesh")
 public class ChainMeshPlugin extends Plugin {
     private static final String TAG = "BloodstoneChainMesh";
-    private static final int DEFAULT_MAX_CHUNKS = 32;
+    private static final int DEFAULT_MAX_CHUNKS = 96;
     private static final int MESH_MAX_CHUNKS = 256;
     private static final int MAX_CHUNK_BYTES = 262144 + 4096;
     private int maxChunks = DEFAULT_MAX_CHUNKS;
@@ -32,6 +32,15 @@ public class ChainMeshPlugin extends Plugin {
 
     private ChainMeshHttpServer chunkServer;
     private PeerIpRegistry peerRegistry;
+    private static volatile boolean gatewaySharingEnabled = false;
+
+    public static void setGatewaySharingEnabled(boolean enabled) {
+        gatewaySharingEnabled = enabled;
+    }
+
+    public static boolean isGatewaySharingEnabled() {
+        return gatewaySharingEnabled;
+    }
 
     private File storeRoot() {
         File dir = new File(getContext().getFilesDir(), "bloodstone-chain-mesh");
@@ -149,6 +158,37 @@ public class ChainMeshPlugin extends Plugin {
         }
     }
 
+    private boolean evictOldestChunk() {
+        try {
+            JSONObject allMeta = readAllMeta();
+            String oldestHash = null;
+            long oldestAt = Long.MAX_VALUE;
+            java.util.Iterator<String> keys = allMeta.keys();
+            while (keys.hasNext()) {
+                String hash = keys.next();
+                JSONObject row = allMeta.optJSONObject(hash);
+                long savedAt = row != null ? row.optLong("savedAt", 0L) : 0L;
+                if (savedAt < oldestAt) {
+                    oldestAt = savedAt;
+                    oldestHash = hash;
+                }
+            }
+            if (oldestHash == null) {
+                return false;
+            }
+            File file = chunkFile(oldestHash);
+            boolean removed = file.exists() && file.delete();
+            allMeta.remove(oldestHash);
+            try (FileOutputStream out = new FileOutputStream(metaFile())) {
+                out.write(allMeta.toString().getBytes(StandardCharsets.UTF_8));
+            }
+            return removed;
+        } catch (Exception exc) {
+            Log.w(TAG, "evictOldestChunk failed: " + exc.getMessage());
+            return false;
+        }
+    }
+
     private JSONObject readAllMeta() {
         File meta = metaFile();
         if (!meta.exists()) {
@@ -184,8 +224,10 @@ public class ChainMeshPlugin extends Plugin {
             }
             File dest = chunkFile(normalized);
             if (!dest.exists() && countChunks() >= maxChunks) {
-                call.reject("chunk capacity reached");
-                return;
+                if (!evictOldestChunk()) {
+                    call.reject("chunk capacity reached");
+                    return;
+                }
             }
             File tmp = new File(dest.getAbsolutePath() + ".tmp");
             try (FileOutputStream out = new FileOutputStream(tmp)) {

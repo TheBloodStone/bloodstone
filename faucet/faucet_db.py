@@ -51,6 +51,8 @@ def init_db():
             conn.execute("ALTER TABLE claims ADD COLUMN cooldown_until INTEGER")
         if "user_id" not in cols:
             conn.execute("ALTER TABLE claims ADD COLUMN user_id INTEGER")
+        if "device_token" not in cols:
+            conn.execute("ALTER TABLE claims ADD COLUMN device_token TEXT")
         conn.execute(
             """
             UPDATE claims
@@ -75,6 +77,12 @@ def init_db():
             """
             CREATE INDEX IF NOT EXISTS idx_claims_ip_user
                 ON claims(ip, user_id)
+            """
+        )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_claims_device_user
+                ON claims(device_token, user_id)
             """
         )
         _backfill_claim_user_ids(conn)
@@ -152,6 +160,99 @@ def bound_user_id_for_ip(ip):
     return int(row["user_id"]) if row else None
 
 
+def bound_user_id_for_device(device_token):
+    """First wallet account that claimed from this browser device cookie."""
+    token = (device_token or "").strip()
+    if not token:
+        return None
+    with _conn() as conn:
+        row = conn.execute(
+            """
+            SELECT user_id FROM claims
+            WHERE device_token = ? AND user_id IS NOT NULL
+            ORDER BY id ASC LIMIT 1
+            """,
+            (token,),
+        ).fetchone()
+    return int(row["user_id"]) if row else None
+
+
+def distinct_users_for_ip(ip):
+    ip = (ip or "").strip()
+    if not ip:
+        return 0
+    with _conn() as conn:
+        row = conn.execute(
+            """
+            SELECT COUNT(DISTINCT user_id) AS c FROM claims
+            WHERE ip = ? AND user_id IS NOT NULL
+            """,
+            (ip,),
+        ).fetchone()
+    return int(row["c"] if row else 0)
+
+
+def claim_ip_stats(limit=200):
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                ip,
+                COUNT(*) AS claim_count,
+                COUNT(DISTINCT user_id) AS distinct_users,
+                COUNT(DISTINCT address) AS distinct_addresses,
+                MIN(created_at) AS first_claim,
+                MAX(created_at) AS last_claim
+            FROM claims
+            WHERE ip IS NOT NULL AND ip != ''
+            GROUP BY ip
+            ORDER BY distinct_users DESC, claim_count DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def claim_device_stats(limit=200):
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                device_token,
+                COUNT(*) AS claim_count,
+                COUNT(DISTINCT user_id) AS distinct_users,
+                MIN(created_at) AS first_claim,
+                MAX(created_at) AS last_claim
+            FROM claims
+            WHERE device_token IS NOT NULL AND device_token != ''
+            GROUP BY device_token
+            ORDER BY distinct_users DESC, claim_count DESC
+            LIMIT ?
+            """,
+            (int(limit),),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def claims_for_ip(ip, limit=50):
+    ip = (ip or "").strip()
+    if not ip:
+        return []
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT address, amount, txid, user_id, device_token, created_at, cooldown_until
+            FROM claims
+            WHERE ip = ?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (ip, int(limit)),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def _backfill_claim_user_ids(conn):
     users_db_path = os.environ.get(
         "WALLET_WEB_DB", "/root/bloodstone-wallet-web/users.db"
@@ -180,12 +281,17 @@ def _backfill_claim_user_ids(conn):
             pass
 
 
-def record_claim(address, amount, txid, ip, cooldown_until, user_id=None):
+def record_claim(
+    address, amount, txid, ip, cooldown_until, user_id=None, device_token=None
+):
     with _conn() as conn:
         conn.execute(
             """
-            INSERT INTO claims (address, amount, txid, ip, created_at, cooldown_until, user_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO claims (
+                address, amount, txid, ip, created_at, cooldown_until,
+                user_id, device_token
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 str(address),
@@ -195,6 +301,7 @@ def record_claim(address, amount, txid, ip, cooldown_until, user_id=None):
                 int(time.time()),
                 int(cooldown_until),
                 int(user_id) if user_id is not None else None,
+                str(device_token).strip() if device_token else None,
             ),
         )
 

@@ -6,6 +6,7 @@ export const POOL_DIFF_SCALE = {
   "neoscrypt-xaya": 65536,
   neoscrypt: 65536,
   yespower: 65536,
+  sha256d: 1,
 };
 
 export function hexToBytes(hex) {
@@ -225,6 +226,92 @@ export function targetFromHex(hex) {
 export function hashMeetsTarget(hashHex, targetBigInt) {
   const value = BigInt("0x" + hashHex);
   return value <= targetBigInt;
+}
+
+/** Display-order block hash (reversed bytes) for SHA256d auxpow stratum compare. */
+export function blockHashDisplayHex(header80) {
+  const hash = doubleSha256(header80);
+  return bytesToHex(Array.from(hash).reverse());
+}
+
+export function hashMeetsTargetDisplay(hashDisplayHex, targetHex) {
+  const h = String(hashDisplayHex || "").padStart(64, "0").toLowerCase();
+  const t = String(targetHex || "").padStart(64, "0").toLowerCase();
+  return h <= t;
+}
+
+/** Lexicographic compare hex for SHA256d pool targets (reversed byte order). */
+export function targetToDisplayHex(targetBigInt) {
+  const bytes = new Uint8Array(32);
+  let v = targetBigInt;
+  for (let i = 0; i < 32; i += 1) {
+    bytes[i] = Number(v & 0xffn);
+    v >>= 8n;
+  }
+  return bytesToHex(Array.from(bytes).reverse());
+}
+
+export function stratumDifficultyToDisplayTargetHex(stratumDiff, algo) {
+  return targetToDisplayHex(stratumDifficultyToTarget(stratumDiff, algo));
+}
+
+function prevhashToHeaderBytes(prevhashHex) {
+  const raw = hexToBytes(String(prevhashHex || "").replace(/\s+/g, ""));
+  const out = new Uint8Array(32);
+  for (let i = 0; i < 32 && i < raw.length; i += 1) {
+    out[i] = raw[31 - i];
+  }
+  return out;
+}
+
+export function sha256dCoinbaseHash(job, extranonce2) {
+  const en1 = String(job.extranonce1 || "")
+    .replace(/\s+/g, "")
+    .toLowerCase()
+    .padStart(8, "0")
+    .slice(-8);
+  const en2 = String(extranonce2).replace(/\s+/g, "").toLowerCase().padStart(8, "0").slice(-8);
+  const txHex = `${job.coinb1}${en1}${en2}${job.coinb2}`;
+  return doubleSha256(hexToBytes(txHex));
+}
+
+export function buildSha256dHeader(job, extranonce2, ntimeHex, nonce) {
+  const header = new Uint8Array(80);
+  const view = new DataView(header.buffer);
+  const versionWord = parseInt(String(job.version || "01000000").replace(/\s+/g, ""), 16);
+  view.setUint32(0, (0x01000000 | (versionWord >>> 0)) >>> 0, true);
+  header.set(prevhashToHeaderBytes(job.prevhash), 4);
+  header.set(sha256dCoinbaseHash(job, extranonce2), 36);
+  view.setUint32(68, stratumWordFromHex(ntimeHex), true);
+  view.setUint32(72, stratumWordFromHex(job.nbits), true);
+  view.setUint32(76, nonce >>> 0, true);
+  return header;
+}
+
+export function parseSha256dNotify(notifyParams, extranonce1) {
+  const [
+    jobId,
+    prevhash,
+    coinb1,
+    coinb2,
+    ,
+    version,
+    nbits,
+    ntime,
+    cleanJobs,
+  ] = notifyParams;
+  return {
+    jobId,
+    prevhash: String(prevhash || ""),
+    coinb1: String(coinb1 || ""),
+    coinb2: String(coinb2 || ""),
+    version: String(version || "01000000"),
+    nbits: String(nbits || ""),
+    ntime: String(ntime || ""),
+    cleanJobs: cleanJobs === true,
+    extranonce1: String(extranonce1 || ""),
+    algo: "sha256d",
+  };
 }
 
 export function formatHashrate(hps) {

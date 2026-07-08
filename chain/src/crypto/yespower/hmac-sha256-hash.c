@@ -28,8 +28,11 @@
 
 #include <stdint.h>
 #include <string.h>
-#include "simd-utils.h"
 #include "hmac-sha256-hash.h"
+#if !defined(bswap_32) && defined(__GNUC__)
+#define bswap_32 __builtin_bswap32
+#define bswap_64 __builtin_bswap64
+#endif
 #include "compat.h"
 
 /**

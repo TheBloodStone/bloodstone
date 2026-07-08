@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0d1b2a">
+  <title>Bloodstone Consensus Code Tour — Blurt Follow-up #1</title>
+  <style>
+    :root {
+      --bg: #0d1b2a;
+      --panel: #1b2838;
+      --panel2: #243447;
+      --text: #e8ecf0;
+      --muted: #8fa3b8;
+      --accent: #4db8ff;
+      --accent2: #6ee7a8;
+      --warn: #f0c674;
+      --border: #2d4158;
+      --script-size: 1.35rem;
+      --script-line: 1.65;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    a { color: var(--accent); }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(13, 27, 42, 0.96);
+      border-bottom: 1px solid var(--border);
+      padding: 0.65rem 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .topbar h1 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .topbar .meta { font-size: 0.82rem; color: var(--muted); }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    button, .btn {
+      background: var(--panel2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.45rem 0.8rem;
+      font-size: 0.88rem;
+      cursor: pointer;
+    }
+    button:hover, .btn:hover { border-color: var(--accent); }
+    button.primary { background: #1a4a6e; border-color: var(--accent); }
+    button.active { background: #1f5f3f; border-color: var(--accent2); }
+    .layout {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 1rem;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { order: 2; }
+    }
+    .sidebar {
+      position: sticky;
+      top: 4.5rem;
+      align-self: start;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem;
+      max-height: calc(100vh - 6rem);
+      overflow: auto;
+    }
+    .sidebar h2 { margin: 0 0 0.5rem; font-size: 0.85rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .stop-list { list-style: none; margin: 0; padding: 0; }
+    .stop-list li { margin: 0.2rem 0; }
+    .stop-list button {
+      width: 100%;
+      text-align: left;
+      padding: 0.5rem 0.6rem;
+      font-size: 0.82rem;
+    }
+    .stop-list button.current {
+      background: #1a3d5c;
+      border-color: var(--accent);
+    }
+    .progress-wrap { margin-top: 0.75rem; }
+    .progress-bar {
+      height: 6px;
+      background: var(--panel2);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      width: 0%;
+      transition: width 0.25s ease;
+    }
+    .main { min-width: 0; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 1rem;
+    }
+    .card h2 { margin: 0 0 0.35rem; font-size: 1.35rem; }
+    .card .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 0.75rem; }
+    .tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.75rem; }
+    .tag {
+      font-size: 0.75rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      background: var(--panel2);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .tag.file { color: var(--accent2); }
+    .tag.time { color: var(--warn); }
+    .record-hint {
+      background: #2a2418;
+      border: 1px solid #5a4a20;
+      border-radius: 8px;
+      padding: 0.75rem 0.9rem;
+      font-size: 0.88rem;
+      color: #e8d9a8;
+      margin-bottom: 0.85rem;
+    }
+    .script-box {
+      background: #0a1520;
+      border: 2px solid #2a5570;
+      border-radius: 10px;
+      padding: 1.1rem 1.2rem;
+      margin: 0.5rem 0 1rem;
+    }
+    .script-box .label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      margin-bottom: 0.5rem;
+    }
+    .script-text {
+      font-size: var(--script-size);
+      line-height: var(--script-line);
+      white-space: pre-wrap;
+    }
+    body.presenter .script-text {
+      font-size: 1.65rem;
+      line-height: 1.75;
+    }
+    body.presenter .script-box { padding: 1.4rem 1.5rem; }
+    .takeaway {
+      border-left: 3px solid var(--accent2);
+      padding: 0.5rem 0 0.5rem 0.85rem;
+      margin: 0.5rem 0;
+      color: #d0e8dc;
+      font-size: 0.95rem;
+    }
+    pre {
+      margin: 0;
+      padding: 0.85rem 1rem;
+      background: #060d14;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: auto;
+      font-size: 0.78rem;
+      line-height: 1.45;
+    }
+    code { font-family: "Cascadia Code", "Consolas", monospace; }
+    .code-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 0.75rem 0 0.35rem;
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .ln { color: #5a7a94; user-select: none; }
+    .kw { color: #7ec8ff; }
+    .cm { color: #6a8f6a; }
+    .num { color: #d4a86a; }
+    .nav-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+    }
+    .hidden { display: none !important; }
+    .kbd {
+      display: inline-block;
+      padding: 0.1rem 0.35rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.75rem;
+      background: var(--panel2);
+    }
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+      padding: 1.5rem 1rem 2rem;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Bloodstone Consensus Code Tour</h1>
+      <div class="meta">Blurt follow-up #1 · powdata.cpp · chain.cpp · pow.cpp · ~45 min</div>
+    </div>
+    <div class="controls">
+      <button type="button" id="btn-presenter" title="Larger teleprompter text">Presenter mode</button>
+      <button type="button" id="btn-script-only" title="Hide code — script for camera-facing window">Script only</button>
+      <button type="button" class="primary" id="btn-prev">← Prev</button>
+      <button type="button" class="primary" id="btn-next">Next →</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <h2>Stops</h2>
+      <ul class="stop-list" id="stop-list"></ul>
+      <div class="progress-wrap">
+        <div class="meta" id="progress-label">Stop 1 of 11</div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      </div>
+      <p class="meta" style="margin-top:0.75rem;font-size:0.78rem;">
+        <span class="kbd">←</span> <span class="kbd">→</span> navigate ·
+        <span class="kbd">P</span> presenter ·
+        <span class="kbd">S</span> script only
+      </p>
+    </aside>
+
+    <main class="main" id="main"></main>
+  </div>
+
+  <footer>
+    Bloodstone Core · <code>bloodstone-chain/src/</code> ·
+    <a href="downloads/Bloodstone-Blurt-Partnership-Response.md">Partnership response</a> ·
+    <a href="downloads/">Downloads</a>
+  </footer>
+
+  <script>
+    const STOPS = [
+      {
+        title: "0 — Before you hit Record",
+        time: "2 min",
+        files: [],
+        record: "Open this page on a second monitor OR pop out the script box. Open the repo in your editor: bloodstone-chain/src/. Set font size large enough for OBS capture. Record: browser (script) + editor (code) side by side, or alt-tab per stop.",
+        script: `Welcome — this is the Bloodstone consensus walkthrough for Blurt.
+
+I'm going to show you exactly where multi-algorithm security lives in the code — not pool payout rules, but consensus: which fork wins.
+
+We'll hit three files: powdata.cpp, pow.cpp, and chain.cpp. I'll also peek at validation.cpp where the rules are enforced.
+
+Quick framing: Bloodstone inherits SpaceXpanse / Xaya triple-algo consensus. It is not a DigiByte geometric-mean clone. We have per-algorithm Dark Gravity retargeting, explicit algorithm weights in chain work, and merge-mined SHA256d blocks.
+
+Use the Next button when you're ready for Stop 1.`,
+        takeaway: "Pool cross-algo subsidies are accounting — chain work picks the winning fork.",
+        code: null
+      },
+      {
+        title: "1 — The big picture",
+        time: "3 min",
+        files: ["consensus/params.h"],
+        record: "Optional: show a diagram or the Blurt partnership response table. No code required yet.",
+        script: `Bloodstone mainnet runs three proof-of-work algorithms: SHA256d, Neoscrypt, and Yespower.
+
+Each block carries its own PoW data — difficulty lives in powdata, not the main header nBits. That's a SpaceXpanse rule.
+
+After the multi-algo fork, each algorithm targets roughly two hundred seventy seconds between its own blocks. Combined, you get about eighty to ninety seconds between blocks of any algorithm — that's the live mainnet feel in twenty twenty-six.
+
+The security question Blurt asked: can rented SHA256 hashrate dominate the chain? The answer is nuanced. Raw SHA256 hashrate does not map one-to-one into chain-work dominance, because we down-weight SHA256d when we accumulate nChainWork.
+
+Let's open powdata.cpp first — that's where the weights are defined.`,
+        takeaway: "Three algos · ~270s per-algo target · chain work is weighted, not raw hashrate.",
+        code: `<span class="cm">/* consensus/params.h — triple-algo spacing after MULTI_ALGO fork */</span>
+<span class="kw">case</span> PowAlgo::SHA256D:
+<span class="kw">case</span> PowAlgo::NEOSCRYPT:
+<span class="kw">case</span> PowAlgo::YESPOWER:
+    <span class="kw">return</span> <span class="num">270</span>;  <span class="cm">// seconds between blocks of this algo</span>`
+      },
+      {
+        title: "2 — Algorithm weights (powdata.cpp)",
+        time: "4 min",
+        files: ["powdata.cpp"],
+        record: "Open powdata.cpp, scroll to powAlgoLog2Weight (~line 15). Highlight the switch cases.",
+        script: `File one: powdata.cpp. Function powAlgoLog2Weight.
+
+This is the heart of the "SHA256 doesn't dominate chain work" argument.
+
+Each algorithm gets a log-two weight: SHA256d is six, Neoscrypt is ten, Yespower is twenty-two.
+
+When we convert a block's difficulty into chain work, we left-shift the proof by this weight. So a Yespower block at the same nBits contributes vastly more chain work than a SHA256d block.
+
+Intuition: we are not pretending the algorithms are equal. We explicitly encode that CPU-friendly algos carry more weight in the cumulative work score that picks the best chain.
+
+This is consensus — not the pool's thirty-five percent cross-algo subsidy. That subsidy affects who gets paid; this affects which fork is valid.`,
+        takeaway: "SHA256d weight 6 · Neoscrypt 10 · Yespower 22 — applied in GetBlockProof.",
+        code: `<span class="ln">15</span> <span class="kw">int</span> powAlgoLog2Weight (<span class="kw">const</span> PowAlgo algo)
+<span class="ln">17</span>   <span class="kw">switch</span> (algo)
+<span class="ln">19</span>     <span class="kw">case</span> PowAlgo::SHA256D:   <span class="kw">return</span> <span class="num">6</span>;
+<span class="ln">21</span>     <span class="kw">case</span> PowAlgo::NEOSCRYPT: <span class="kw">return</span> <span class="num">10</span>;
+<span class="ln">23</span>     <span class="kw">case</span> PowAlgo::YESPOWER:  <span class="kw">return</span> <span class="num">22</span>;`
+      },
+      {
+        title: "3 — PoW limits & SHA256d merge-mining",
+        time: "5 min",
+        files: ["powdata.cpp"],
+        record: "Same file: powLimitForAlgo and PowData::isValid. Show SHA256d must be merge-mined (auxpow).",
+        script: `Still in powdata.cpp — two more pieces.
+
+powLimitForAlgo scales the Neoscrypt pow limit up or down per algorithm using the same weight gap. So each algo has its own difficulty ceiling consistent with those weights.
+
+Now PowData validation. SHA256d blocks must be merge-mined — they carry an auxpow, not a standalone fake header. Neoscrypt and Yespower are standalone.
+
+That matters for ASICs: SHA256 work can come through auxpow / merge-mining, but it still flows through this PoW data structure and still picks up the SHA256d weight of six when we compute chain work.
+
+So rented SHA256 can find blocks, yes — but each block's contribution to nChainWork is deliberately discounted versus CPU algos.`,
+        takeaway: "Per-algo pow limits · SHA256d is auxpow-only on mainnet.",
+        code: `<span class="ln">39</span>  <span class="kw">const int</span> log2Diff = powAlgoLog2Weight (NEOSCRYPT) - powAlgoLog2Weight (algo);
+<span class="ln">141</span> <span class="kw">case</span> PowAlgo::SHA256D:
+<span class="ln">142</span>   <span class="kw">if</span> (!isMergeMined ())
+<span class="ln">143</span>     <span class="kw">return</span> error (<span class="cm">"SHA256D must be merge-mined"</span>);`
+      },
+      {
+        title: "4 — Per-algo difficulty retarget (pow.cpp)",
+        time: "5 min",
+        files: ["pow.cpp", "chain.cpp"],
+        record: "Open pow.cpp line 14. Then jump to chain.cpp GetLastAncestorWithAlgo (~line 126).",
+        script: `File two: pow.cpp. Function GetNextWorkRequired.
+
+The comment says it plainly: this is Dark Gravity Wave from Dash, except we only look at ancestors that share the same PoW algorithm.
+
+First step: pindexLast equals pindexLast.GetLastAncestorWithAlgo of the algo we're retargeting. That walks back the chain until it finds a block mined with this algorithm.
+
+So Neoscrypt difficulty retargets from Neoscrypt blocks only. Yespower from Yespower only. SHA256d from SHA256d only.
+
+This is the per-algorithm DGW Blurt asked about. It is not a single difficulty shared across algos, and it is not DigiByte's geometric mean across all three.`,
+        takeaway: "GetNextWorkRequired is scoped per PowAlgo via GetLastAncestorWithAlgo.",
+        code: `<span class="ln">14</span> GetNextWorkRequired (<span class="kw">const</span> PowAlgo algo, ...)
+<span class="ln">23</span> <span class="cm">/* DGW from Dash — blocks of only one algo */</span>
+<span class="ln">28</span> pindexLast = pindexLast->GetLastAncestorWithAlgo (algo);
+
+<span class="cm">/* chain.cpp */</span>
+<span class="ln">126</span> CBlockIndex::GetLastAncestorWithAlgo (algo) <span class="kw">const</span>`
+      },
+      {
+        title: "5 — DGW loop: 24 blocks, clamped timespan",
+        time: "5 min",
+        files: ["pow.cpp"],
+        record: "Highlight the for-loop (24 past blocks), timespan clamp /3 and *3, and return GetCompact.",
+        script: `Inside GetNextWorkRequired we average the compact targets of the last twenty-four blocks of this algorithm — classic DGW.
+
+We measure actual timespan between the newest and oldest of those twenty-four algo-matched blocks. Target timespan is twenty-four times the per-algo spacing from consensus rules — two hundred seventy seconds on mainnet today.
+
+Then we clamp: actual timespan cannot be less than one-third of target, or more than three times target. That limits how fast difficulty can swing.
+
+Multiply, divide, clamp to pow limit, return compact bits. Every validating node runs this on every header — if your bits don't match, you get bad-diffbits.
+
+Independent retargeting per algo is a real mitigation: a SHA256 flood doesn't directly crush Neoscrypt difficulty.`,
+        takeaway: "24-block DGW per algo · 3× clamp · enforced at acceptheader.",
+        code: `<span class="ln">26</span> <span class="kw">constexpr int64_t</span> nPastBlocks = <span class="num">24</span>;
+<span class="ln">61</span> nActualTimespan = pindexLast->GetBlockTime () - pindexFirst->GetBlockTime ();
+<span class="ln">65</span>   = nPastBlocks * params.rules->GetTargetSpacing(algo, nextHeight);
+<span class="ln">67</span> <span class="kw">if</span> (nActualTimespan < nTargetTimespan / <span class="num">3</span>) ...
+<span class="ln">69</span> <span class="kw">if</span> (nActualTimespan > nTargetTimespan * <span class="num">3</span>) ...`
+      },
+      {
+        title: "6 — Chain work: GetBlockProof (chain.cpp)",
+        time: "5 min",
+        files: ["chain.cpp"],
+        record: "chain.cpp ~line 141. Show work <<= powAlgoLog2Weight(block.algo).",
+        script: `File three: chain.cpp. Function GetBlockProof.
+
+Given a block index entry, we read nBits from the PoW data — that's the mining target. Standard Bitcoin-style transformation: work proportional to one over target.
+
+Then the critical line: work left-shift equals powAlgoLog2Weight of block dot algo.
+
+Every block's proof is scaled by the algorithm weight we saw in powdata.cpp. When blocks are linked into a chain, pindexNew nChainWork equals previous nChainWork plus GetBlockProof of this block.
+
+So the fork with the highest nChainWork is the best chain — but nChainWork is a weighted sum across mixed-algorithm blocks, not raw SHA256 hashpower.`,
+        takeaway: "nChainWork accumulates weighted proof — this is the longest-chain rule.",
+        code: `<span class="ln">141</span> arith_uint256 GetBlockProof(<span class="kw">const</span> CBlockIndex& block)
+<span class="ln">156</span>   arith_uint256 work = (~bnTarget / (bnTarget + <span class="num">1</span>)) + <span class="num">1</span>;
+<span class="ln">159</span>   work <<= powAlgoLog2Weight (block.algo);
+
+<span class="cm">/* validation.cpp — AddToBlockIndex */</span>
+<span class="ln">2943</span> pindexNew->nChainWork = pindexNew->pprev->nChainWork + GetBlockProof(*pindexNew);`
+      },
+      {
+        title: "7 — Average block spacing (chainparams.cpp)",
+        time: "3 min",
+        files: ["chainparams.cpp", "consensus/params.h"],
+        record: "Show AvgTargetSpacing in chainparams.cpp (~816) and mention ~80–90s effective rate.",
+        script: `Quick detour to chainparams dot cpp — AvgTargetSpacing.
+
+Because each algorithm has its own two-hundred-seventy-second target, the expected time between blocks of any algorithm is computed from the harmonic combination of all three spacings.
+
+This is the same math family used in GetBlockProofEquivalentTime. Net effect on mainnet: roughly eighty to ninety seconds between successive blocks, even though each algo slot is two hundred seventy.
+
+Mention this when explaining why era-zero issuance and halving calendars use that eighty-second planning assumption.`,
+        takeaway: "~270s per algo slot → ~80–90s between blocks overall on triple-algo mainnet.",
+        code: `<span class="ln">816</span> AvgTargetSpacing (params, height)
+<span class="ln">829</span> <span class="kw">for</span> (algo : {SHA256D, NEOSCRYPT, YESPOWER})
+<span class="ln">831</span>   spacing = params.rules->GetTargetSpacing(algo, height);
+<span class="cm">/* returns numer / denom — combined inter-block expectation */</span>`
+      },
+      {
+        title: "8 — Proof-equivalent time (chain.cpp)",
+        time: "4 min",
+        files: ["chain.cpp"],
+        record: "chain.cpp GetBlockProofEquivalentTime ~line 164. Don't read every line — explain the numer/denom loop.",
+        script: `Back to chain.cpp — GetBlockProofEquivalentTime.
+
+This converts a difference in chain work into an equivalent time span, correcting for which algorithms are active and their spacings and weights.
+
+The loop over SHA256d, Neoscrypt, and Yespower builds a numerator and denominator from each algo's target spacing and the proof of the tip's last block of that algo.
+
+Nodes use this for things like stale relay limits and script-check windows — it's part of keeping multi-algo timing sane across the codebase.
+
+You don't need to memorize the formula. The point for Blurt: time and work math is algo-aware everywhere it matters, not single-chain Bitcoin math pasted on top.`,
+        takeaway: "Timing helpers are algo-weighted — same design language as DGW and GetBlockProof.",
+        code: `<span class="ln">164</span> GetBlockProofEquivalentTime(to, from, tip, params)
+<span class="ln">188</span> <span class="kw">for</span> (algo : {SHA256D, NEOSCRYPT, YESPOWER})
+<span class="ln">191</span>   spacing = params.rules->GetTargetSpacing (algo, tip.nHeight);
+<span class="ln">194</span>   pindexWithAlgo = tip.GetLastAncestorWithAlgo (algo);`
+      },
+      {
+        title: "9 — Where consensus enforces it (validation.cpp)",
+        time: "4 min",
+        files: ["validation.cpp"],
+        record: "validation.cpp ~3162 bad-diffbits check. Optionally grep nChainWork in net_processing.",
+        script: `Enforcement lives in validation dot cpp.
+
+ContextualCheckBlockHeader compares the block's pow bits to GetNextWorkRequired for that block's core algorithm. Mismatch returns invalid header, bad-diffbits.
+
+Separately, when we add a header to the index, nChainWork is updated with GetBlockProof. Peers compare nChainWork to choose the best chain in net processing.
+
+So: correct difficulty per algo, weighted work sum, longest weighted chain wins. That's the consensus story.
+
+If a pool pays miners differently — cross-algo subsidies, seventy-five percent cap per address — that's in pool_db and stratum code, not here.`,
+        takeaway: "bad-diffbits + nChainWork comparison = consensus; pool payouts = separate layer.",
+        code: `<span class="ln">3162</span> <span class="kw">if</span> (block.pow.getBits() != GetNextWorkRequired(
+<span class="ln">3163</span>       block.pow.getCoreAlgo(), pindexPrev, consensusParams))
+<span class="ln">3163</span>   <span class="kw">return</span> ... <span class="cm">"bad-diffbits"</span>;
+
+<span class="ln">2943</span> pindexNew->nChainWork = pprev->nChainWork + GetBlockProof(*pindexNew);`
+      },
+      {
+        title: "10 — Wrap-up & honest limits",
+        time: "4 min",
+        files: [],
+        record: "You can end on this page or show the partnership response doc. Invite questions.",
+        script: `Wrap-up for Blurt.
+
+What we have in consensus today: triple-algo PoW, per-algorithm Dark Gravity retargeting, explicit down-weighting of SHA256d in chain work, merge-mined SHA256 blocks, and longest weighted-work chain selection.
+
+What we do not have: DigiByte-style geometric mean difficulty as a named layer. ROD Neoscrypt in the pool is a fourth mining lane for the auxiliary chain — not a fourth consensus weight on Bloodstone mainnet.
+
+Honest risk: rented SHA256 is still cheaper than attacking Bitcoin. We mitigate, we don't claim perfection. Roadmap items we're open to: security appendix with worked percentages, tighter anchoring if SHA256 share of chain work spikes, more Neoscrypt and Yespower full-node share.
+
+Next session — track two — we'll co-design treasury disbursement and the Blurt bulk-storage outpost so you're not buying STONE off the rich list.
+
+Thanks — questions welcome.`,
+        takeaway: "Consensus ≠ pool · SHA256d discounted · continue on economics / outpost rail.",
+        code: `<span class="cm">/* Tour complete — track #2: treasury & Blurt bulk outpost */</span>
+<span class="cm">/* Bloodstone-Treasury-and-Concentration-Disclosure.md */</span>`
+      }
+    ];
+
+    let idx = 0;
+    let presenter = false;
+    let scriptOnly = false;
+
+    const $main = document.getElementById("main");
+    const $list = document.getElementById("stop-list");
+    const $fill = document.getElementById("progress-fill");
+    const $plabel = document.getElementById("progress-label");
+
+    function esc(s) {
+      return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function renderList() {
+      $list.innerHTML = STOPS.map((s, i) =>
+        `<li><button type="button" data-i="${i}" class="${i === idx ? "current" : ""}">${esc(s.title)}</button></li>`
+      ).join("");
+      $list.querySelectorAll("button").forEach((b) => {
+        b.addEventListener("click", () => go(+b.dataset.i));
+      });
+    }
+
+    function renderStop() {
+      const s = STOPS[idx];
+      const fileTags = s.files.map((f) => `<span class="tag file">${esc(f)}</span>`).join("");
+      const codeBlock = s.code
+        ? `<div class="code-panel"><div class="code-head"><span>Open in editor</span><span>bloodstone-chain/src/</span></div><pre><code>${s.code}</code></pre></div>`
+        : "";
+
+      $main.innerHTML = `
+        <article class="card">
+          <h2>${esc(s.title)}</h2>
+          <div class="sub">Read aloud while recording · advance when done</div>
+          <div class="tags">
+            ${s.time ? `<span class="tag time">~${esc(s.time)}</span>` : ""}
+            ${fileTags}
+          </div>
+          ${s.record ? `<div class="record-hint"><strong>Recording:</strong> ${esc(s.record)}</div>` : ""}
+          <div class="script-box">
+            <div class="label">Script — read this</div>
+            <div class="script-text">${esc(s.script)}</div>
+          </div>
+          ${s.takeaway ? `<div class="takeaway"><strong>Takeaway:</strong> ${esc(s.takeaway)}</div>` : ""}
+          <div class="${scriptOnly ? "hidden" : ""}">${codeBlock}</div>
+          <div class="nav-row">
+            <button type="button" id="nav-prev">← Previous</button>
+            <button type="button" class="primary" id="nav-next">${idx < STOPS.length - 1 ? "Next →" : "Finish"}</button>
+          </div>
+        </article>`;
+
+      document.getElementById("nav-prev").addEventListener("click", () => go(idx - 1));
+      document.getElementById("nav-next").addEventListener("click", () => go(idx + 1));
+
+      $fill.style.width = `${((idx + 1) / STOPS.length) * 100}%`;
+      $plabel.textContent = `Stop ${idx + 1} of ${STOPS.length}`;
+      renderList();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function go(i) {
+      if (i < 0 || i >= STOPS.length) return;
+      idx = i;
+      renderStop();
+    }
+
+    function togglePresenter() {
+      presenter = !presenter;
+      document.body.classList.toggle("presenter", presenter);
+      document.getElementById("btn-presenter").classList.toggle("active", presenter);
+    }
+
+    function toggleScriptOnly() {
+      scriptOnly = !scriptOnly;
+      document.getElementById("btn-script-only").classList.toggle("active", scriptOnly);
+      renderStop();
+    }
+
+    document.getElementById("btn-prev").addEventListener("click", () => go(idx - 1));
+    document.getElementById("btn-next").addEventListener("click", () => go(idx + 1));
+    document.getElementById("btn-presenter").addEventListener("click", togglePresenter);
+    document.getElementById("btn-script-only").addEventListener("click", toggleScriptOnly);
+
+    document.addEventListener("keydown", (e) => {
+      if (e.target.matches("input, textarea")) return;
+      if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); go(idx + 1); }
+      if (e.key === "ArrowLeft") { e.preventDefault(); go(idx - 1); }
+      if (e.key === "p" || e.key === "P") togglePresenter();
+      if (e.key === "s" || e.key === "S") toggleScriptOnly();
+    });
+
+    renderStop();
+  </script>
+</body>
+</html>

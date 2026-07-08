@@ -7,6 +7,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
@@ -16,6 +17,7 @@ import androidx.core.app.NotificationCompat;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.File;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -26,11 +28,13 @@ public class LocalNodeForegroundService extends Service {
     public static final int RPC_PORT = 18340;
     public static final int STRATUM_PORT_NEOSCRYPT = 3437;
     public static final int STRATUM_PORT_YESPOWER = 3438;
+    public static final int STRATUM_PORT_SHA256D = 3429;
 
     private static final String TAG = "BloodstoneLocalNode";
     private static volatile boolean running = false;
     private static volatile boolean nodeStarting = false;
     private static volatile String lastStartError = "";
+    private static volatile boolean chainResetPending = false;
     private static volatile LocalNodeForegroundService instance;
     private static volatile LanDiscovery activeDiscovery;
     private static final AtomicReference<LocalNodeStatusSnapshot> snapshot =
@@ -41,18 +45,23 @@ public class LocalNodeForegroundService extends Service {
     private LocalRpcHttpServer rpcServer;
     private LocalStratumTcpServer stratumNeoscrypt;
     private LocalStratumTcpServer stratumYespower;
+    private LocalSha256dStratumServer stratumSha256d;
     private UpstreamRpcClient upstream;
     private LanDiscovery discovery;
     private LanRegistrar registrar;
+    private LanPoolCoordinator poolCoordinator;
     private String upstreamUrl;
     private int pruneMiB = 550;
     private String nodeMode = "pruned";
     private Thread syncPollerThread;
     private static final long SYNC_POLL_MS = 5000L;
+    private static final long LAN_PUSH_MIN_MS = 15000L;
     private static final int MAX_BLOODSTONED_RESTARTS = 8;
     private static final long BLOODSTONED_RESTART_COOLDOWN_MS = 20000L;
     private int bloodstonedRestartAttempts = 0;
     private long lastBloodstonedRestartMs = 0L;
+    private int lastLanRegisteredHeight = -1;
+    private long lastLanPushMs = 0L;
 
     public static boolean isRunning() {
         return running;
@@ -64,6 +73,18 @@ public class LocalNodeForegroundService extends Service {
 
     public static String lastStartError() {
         return lastStartError != null ? lastStartError : "";
+    }
+
+    public static String bloodstonedFailureReason() {
+        LocalNodeForegroundService inst = instance;
+        if (inst == null || inst.prunedRunner == null) {
+            return "";
+        }
+        return inst.prunedRunner.lastFailureReason();
+    }
+
+    public static void noteStartError(String message) {
+        lastStartError = message != null ? message : "";
     }
 
     public static LocalNodeStatusSnapshot status() {
@@ -120,6 +141,7 @@ public class LocalNodeForegroundService extends Service {
                 RPC_PORT,
                 STRATUM_PORT_NEOSCRYPT,
                 STRATUM_PORT_YESPOWER,
+                STRATUM_PORT_SHA256D,
                 creds.user(),
                 creds.password(),
                 0,
@@ -153,6 +175,7 @@ public class LocalNodeForegroundService extends Service {
                 RPC_PORT,
                 STRATUM_PORT_NEOSCRYPT,
                 STRATUM_PORT_YESPOWER,
+                0,
                 credentials.user(),
                 credentials.password(),
                 localHeight,
@@ -209,11 +232,20 @@ public class LocalNodeForegroundService extends Service {
         final String requestedMode = nodeMode;
         final int requestedPrune = pruneMiB;
         if (running) {
-            if (requestedMode.equals(nodeMode) && requestedPrune == pruneMiB) {
+            boolean daemonRequired = NodeModeUtil.runsBloodstoned(requestedMode);
+            boolean daemonAlive = prunedRunner != null && prunedRunner.isAlive();
+            if (requestedMode.equals(nodeMode)
+                && requestedPrune == pruneMiB
+                && (!daemonRequired || daemonAlive)) {
                 Log.i(TAG, "local node already running (" + nodeMode + ")");
                 return START_STICKY;
             }
-            Log.i(TAG, "restarting local node for mode change " + nodeMode + " -> " + requestedMode);
+            Log.i(
+                TAG,
+                daemonAlive
+                    ? "restarting local node for mode change " + nodeMode + " -> " + requestedMode
+                    : "restarting local node — bloodstoned not alive"
+            );
             shutdown();
         }
         if (nodeStarting) {
@@ -222,6 +254,7 @@ public class LocalNodeForegroundService extends Service {
         }
         nodeStarting = true;
         lastStartError = "";
+        bloodstonedRestartAttempts = 0;
         instance = this;
         publishBootingSnapshot(this, nodeMode);
         final String bootUpstreamUrl = upstreamUrl;
@@ -251,6 +284,7 @@ public class LocalNodeForegroundService extends Service {
         }
         if (registrar != null) {
             registrar.stop();
+            registrar = new LanRegistrar();
         }
         if (discovery != null) {
             discovery.unregister();
@@ -264,6 +298,14 @@ public class LocalNodeForegroundService extends Service {
             stratumYespower.stop();
             stratumYespower = null;
         }
+        if (stratumSha256d != null) {
+            stratumSha256d.stop();
+            stratumSha256d = null;
+        }
+        if (poolCoordinator != null) {
+            poolCoordinator.stop();
+            poolCoordinator = null;
+        }
         if (rpcServer != null) {
             rpcServer.stop();
             rpcServer = null;
@@ -275,6 +317,15 @@ public class LocalNodeForegroundService extends Service {
     }
 
     private void startNode() throws Exception {
+        File dataDir = NodeModeUtil.datadir(getApplicationContext(), nodeMode);
+        ChainBootstrapInstaller.repairIncompleteInstall(getApplicationContext(), dataDir);
+        if (shouldResetChainAfterBlockDbFailure(dataDir)) {
+            Log.w(TAG, "resetting chain data after block DB recovery loop");
+            ChainBootstrapInstaller.invalidateInstalledChain(getApplicationContext(), dataDir);
+            lastStartError = "";
+            bloodstonedRestartAttempts = 0;
+            chainResetPending = false;
+        }
         stopListeners();
         upstream = new UpstreamRpcClient(upstreamUrl);
         prunedRunner = new PrunedNodeRunner(this, credentials, pruneMiB, nodeMode);
@@ -287,6 +338,7 @@ public class LocalNodeForegroundService extends Service {
 
         int stratumNeoPort = 0;
         int stratumYpPort = 0;
+        int stratumSha256Port = 0;
         if (NodeModeUtil.hostsStratum(mode)) {
             LocalStratumTcpServer.RpcCaller stratumRpc = (method, params) -> {
                 JSONObject response = handleRpc(method, params, "stratum", "127.0.0.1");
@@ -301,41 +353,82 @@ public class LocalNodeForegroundService extends Service {
                 }
                 return new JSONObject();
             };
+            LocalSha256dStratumServer.RpcCaller sha256Rpc = (method, params) -> {
+                JSONObject response = handleRpc(method, params, "stratum-sha256", "127.0.0.1");
+                if (response.has("error") && !response.isNull("error")) {
+                    throw new Exception(response.getJSONObject("error").optString("message", "rpc error"));
+                }
+                if (response.has("result")) {
+                    Object result = response.get("result");
+                    if (result instanceof JSONObject) {
+                        return (JSONObject) result;
+                    }
+                    if (result instanceof Boolean) {
+                        JSONObject wrapped = new JSONObject();
+                        wrapped.put("ok", (Boolean) result);
+                        return wrapped;
+                    }
+                }
+                return new JSONObject();
+            };
             String poolHost = PoolUpstreamConfig.poolHostFromUpstreamUrl(upstreamUrl);
+            poolCoordinator = LanPoolCoordinator.getInstance(getApplicationContext());
             stratumNeoscrypt = new LocalStratumTcpServer(
                 STRATUM_PORT_NEOSCRYPT,
                 LocalStratumTcpServer.Algo.NEOSCRYPT,
                 stratumRpc,
                 poolHost,
-                STRATUM_PORT_NEOSCRYPT
+                STRATUM_PORT_NEOSCRYPT,
+                poolCoordinator
             );
             stratumYespower = new LocalStratumTcpServer(
                 STRATUM_PORT_YESPOWER,
                 LocalStratumTcpServer.Algo.YESPOWER,
                 stratumRpc,
                 poolHost,
-                STRATUM_PORT_YESPOWER
+                STRATUM_PORT_YESPOWER,
+                poolCoordinator
+            );
+            stratumSha256d = new LocalSha256dStratumServer(
+                STRATUM_PORT_SHA256D,
+                sha256Rpc,
+                poolHost,
+                STRATUM_PORT_SHA256D,
+                poolCoordinator
             );
             stratumNeoscrypt.start();
             stratumYespower.start();
+            stratumSha256d.start();
             stratumNeoPort = STRATUM_PORT_NEOSCRYPT;
             stratumYpPort = STRATUM_PORT_YESPOWER;
+            stratumSha256Port = STRATUM_PORT_SHA256D;
         }
 
         String lanIp = NetworkUtil.lanIpv4(this);
         String serviceName = ("bloodstone-" + credentials.user()).toLowerCase(Locale.US);
+        if (poolCoordinator != null && NodeModeUtil.hostsStratum(mode)) {
+            poolCoordinator.start(serviceName, discovery, lanIp);
+        }
         discovery.register(
             serviceName,
             RPC_PORT,
             mode,
             stratumNeoPort,
-            stratumYpPort
+            stratumYpPort,
+            stratumSha256Port
         );
         discovery.startBrowse();
         activeDiscovery = discovery;
 
         NodeSyncStatus syncStatus = fetchSyncStatus();
         int blockHeight = syncStatus.blockHeight;
+        if (poolCoordinator != null) {
+            poolCoordinator.updateChainState(
+                blockHeight,
+                syncStatus.blockHash,
+                syncStatus.syncProgress >= 0.999 && blockHeight > 0
+            );
+        }
 
         JSONObject reg = new JSONObject();
         reg.put("device_id", serviceName);
@@ -347,17 +440,44 @@ public class LocalNodeForegroundService extends Service {
         registrar.start();
 
         NodeTrafficStats.markSessionStart();
-        running = true;
+        boolean hasLocalChain =
+            syncStatus.chainBytes >= 512L * 1024L || syncStatus.blockHeight > 0;
+        boolean hostBloodstoned = NodeModeUtil.runsBloodstoned(nodeMode);
+        running = hostBloodstoned || prunedAlive || hasLocalChain;
+        NodeSyncPreferences syncPrefs = new NodeSyncPreferences(getApplicationContext());
+        if (prunedAlive || hasLocalChain) {
+            syncPrefs.enableBackgroundSync();
+            NodeSyncScheduler.schedule(getApplicationContext());
+        } else if (hostBloodstoned) {
+            syncPrefs.setEnabled(false);
+            NodeSyncScheduler.cancel(getApplicationContext());
+        } else {
+            syncPrefs.setEnabled(false);
+            NodeSyncScheduler.cancel(getApplicationContext());
+        }
         bloodstonedRestartAttempts = 0;
         lastBloodstonedRestartMs = 0L;
-        lastStartError = "";
+        if (prunedAlive) {
+            lastStartError = "";
+        } else if (lastStartError == null || lastStartError.isEmpty()) {
+            String runnerReason =
+                prunedRunner != null ? prunedRunner.lastFailureReason() : "";
+            if (runnerReason != null && !runnerReason.isEmpty()) {
+                lastStartError = runnerReason;
+            } else {
+                Integer exitCode = prunedRunner != null ? prunedRunner.lastExitCode() : null;
+                lastStartError = exitCode != null
+                    ? "bloodstoned exited (code " + exitCode + ") — keep app open on Wi‑Fi, allow notifications"
+                    : "bloodstoned did not start — allow notifications, disable battery saver, tap Stop then Start";
+            }
+        }
         int networkHeight = resolveNetworkHeight(
             fetchNetworkBlockHeight(),
             syncStatus.headerHeight,
             Math.max(blockHeight, syncStatus.blockHeight)
         );
         publishSnapshot(
-            true,
+            running,
             mode,
             lanIp,
             Math.max(blockHeight, syncStatus.blockHeight),
@@ -425,8 +545,16 @@ public class LocalNodeForegroundService extends Service {
         boolean bloodstonedAlive = prunedRunner != null && prunedRunner.isAlive();
         if (bloodstonedAlive) {
             bloodstonedRestartAttempts = 0;
+            if (prunedRunner != null) {
+                ChainBootstrapInstaller.clearChainstateReindexMarker(
+                    NodeModeUtil.datadir(this, prunedRunner.activeMode())
+                );
+            }
         } else {
             bloodstonedAlive = maybeRestartBloodstoned();
+            if (!bloodstonedAlive) {
+                updateBloodstonedDownError();
+            }
         }
         String activeMode = prunedRunner != null ? prunedRunner.activeMode() : "gateway";
         String mode = bloodstonedAlive ? activeMode : nodeMode;
@@ -459,18 +587,37 @@ public class LocalNodeForegroundService extends Service {
             bloodstonedRestartAttempts
         );
 
+        if (poolCoordinator != null && NodeModeUtil.hostsStratum(mode)) {
+            poolCoordinator.updateChainState(
+                syncStatus.blockHeight,
+                syncStatus.blockHash,
+                syncStatus.syncProgress >= 0.999
+                    && syncStatus.blockHeight > 0
+                    && bloodstonedAlive
+            );
+            poolCoordinator.tickVerification();
+        }
+
         if (syncStatus.blockHeight > 0 || networkHeight > 0) {
             NodeSyncPreferences prefs = new NodeSyncPreferences(getApplicationContext());
             prefs.recordCheck(syncStatus.blockHeight, networkHeight);
         }
 
-        if (registrar != null && credentials != null) {
+        if (registrar != null && credentials != null && lanIp != null && !lanIp.isEmpty()) {
             try {
                 String serviceName = ("bloodstone-" + credentials.user()).toLowerCase(Locale.US);
                 JSONObject reg = new JSONObject();
                 reg.put("device_id", serviceName);
                 putLanRegistrationFields(reg, mode, lanIp, syncStatus.blockHeight, syncStatus);
                 registrar.updatePayload(reg);
+                long nowMs = System.currentTimeMillis();
+                boolean heightChanged = syncStatus.blockHeight != lastLanRegisteredHeight;
+                boolean due = (nowMs - lastLanPushMs) >= LAN_PUSH_MIN_MS;
+                if (heightChanged || due) {
+                    registrar.registerNow();
+                    lastLanRegisteredHeight = syncStatus.blockHeight;
+                    lastLanPushMs = nowMs;
+                }
             } catch (Exception exc) {
                 Log.w(TAG, "LAN registrar refresh failed: " + exc.getMessage());
             }
@@ -505,6 +652,20 @@ public class LocalNodeForegroundService extends Service {
         return tip > 0 ? tip : fallback;
     }
 
+    private static final int SYNC_CAUGHT_UP_MAX_BEHIND = 64;
+    private static final double SYNC_CAUGHT_UP_MIN_RATIO = 0.99;
+
+    private static boolean chainCaughtUp(int height, int tip, boolean bloodstonedAlive) {
+        if (!bloodstonedAlive || height <= 0 || tip <= 0) {
+            return false;
+        }
+        int behind = tip - height;
+        if (behind <= SYNC_CAUGHT_UP_MAX_BEHIND) {
+            return true;
+        }
+        return (double) height / (double) tip >= SYNC_CAUGHT_UP_MIN_RATIO;
+    }
+
     private static double resolveDisplaySyncProgress(
         NodeSyncStatus sync,
         int networkHeight,
@@ -517,10 +678,18 @@ public class LocalNodeForegroundService extends Service {
         int tip = Math.max(networkHeight, Math.max(headers, blocks));
 
         if (blocks > 0 && tip > blocks) {
-            progress = Math.max(progress, Math.min(0.99, (double) blocks / (double) tip));
+            if (chainCaughtUp(blocks, tip, bloodstonedAlive)) {
+                progress = Math.max(progress, 1.0);
+            } else {
+                progress = Math.max(progress, Math.min(0.995, (double) blocks / (double) tip));
+            }
         }
         if (headers > 0 && tip > headers) {
-            progress = Math.max(progress, Math.min(0.95, (double) headers / (double) tip));
+            if (chainCaughtUp(headers, tip, bloodstonedAlive)) {
+                progress = Math.max(progress, 1.0);
+            } else {
+                progress = Math.max(progress, Math.min(0.995, (double) headers / (double) tip));
+            }
         }
         if (headers > 0 && headers > blocks) {
             progress = Math.max(progress, Math.min(0.9, (double) blocks / (double) headers));
@@ -538,6 +707,59 @@ public class LocalNodeForegroundService extends Service {
         }
 
         return Math.max(0.0, Math.min(1.0, progress));
+    }
+
+    private boolean shouldResetChainAfterBlockDbFailure(File dataDir) {
+        if (chainResetPending) {
+            return true;
+        }
+        SharedPreferences prefs = getApplicationContext().getSharedPreferences(
+            "bloodstone_chain_bootstrap",
+            Context.MODE_PRIVATE
+        );
+        if (prefs.getBoolean("bootstrap_corrupt", false)) {
+            return true;
+        }
+        String reason = prunedRunner != null ? prunedRunner.lastFailureReason() : "";
+        String tail = prunedRunner != null ? prunedRunner.logTail() : "";
+        return ChainBootstrapInstaller.looksLikeBlockDatabaseError(reason)
+            || ChainBootstrapInstaller.looksLikeBlockDatabaseError(tail)
+            || ChainBootstrapInstaller.looksLikeMerkleCorruption(reason);
+    }
+
+    private void updateBloodstonedDownError() {
+        if (prunedRunner == null || !NodeModeUtil.runsBloodstoned(nodeMode)) {
+            return;
+        }
+        String reason = prunedRunner.lastFailureReason();
+        if (reason != null && !reason.isEmpty()) {
+            lastStartError = reason;
+            return;
+        }
+        if (bloodstonedRestartAttempts >= MAX_BLOODSTONED_RESTARTS) {
+            chainResetPending = true;
+            lastStartError =
+                "Chain index recovery failed — tap Stop node, wait 5 seconds, then Start "
+                    + "(will re-download bootstrap)";
+            return;
+        }
+        Integer exitCode = prunedRunner.lastExitCode();
+        if (exitCode != null) {
+            lastStartError =
+                "bloodstoned exited (code "
+                    + exitCode
+                    + ") — auto-restart "
+                    + bloodstonedRestartAttempts
+                    + "/"
+                    + MAX_BLOODSTONED_RESTARTS
+                    + "; keep app open on Wi‑Fi";
+        } else if (lastStartError == null || lastStartError.isEmpty()) {
+            lastStartError =
+                "bloodstoned not running — auto-restart "
+                    + bloodstonedRestartAttempts
+                    + "/"
+                    + MAX_BLOODSTONED_RESTARTS;
+        }
     }
 
     private boolean maybeRestartBloodstoned() {
@@ -567,13 +789,40 @@ public class LocalNodeForegroundService extends Service {
                 + MAX_BLOODSTONED_RESTARTS
         );
         try {
+            String priorReason = prunedRunner.lastFailureReason();
+            File dataDir = NodeModeUtil.datadir(getApplicationContext(), nodeMode);
+            if (ChainBootstrapInstaller.looksLikeMerkleCorruption(priorReason)
+                || ChainBootstrapInstaller.looksLikeMerkleCorruption(prunedRunner.logTail())) {
+                Log.w(TAG, "merkle corruption on restart — invalidating bootstrap");
+                ChainBootstrapInstaller.markBootstrapCorrupt(getApplicationContext());
+                ChainBootstrapInstaller.invalidateInstalledChain(getApplicationContext(), dataDir);
+            } else if (ChainBootstrapInstaller.looksLikeBlockDatabaseError(priorReason)
+                || ChainBootstrapInstaller.looksLikeBlockDatabaseError(prunedRunner.logTail())) {
+                if (bloodstonedRestartAttempts >= 4) {
+                    Log.w(TAG, "block DB errors persist — reinstalling chain bootstrap");
+                    ChainBootstrapInstaller.markBootstrapCorrupt(getApplicationContext());
+                    ChainBootstrapInstaller.invalidateInstalledChain(getApplicationContext(), dataDir);
+                } else {
+                    Log.w(TAG, "block DB init failed — rebuilding index from chainstate");
+                    ChainBootstrapInstaller.markChainstateReindexRequired(dataDir);
+                    ChainBootstrapInstaller.prepareForChainstateReindex(dataDir);
+                }
+            }
             boolean alive = prunedRunner.start();
             if (alive) {
+                lastStartError = "";
                 Log.i(TAG, "bloodstoned restarted — resuming chain download");
                 return true;
             }
+            String reason = prunedRunner.lastFailureReason();
+            if (reason != null && !reason.isEmpty()) {
+                lastStartError = reason;
+            }
         } catch (Exception exc) {
             Log.w(TAG, "bloodstoned restart failed: " + exc.getMessage());
+            lastStartError =
+                "bloodstoned restart failed: "
+                    + (exc.getMessage() != null ? exc.getMessage() : "unknown");
         }
         return false;
     }
@@ -632,6 +881,7 @@ public class LocalNodeForegroundService extends Service {
                 RPC_PORT,
                 STRATUM_PORT_NEOSCRYPT,
                 STRATUM_PORT_YESPOWER,
+                NodeModeUtil.hostsStratum(mode) ? STRATUM_PORT_SHA256D : 0,
                 credentials.user(),
                 credentials.password(),
                 blockHeight,
@@ -661,6 +911,12 @@ public class LocalNodeForegroundService extends Service {
         reg.put("rpc_port", RPC_PORT);
         reg.put("stratum_port", hostsStratum ? STRATUM_PORT_NEOSCRYPT : 0);
         reg.put("stratum_port_yespower", hostsStratum ? STRATUM_PORT_YESPOWER : 0);
+        reg.put("stratum_port_sha256d", hostsStratum ? STRATUM_PORT_SHA256D : 0);
+        reg.put("pool_coordinator_port", hostsStratum ? LanPoolCoordinator.HTTP_PORT : 0);
+        reg.put(
+            "pool_coordinator_active",
+            poolCoordinator != null && poolCoordinator.isLocalPoolActive()
+        );
         reg.put("chunk_port", NodeModeUtil.isConsensusMode(mode) ? 0 : 18341);
         reg.put("rpc_user", credentials.user());
         reg.put("peer_kind", "android");
@@ -732,13 +988,50 @@ public class LocalNodeForegroundService extends Service {
 
     private NodeSyncStatus fetchSyncStatus() {
         NodeSyncStatus status = new NodeSyncStatus();
-        if (prunedRunner == null || !prunedRunner.isAlive()) {
+        if (prunedRunner == null) {
+            return status;
+        }
+        String activeMode = prunedRunner.activeMode();
+        String diskMode = "gateway".equals(activeMode) ? nodeMode : activeMode;
+        if (!"gateway".equals(diskMode) && !"lan-client".equals(diskMode)) {
+            status.chainBytes = ChainBootstrapInstaller.datadirChainBytes(this, diskMode);
+            int markerHeight = ChainBootstrapInstaller.bootstrapHeightFromDatadir(
+                NodeModeUtil.datadir(this, diskMode)
+            );
+            if (markerHeight > status.blockHeight) {
+                status.blockHeight = markerHeight;
+            }
+            int prefsHeight = ChainBootstrapInstaller.installedBootstrapHeight(
+                getApplicationContext()
+            );
+            if (prefsHeight > status.blockHeight) {
+                status.blockHeight = prefsHeight;
+            }
+        }
+        if (!prunedRunner.isAlive()) {
+            if (status.chainBytes > 512L * 1024L) {
+                // Keep bootstrap/marker height for LAN registry; cap progress while daemon is down.
+                status.headerHeight = 0;
+                status.syncProgress = Math.min(
+                    Math.max(status.syncProgress, 0.35),
+                    0.92
+                );
+            } else if (status.syncProgress <= 0.0) {
+                status.syncProgress = 0.02;
+            }
             return status;
         }
         try {
             JSONObject count = callLocalBloodstoned("getblockcount", new JSONArray(), "status");
             if (count.has("result") && !count.isNull("result")) {
                 status.blockHeight = count.optInt("result", 0);
+            }
+        } catch (Exception ignored) {
+        }
+        try {
+            JSONObject best = callLocalBloodstoned("getbestblockhash", new JSONArray(), "status-hash");
+            if (best.has("result") && !best.isNull("result")) {
+                status.blockHash = best.optString("result", "");
             }
         } catch (Exception ignored) {
         }
@@ -772,9 +1065,12 @@ public class LocalNodeForegroundService extends Service {
         } catch (Exception ignored) {
         }
         if (status.chainBytes <= 0L) {
+            String bytesMode = "gateway".equals(prunedRunner.activeMode())
+                ? nodeMode
+                : prunedRunner.activeMode();
             status.chainBytes = NodeStorageUtil.datadirBytes(
                 this,
-                NodeModeUtil.datadir(this, prunedRunner.activeMode()).getName()
+                NodeModeUtil.datadir(this, bytesMode).getName()
             );
         }
         return status;
@@ -882,11 +1178,7 @@ public class LocalNodeForegroundService extends Service {
     }
 
     private Notification buildNotification(String title, String body) {
-        Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
-        if (launch == null) {
-            launch = new Intent();
-        }
-        launch.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        Intent launch = buildResumeMainIntent();
         PendingIntent contentIntent = PendingIntent.getActivity(
             this,
             0,
@@ -922,6 +1214,14 @@ public class LocalNodeForegroundService extends Service {
             .build();
     }
 
+    private Intent buildResumeMainIntent() {
+        Intent launch = new Intent(Intent.ACTION_MAIN);
+        launch.addCategory(Intent.CATEGORY_LAUNCHER);
+        launch.setClassName(getPackageName(), "org.bloodstone.miner.MainActivity");
+        launch.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        return launch;
+    }
+
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             return;
@@ -951,6 +1251,7 @@ public class LocalNodeForegroundService extends Service {
         final int rpcPort;
         final int stratumPort;
         final int stratumPortYespower;
+        final int stratumPortSha256d;
         final String rpcUser;
         final String rpcPassword;
         final int blockHeight;
@@ -972,6 +1273,7 @@ public class LocalNodeForegroundService extends Service {
             int rpcPort,
             int stratumPort,
             int stratumPortYespower,
+            int stratumPortSha256d,
             String rpcUser,
             String rpcPassword,
             int blockHeight,
@@ -992,6 +1294,7 @@ public class LocalNodeForegroundService extends Service {
             this.rpcPort = rpcPort;
             this.stratumPort = stratumPort;
             this.stratumPortYespower = stratumPortYespower;
+            this.stratumPortSha256d = stratumPortSha256d;
             this.rpcUser = rpcUser;
             this.rpcPassword = rpcPassword;
             this.blockHeight = blockHeight;
@@ -1015,6 +1318,7 @@ public class LocalNodeForegroundService extends Service {
                 RPC_PORT,
                 STRATUM_PORT_NEOSCRYPT,
                 STRATUM_PORT_YESPOWER,
+                0,
                 "",
                 "",
                 0,
@@ -1037,5 +1341,11 @@ public class LocalNodeForegroundService extends Service {
         int headerHeight;
         double syncProgress;
         long chainBytes;
+        String blockHash = "";
+    }
+
+    static LanPoolCoordinator poolCoordinator() {
+        LocalNodeForegroundService inst = instance;
+        return inst != null ? inst.poolCoordinator : null;
     }
 }

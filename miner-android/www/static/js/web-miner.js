@@ -1,6 +1,9 @@
 import {
+  parseSha256dNotify,
   stratumDifficultyToTarget,
+  stratumDifficultyToDisplayTargetHex,
   targetFromHex,
+  targetToDisplayHex,
   formatHashrate,
 } from "./mining-math.js";
 import { localAssetPrefix, staticUrl, urlPrefix } from "./miner-paths.js";
@@ -25,20 +28,27 @@ import {
   chainMeshMeta,
   drainPendingShares,
   getCachedMiningSession,
+  pendingShareCount,
   queuePendingShare,
   resolveDeviceId,
   saveJobCacheLocal,
   startChainMeshPeer,
 } from "./chain-mesh.js";
+import { waitForBloodstoneBridge } from "./capacitor-ready.js";
+import { initNodeDiagnostics } from "./node-diagnostics.js";
+import { initMeshChainRestoreUi } from "./mesh-chain-restore.js";
 import {
   ensureFullNodeForeground,
   ensureLanRegistration,
+  startLanRegistrationHeartbeat,
   getLocalNodeStatus,
   getNodeModePreference,
   discoverMdnsLanNodes,
   initLanPeerDiscovery,
   initLocalNodeModeUi,
   initLocalNodeStatusPolling,
+  ensureForegroundChainSync,
+  needsInitialChainSync,
   isLanClientMode,
   isNodeSyncing,
   listDiscoveredLanPeers,
@@ -46,6 +56,7 @@ import {
   NODE_MODES,
   resolveAndroidStratumOptions,
   shouldHostLocalNode,
+  supportsOnDeviceWallet,
   startLocalNode,
   stopLocalNode,
   initNodeOnlyControls,
@@ -110,11 +121,25 @@ const PLACEHOLDER_ADDR_RE =
 
 const MAX_RECONNECT_DELAY_MS = 30000;
 const TARGET_SHARE_INTERVAL_SEC = 11;
-const ANDROID_POOL_SUBMIT_INTERVAL_SEC = 90;
+const ANDROID_POOL_SUBMIT_INTERVAL_SEC = 30;
+const PENDING_SHARE_FLUSH_CHECK_MS = 5000;
 const NEOSCRYPT_XAYA = "neoscrypt-xaya";
-const BROWSER_DIFF_MIN = { [NEOSCRYPT_XAYA]: 2.5e-10, yespower: 2.5e-10 };
-const BROWSER_DIFF_MAX = { [NEOSCRYPT_XAYA]: 1e-8, yespower: 1e-7 };
-const BROWSER_DIFF_SCALE = { [NEOSCRYPT_XAYA]: 2e-13, yespower: 4e-13 };
+const SHA256D = "sha256d";
+const BROWSER_DIFF_MIN = {
+  [NEOSCRYPT_XAYA]: 2.5e-10,
+  yespower: 2.5e-10,
+  [SHA256D]: 1e-8,
+};
+const BROWSER_DIFF_MAX = {
+  [NEOSCRYPT_XAYA]: 1e-8,
+  yespower: 1e-7,
+  [SHA256D]: 1e-4,
+};
+const BROWSER_DIFF_SCALE = {
+  [NEOSCRYPT_XAYA]: 2e-13,
+  yespower: 4e-13,
+  [SHA256D]: 1e-10,
+};
 
 const state = {
   ws: null,
@@ -148,6 +173,9 @@ const state = {
   offlineMining: false,
   flushingPending: false,
 };
+
+let pendingShareFlushTimer = null;
+let pendingShareFlushInterval = null;
 
 const MOBILE_HEARTBEAT_MS = 90000;
 let cachedReportDeviceId = null;
@@ -326,6 +354,43 @@ function poolShareSubmitReady() {
   return !state.lastPoolShareSubmitAt || now - state.lastPoolShareSubmitAt >= minGap;
 }
 
+function poolSharePacingSec() {
+  return Math.max(1, Math.ceil(minPoolShareSubmitMs() / 1000));
+}
+
+function schedulePendingShareFlush() {
+  if (!state.running || state.offlineMining) return;
+  const minGap = minPoolShareSubmitMs();
+  const last = state.lastPoolShareSubmitAt || 0;
+  const waitMs = last ? Math.max(400, minGap - (Date.now() - last) + 250) : 400;
+  if (pendingShareFlushTimer) clearTimeout(pendingShareFlushTimer);
+  pendingShareFlushTimer = setTimeout(() => {
+    pendingShareFlushTimer = null;
+    void flushQueuedShares();
+  }, waitMs);
+}
+
+function startPendingShareFlushLoop() {
+  stopPendingShareFlushLoop();
+  pendingShareFlushInterval = setInterval(() => {
+    if (!state.running || state.offlineMining || !state.stratum?.isOpen?.()) return;
+    if (pendingShareCount() > 0 && poolShareSubmitReady()) {
+      void flushQueuedShares();
+    }
+  }, PENDING_SHARE_FLUSH_CHECK_MS);
+}
+
+function stopPendingShareFlushLoop() {
+  if (pendingShareFlushTimer) {
+    clearTimeout(pendingShareFlushTimer);
+    pendingShareFlushTimer = null;
+  }
+  if (pendingShareFlushInterval) {
+    clearInterval(pendingShareFlushInterval);
+    pendingShareFlushInterval = null;
+  }
+}
+
 function workerShareEmitMinMs() {
   return minPoolShareSubmitMs() || 60000;
 }
@@ -355,9 +420,7 @@ async function maybeSuggestDifficulty(force = false) {
   }
 }
 
-async function stratumSend(method, params = []) {
-  const id = nextId();
-  await state.stratum.send({ id, method, params });
+function registerStratumPending(id, method) {
   return new Promise((resolve, reject) => {
     state.pending.set(id, { resolve, reject, method });
     setTimeout(() => {
@@ -367,6 +430,33 @@ async function stratumSend(method, params = []) {
       }
     }, 30000);
   });
+}
+
+async function stratumSend(method, params = []) {
+  const id = nextId();
+  const pending = registerStratumPending(id, method);
+  await state.stratum.send({ id, method, params });
+  return pending;
+}
+
+async function stratumSendBatch(requests) {
+  const entries = requests.map(({ method, params = [] }) => ({
+    id: nextId(),
+    method,
+    params,
+    pending: null,
+  }));
+  entries.forEach((entry) => {
+    entry.pending = registerStratumPending(entry.id, entry.method);
+  });
+  for (const entry of entries) {
+    await state.stratum.send({ id: entry.id, method: entry.method, params: entry.params });
+  }
+  const results = [];
+  for (const entry of entries) {
+    results.push(await entry.pending);
+  }
+  return results;
 }
 
 function persistMiningResume() {
@@ -464,17 +554,25 @@ function persistMiningSessionCache() {
 
 function applyShareTargetHex(hex) {
   const target = targetFromHex(hex);
-  state.targetHex = target.toString(16).padStart(64, "0");
+  state.targetHex = state.algo === SHA256D
+    ? targetToDisplayHex(target)
+    : target.toString(16).padStart(64, "0");
   state.poolDifficultySet = true;
   persistMiningSessionCache();
 }
 
 function targetHexFromDifficulty(stratumDiff) {
+  if (state.algo === SHA256D) {
+    return stratumDifficultyToDisplayTargetHex(Number(stratumDiff), state.algo);
+  }
   const target = stratumDifficultyToTarget(Number(stratumDiff), state.algo);
   return target.toString(16).padStart(64, "0");
 }
 
 function parseJob(notifyParams) {
+  if (state.algo === SHA256D) {
+    return parseSha256dNotify(notifyParams, state.extranonce1);
+  }
   const [jobId, , headerPrefix, , , , nbits, ntime] = notifyParams;
   return {
     jobId,
@@ -484,6 +582,27 @@ function parseJob(notifyParams) {
     extranonce1: state.extranonce1,
     algo: state.algo,
   };
+}
+
+function buildSubmitParams(share) {
+  if (state.algo === SHA256D) {
+    return [
+      state.address,
+      share.jobId,
+      share.extranonce2,
+      share.ntime,
+      share.nonce,
+      share.version || "01000000",
+    ];
+  }
+  return [
+    state.address,
+    share.jobId,
+    share.extranonce2,
+    share.ntime,
+    share.nonce,
+    share.hash,
+  ];
 }
 
 function broadcastToWorkers(message) {
@@ -512,7 +631,11 @@ async function submitShare(share) {
       miningMode: state.miningMode,
       ...share,
     });
-    log(`Share queued (pool rate limit) — ${n} pending`, "warn");
+    log(
+      `Share buffered (pool pacing ~${poolSharePacingSec()}s) — ${n} pending, auto-submit soon`,
+      "warn",
+    );
+    schedulePendingShareFlush();
     return;
   }
   const shareKey = `${share.jobId}:${share.extranonce2}:${share.ntime}:${share.nonce}`;
@@ -525,14 +648,7 @@ async function submitShare(share) {
     state.recentShareKeys.add(shareKey);
   }
   try {
-    const result = await stratumSend("mining.submit", [
-      state.address,
-      share.jobId,
-      share.extranonce2,
-      share.ntime,
-      share.nonce,
-      share.hash,
-    ]);
+    const result = await stratumSend("mining.submit", buildSubmitParams(share));
     if (result === true) {
       state.sharesAccepted += 1;
       if (state.miningMode === "pool") {
@@ -552,12 +668,27 @@ async function submitShare(share) {
         )
         .catch(() => {});
     } else {
-      state.sharesRejected += 1;
-      log(
-        `Share rejected (job ${share.jobId.slice(-8)} — stale work or below pool difficulty)`,
-        "warn",
-      );
-      void maybeSuggestDifficulty(true);
+      const pacedReject =
+        state.miningMode === "pool"
+        && state.lastPoolShareSubmitAt
+        && Date.now() - state.lastPoolShareSubmitAt < minPoolShareSubmitMs() + 3000;
+      if (pacedReject) {
+        queuePendingShare({
+          address: state.address,
+          algo: state.algo,
+          miningMode: state.miningMode,
+          ...share,
+        });
+        schedulePendingShareFlush();
+        log("Share buffered (pool pacing) — will auto-retry", "warn");
+      } else {
+        state.sharesRejected += 1;
+        log(
+          `Share rejected (job ${share.jobId.slice(-8)} — stale work or below pool difficulty)`,
+          "warn",
+        );
+        void maybeSuggestDifficulty(true);
+      }
     }
     updateStats();
   } catch (err) {
@@ -653,9 +784,20 @@ function handleStratumMessage(raw) {
     return;
   }
 
+  if (msg.method === "mining.stop") {
+    log("Pool stopped work — waiting for next job", "warn");
+    state.job = null;
+    broadcastToWorkers({ type: "stop" });
+    return;
+  }
+
   if (msg.method === "mining.notify") {
     state.job = parseJob(msg.params);
-    log(`New job ${state.job.jobId} @ ntime ${state.job.ntime}`);
+    if (state.algo === SHA256D) {
+      log(`New SHA256d job ${state.job.jobId} @ ntime ${state.job.ntime}`);
+    } else {
+      log(`New job ${state.job.jobId} @ ntime ${state.job.ntime}`);
+    }
     persistMiningSessionCache();
     state._jobWaiter?.();
     if (state.running && state.workers.length && state.poolDifficultySet && state.targetHex) {
@@ -995,28 +1137,31 @@ async function flushQueuedShares() {
   try {
     const pending = await drainPendingShares();
     if (!pending.length) return;
-    log(`Submitting ${pending.length} offline-queued share(s)…`);
+    log(`Submitting ${pending.length} buffered share(s) to pool…`);
+    let submitted = 0;
     for (const share of pending) {
-      if (!poolShareSubmitReady()) break;
+      if (!poolShareSubmitReady()) {
+        for (let i = submitted; i < pending.length; i += 1) {
+          queuePendingShare(pending[i]);
+        }
+        schedulePendingShareFlush();
+        break;
+      }
       try {
-        const result = await stratumSend("mining.submit", [
-          state.address,
-          share.jobId,
-          share.extranonce2,
-          share.ntime,
-          share.nonce,
-          share.hash,
-        ]);
+        const result = await stratumSend("mining.submit", buildSubmitParams(share));
         if (result === true) {
           state.sharesAccepted += 1;
+          submitted += 1;
           if (state.miningMode === "pool") {
             state.lastPoolShareSubmitAt = Date.now();
           }
         } else {
-          state.sharesRejected += 1;
+          queuePendingShare(share);
+          schedulePendingShareFlush();
         }
       } catch (_) {
         queuePendingShare(share);
+        schedulePendingShareFlush();
       }
     }
     updateStats();
@@ -1131,14 +1276,24 @@ async function waitForPoolWork(timeoutMs = 15000) {
 }
 
 async function authorizePoolSession() {
-  const sub = await stratumSend("mining.subscribe", [stratumUserAgent()]);
+  const stratumUser = buildStratumUser(state.address, resolveWorkerSuffix());
+  const authPassword = state.miningMode === "solo" ? "solo" : "x";
+  const poolRelayHandshake =
+    state.miningMode === "pool" && state.stratum?.poolRelayHandshake === true;
+
+  let sub;
+  let authorized;
+  if (poolRelayHandshake) {
+    [sub, authorized] = await stratumSendBatch([
+      { method: "mining.subscribe", params: [stratumUserAgent()] },
+      { method: "mining.authorize", params: [stratumUser, authPassword] },
+    ]);
+  } else {
+    sub = await stratumSend("mining.subscribe", [stratumUserAgent()]);
+    authorized = await stratumSend("mining.authorize", [stratumUser, authPassword]);
+  }
   state.extranonce1 = sub[1];
 
-  const stratumUser = buildStratumUser(state.address, resolveWorkerSuffix());
-  const authorized = await stratumSend("mining.authorize", [
-    stratumUser,
-    state.miningMode === "solo" ? "solo" : "x",
-  ]);
   if (!authorized) {
     throw new Error("Pool rejected authorize");
   }
@@ -1166,7 +1321,7 @@ async function reconnectPool() {
   if (androidPowerMiningRequired()) {
     const power = await refreshAndroidPowerStatus();
     if (!isAndroidPowerMiningAllowed(power)) {
-      log("Power disconnected — stopping mining (local node requires charging)", "warn");
+      log("Battery too low for mining — plug in or raise charge above limit", "warn");
       stopMining(false);
       return;
     }
@@ -1252,7 +1407,7 @@ function waitForWorkerReady(worker, workerId, timeoutMs = 120000) {
 function parseThreadCount(raw, algo) {
   const cores = navigator.hardwareConcurrency || 2;
   const fallback =
-    algo === "yespower"
+    algo === "yespower" || algo === SHA256D
       ? Math.max(1, Math.min(cores, 2))
       : Math.max(1, Math.min(cores, 8));
   const n = Number.parseInt(String(raw), 10);
@@ -1554,6 +1709,13 @@ async function startMining() {
           `LAN full node ${stratumOpts.lanPeer.displayHost || stratumOpts.lanPeer.host}:${stratumOpts.lanPeer.port} (${stratumOpts.lanPeer.mode || "full"})`,
           "success",
         );
+      } else if (stratumOpts.lanLocalPool) {
+        log(
+          stratumOpts.lanPeer
+            ? `LAN pool coordinator ${stratumOpts.lanPeer.displayHost || stratumOpts.lanPeer.host} — no VPS`
+            : "LAN pool coordinator on this phone — jobs, shares, payouts local",
+          "success",
+        );
       } else if (stratumOpts.forceVps) {
         if (stratumOpts.chainSyncing) {
           log(
@@ -1636,6 +1798,8 @@ async function startMining() {
       /* ignore */
     }
     startMobileHeartbeat();
+    startPendingShareFlushLoop();
+    void flushQueuedShares();
     void sendMobileContribution();
   } catch (err) {
     log(err.message, "error");
@@ -1667,6 +1831,7 @@ function stopMining(userInitiated = true, options = {}) {
     void stopLocalNode({ foregroundOnly: true });
   }
   stopMobileHeartbeat();
+  stopPendingShareFlushLoop();
   updateFleetPanel({
     identity: fleetDeviceId() ? { deviceId: fleetDeviceId(), model: fleetDeviceModel() } : null,
     transport: transportKind(state.stratum),
@@ -1740,7 +1905,7 @@ function syncThreadDefault() {
   threadsInput.readOnly = false;
   const saved = loadThreadPreference();
   const suggested =
-    algo === "yespower"
+    algo === "yespower" || algo === SHA256D
       ? Math.max(1, Math.min(cores, 2))
       : Math.max(1, Math.min(cores, 8));
   threadsInput.value = String(
@@ -1748,10 +1913,16 @@ function syncThreadDefault() {
   );
   threadsInput.title = `Use 1–${MAX_MINER_THREADS} Web Worker threads (${cores} logical CPU cores detected)`;
   if (hint) {
-    hint.textContent =
-      algo === "yespower"
-        ? `Yespower is CPU-heavy — start with 1–2 threads. Max ${MAX_MINER_THREADS}.`
-        : `More threads raise hashrate until the CPU is saturated. Max ${MAX_MINER_THREADS}.`;
+    if (algo === SHA256D) {
+      hint.textContent =
+        `SHA256d is CPU-heavy — start with 1–2 threads. Uses phone full node :3429 when running, else VPS pool. Max ${MAX_MINER_THREADS}.`;
+    } else if (algo === "yespower") {
+      hint.textContent =
+        `Yespower is CPU-heavy — start with 1–2 threads. Max ${MAX_MINER_THREADS}.`;
+    } else {
+      hint.textContent =
+        `More threads raise hashrate until the CPU is saturated. Max ${MAX_MINER_THREADS}.`;
+    }
   }
 }
 
@@ -1793,6 +1964,7 @@ function showAndroidBootError(err) {
 async function bootMinerUi() {
   try {
   if (isAndroidAppContext()) {
+    await waitForBloodstoneBridge(45000);
     await whenCapacitorReady();
     document.getElementById("android-boot-status")?.remove();
   }
@@ -1830,6 +2002,8 @@ async function bootMinerUi() {
       getMining: () => state.running,
       onStatus: onNodeStatus,
     });
+    initNodeDiagnostics({ onLog: (msg, kind) => log(msg, kind) });
+    initMeshChainRestoreUi({ onLog: (msg, kind) => log(msg, kind) });
     initLocalNodeStatusPolling((status) => {
       onNodeStatus(status);
       const syncing = isNodeSyncing(status);
@@ -1874,6 +2048,13 @@ async function bootMinerUi() {
           });
         }
         return status || getLocalNodeStatus();
+      }).then((status) => {
+        if (needsInitialChainSync(status)) {
+          return ensureForegroundChainSync({
+            onLog: (msg, kind) => log(msg, kind),
+          });
+        }
+        return status;
       });
     void bootNodePromise.then((status) => {
       setFleetNodeStatus(status);
@@ -1890,20 +2071,31 @@ async function bootMinerUi() {
       if (isLanClientMode(nodeMode)) {
         log("LAN client mode — searching household Wi‑Fi for a full node host", "success");
         updateLanPeersPanel();
+      } else if (needsInitialChainSync(status)) {
+        log(
+          "No chain on device — starting foreground bloodstoned for initial download…",
+          "warn",
+        );
       } else if (status?.batteryDormant || status?.syncScheduled) {
         log(
           `Battery sync enabled (${status.mode}) — node dormant, checks every ${status.syncIntervalMinutes || 15} min`,
           "success",
         );
       } else if (status?.running) {
+        const walletHint = supportsOnDeviceWallet(status.mode) && status.bloodstonedAlive
+          ? "on-device wallet available · "
+          : "";
         log(
-          `Local node (${status.mode}) — on-device wallet available · LAN RPC ${status.rpcUrl || ""}`,
+          `Local node (${status.mode}) — ${walletHint}LAN RPC ${status.rpcUrl || ""}`,
           "success",
         );
         if (shouldHostLocalNode(nodeMode)) {
           void ensureLanRegistration().then((reg) => {
             if (reg?.ok) log("LAN registered for household miners", "success");
           });
+          import("./lan-device-reporter.js").then(({ startLanDeviceReporter }) => {
+            startLanDeviceReporter({ onLog: (msg, kind) => log(msg, kind) });
+          }).catch(() => {});
         }
       }
     });
@@ -1943,8 +2135,11 @@ async function bootMinerUi() {
       networkNodes: cachedNetworkNodes(),
     });
   });
-  startNetworkNodesPolling(60000);
+  startNetworkNodesPolling(30000);
   initRegisterLanButton();
+  if (isCapacitorAndroid() || isAndroidAppContext()) {
+    startLanRegistrationHeartbeat(30000);
+  }
   if (isCapacitorAndroid() || isAndroidAppContext()) {
     try {
       const { initShareInternetPanel } = await import("./mesh-share-internet.js");
@@ -2043,7 +2238,7 @@ async function bootMinerUi() {
     onAndroidPowerChange((power) => {
       updateStartButtonState();
       if (state.running && !isAndroidPowerMiningAllowed(power)) {
-        log("Power disconnected — stopping mining (local node requires charging)", "warn");
+        log("Battery too low for mining — plug in or raise charge above limit", "warn");
         stopMining(false);
       }
     });
@@ -2106,13 +2301,42 @@ async function bootMinerUi() {
   }
 }
 
+function signalMinerBootReady() {
+  window.__bloodstoneMinerBootReady = true;
+  window.dispatchEvent(new CustomEvent("bloodstone-miner-boot-ready"));
+}
+
+function exposeMinerCoreGlobals() {
+  window.__bloodstoneStartMining = function bloodstoneStartMining() {
+    return startMining();
+  };
+  window.__bloodstoneStopMining = function bloodstoneStopMining(options) {
+    return stopMining(true, options || {});
+  };
+  window.__bloodstoneJustMine = async function bloodstoneJustMine() {
+    const { setJustMineActive } = await import("./safeguard-bypass.js");
+    setJustMineActive(true);
+    return startMining();
+  };
+  if (!window.__bloodstoneMinerCoreReady) {
+    window.__bloodstoneMinerCoreReady = true;
+    window.dispatchEvent(new CustomEvent("bloodstone-miner-core-ready"));
+  }
+}
+
+exposeMinerCoreGlobals();
+
 document.addEventListener("DOMContentLoaded", () => {
   if (isAndroidAppContext()) {
     initAndroidUpdateOptions();
   } else {
     startChainMeshPeer();
   }
-  void bootMinerUi().catch((err) => showAndroidBootError(err));
+  void bootMinerUi()
+    .then(() => {
+      signalMinerBootReady();
+    })
+    .catch((err) => showAndroidBootError(err));
 });
 
 export { setMiningMode };

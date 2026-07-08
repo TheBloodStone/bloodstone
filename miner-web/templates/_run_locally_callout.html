@@ -8,8 +8,14 @@
       spread the load across the community.
     </p>
     <div class="run-locally-actions">
+      {% if run_locally.miner_desktop_linux %}
+      <a class="btn" href="{{ run_locally.miner_desktop_linux.url }}">Desktop miner (Linux) v{{ run_locally.miner_desktop_version }}</a>
+      {% endif %}
+      {% if run_locally.miner_desktop_win %}
+      <a class="btn btn-ghost" href="{{ run_locally.miner_desktop_win.url }}">Desktop miner (Windows) v{{ run_locally.miner_desktop_version }}</a>
+      {% endif %}
       {% if run_locally.miner_win %}
-      <a class="btn" href="{{ run_locally.miner_win.url }}">Windows CPU miner v{{ run_locally.miner_pack_version }}</a>
+      <a class="btn btn-ghost" href="{{ run_locally.miner_win.url }}">Windows CPU miner zip v{{ run_locally.miner_pack_version }}</a>
       {% endif %}
       {% if run_locally.wallet_gui %}
       <a class="btn btn-ghost" href="{{ run_locally.wallet_gui.url }}">Wallet &amp; Node GUI v{{ run_locally.wallet_gui_version }}</a>

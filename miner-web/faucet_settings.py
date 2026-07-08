@@ -15,6 +15,9 @@ DEFAULTS = {
     "claim_cooldown_min_hours": "3",
     "claim_cooldown_max_hours": "6",
     "min_faucet_balance": "0.5",
+    "max_accounts_per_ip": "2",
+    "max_accounts_per_device": "2",
+    "enforce_device_binding": "1",
 }
 
 
@@ -43,6 +46,24 @@ def load_faucet_settings() -> dict:
         "min_faucet_balance": float(
             raw.get("min_faucet_balance", DEFAULTS["min_faucet_balance"])
         ),
+        "max_accounts_per_ip": max(
+            1, int(float(raw.get("max_accounts_per_ip", DEFAULTS["max_accounts_per_ip"])))
+        ),
+        "max_accounts_per_device": max(
+            1,
+            int(
+                float(
+                    raw.get(
+                        "max_accounts_per_device",
+                        DEFAULTS["max_accounts_per_device"],
+                    )
+                )
+            ),
+        ),
+        "enforce_device_binding": str(
+            raw.get("enforce_device_binding", DEFAULTS["enforce_device_binding"])
+        ).strip()
+        not in ("0", "false", "no", "off"),
     }
 
 
@@ -51,6 +72,10 @@ def save_faucet_settings(
     claim_cooldown_min_hours: int,
     claim_cooldown_max_hours: int,
     min_faucet_balance: float,
+    *,
+    max_accounts_per_ip: int = 2,
+    max_accounts_per_device: int = 2,
+    enforce_device_binding: bool = True,
 ) -> None:
     lo = int(claim_cooldown_min_hours)
     hi = int(claim_cooldown_max_hours)
@@ -63,6 +88,9 @@ def save_faucet_settings(
             "claim_cooldown_min_hours": str(lo),
             "claim_cooldown_max_hours": str(hi),
             "min_faucet_balance": f"{min_faucet_balance:g}",
+            "max_accounts_per_ip": str(max(1, int(max_accounts_per_ip))),
+            "max_accounts_per_device": str(max(1, int(max_accounts_per_device))),
+            "enforce_device_binding": "1" if enforce_device_binding else "0",
         },
         preserve_keys=["secret_key"],
         header="# Bloodstone faucet configuration",

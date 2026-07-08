@@ -14,6 +14,7 @@
 #include <qt/clientmodel.h>
 #include <qt/guiconstants.h>
 #include <qt/guiutil.h>
+#include <qt/chain_reset.h>
 #include <qt/intro.h>
 #include <qt/networkstyle.h>
 #include <qt/optionsmodel.h>
@@ -367,6 +368,7 @@ void BitcoinApplication::initializeResult(bool success, interfaces::BlockAndHead
     returnValue = success ? EXIT_SUCCESS : EXIT_FAILURE;
     if(success)
     {
+        ChainReset::WriteRelaunchMarker(gArgs.GetDataDirBase());
         // Log this only after AppInitMain finishes, as then logging setup is guaranteed complete
         qInfo() << "Platform customization:" << platformStyle->getName();
         clientModel = new ClientModel(node(), optionsModel);
@@ -568,11 +570,37 @@ int GuiMain(int argc, char* argv[])
                 .arg(QString::fromStdString(bad)));
         return EXIT_FAILURE;
     }
+    const fs::path config_home = gArgs.GetDataDirBase();
+    const QString defaultDataDir = GUIUtil::getDefaultDataDirectory();
     if (!gArgs.ReadConfigFiles(error, true)) {
         InitError(strprintf(Untranslated("Error reading configuration file: %s\n"), error));
         QMessageBox::critical(nullptr, PACKAGE_NAME,
             QObject::tr("Error: Cannot parse configuration file: %1.").arg(QString::fromStdString(error)));
         return EXIT_FAILURE;
+    }
+    ChainReset::SanitizeAfterConfigRead(config_home, defaultDataDir);
+    gArgs.ClearPathCache();
+    if (!CheckDataDirOption()) {
+        const fs::path fallback = GetDefaultDataDir();
+        TryCreateDirectories(fallback);
+        TryCreateDirectories(fallback / "wallets");
+        gArgs.ForceSetArg("-datadir", fallback.string());
+        gArgs.ClearPathCache();
+    }
+    if (!CheckDataDirOption()) {
+        const std::string bad = gArgs.GetArg("-datadir", "");
+        InitError(strprintf(Untranslated("Specified data directory \"%s\" does not exist.\n"), bad));
+        QMessageBox::critical(nullptr, PACKAGE_NAME,
+            QObject::tr("Error: Specified data directory \"%1\" does not exist.\n\n"
+                        "Remove any datadir= line from bloodstone.conf that points at a "
+                        "server path (for example /root/bloodstone). On Windows the default "
+                        "folder is %%APPDATA%%\\Bloodstone.")
+                .arg(QString::fromStdString(bad)));
+        return EXIT_FAILURE;
+    }
+    ChainReset::EnsureDefaultNodeConfig(gArgs.GetDataDirBase());
+    if (!ChainReset::EnsureRelaunchChainOrAbort(gArgs.GetDataDirBase(), nullptr)) {
+        return EXIT_SUCCESS;
     }
 
     /// 7. Determine network (and switch to network specific options)

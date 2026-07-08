@@ -3,11 +3,23 @@
  */
 
 import { fleetPlugin } from "./device-fleet.js";
-import { isAndroidAppContext, whenCapacitorReady } from "./capacitor-ready.js";
+import {
+  isAndroidAppContext,
+  isDesktopAppContext,
+  whenCapacitorReady,
+  waitForBloodstoneBridge,
+} from "./capacitor-ready.js";
 import {
   bytesToB64,
   reconstructMeshAssetFromKey,
 } from "./mesh-asset-reconstruct.js";
+
+import {
+  getBetaAccessToken,
+  initBetaChannelOptions,
+  isBetaChannelEnabled,
+  resolveLanIp,
+} from "./beta-channel.js";
 
 const AUTO_UPDATE_KEY = "bloodstone-android-auto-update";
 const UPDATE_SESSION_KEY = "bloodstone-android-update-session";
@@ -92,15 +104,31 @@ function buildUpdatePluginAdapter() {
   return adapter;
 }
 
-async function waitForUpdatePlugin(maxMs = 30000) {
-  await whenCapacitorReady();
+async function waitForUpdatePlugin(maxMs = 45000) {
+  await waitForBloodstoneBridge(maxMs);
   const deadline = Date.now() + maxMs;
   while (Date.now() < deadline) {
     const adapter = buildUpdatePluginAdapter();
     if (adapter) return adapter;
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, 150));
   }
   return buildUpdatePluginAdapter() || fleetPlugin();
+}
+
+function openApkDownloadUrl(manifest, reason = "") {
+  const base = updateApiBase();
+  const url =
+    manifest?.apk_url_latest
+    || manifest?.apk_url
+    || `${base}/downloads/bloodstone-miner-android-latest.apk`;
+  const ver = manifest?.apk_version || manifest?.version || "latest";
+  setUpdateStatus(
+    reason
+      ? `${reason} — opening APK v${ver} download…`
+      : `Opening APK v${ver} download…`,
+    "warn",
+  );
+  window.location.href = url;
 }
 
 async function resolveUpdatePlugin() {
@@ -189,14 +217,42 @@ function clearUpdateSessionKeys() {
   }
 }
 
-async function fetchJsonUrl(url) {
+async function updateManifestQuery() {
+  const token = getBetaAccessToken();
+  const lanIp = await resolveLanIp();
+  const params = new URLSearchParams();
+  if (token) params.set("beta_token", token);
+  if (lanIp) params.set("lan_ip", lanIp);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return qs;
+}
+
+async function updateManifestUrls(base) {
+  const qs = await updateManifestQuery();
+  return [
+    `${base}/mining/api/android-miner/update${qs}`,
+    `${base}/api/android-miner/update${qs}`,
+  ];
+}
+
+async function updateManifestHeaders() {
+  const token = getBetaAccessToken();
+  const lanIp = await resolveLanIp();
+  const headers = { Accept: "application/json" };
+  if (token) headers["X-Bloodstone-Beta-Token"] = token;
+  if (lanIp) headers["X-Bloodstone-Lan-Ip"] = lanIp;
+  return headers;
+}
+
+async function fetchJsonUrl(url, headers = null) {
+  const reqHeaders = headers || (await updateManifestHeaders());
   const cap = window.Capacitor;
   if (cap?.nativePromise) {
     try {
       const response = await cap.nativePromise("CapacitorHttp", "request", {
         url,
         method: "GET",
-        headers: { Accept: "application/json" },
+        headers: reqHeaders,
       });
       const status = Number(response?.status) || 0;
       if (status < 200 || status >= 300) {
@@ -209,7 +265,10 @@ async function fetchJsonUrl(url) {
       /* fall through to fetch */
     }
   }
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: reqHeaders,
+  });
   if (!res.ok) {
     throw new Error(`Update check failed (${res.status})`);
   }
@@ -218,14 +277,12 @@ async function fetchJsonUrl(url) {
 
 async function fetchUpdateManifest() {
   const base = updateApiBase();
-  const urls = [
-    `${base}/mining/api/android-miner/update`,
-    `${base}/api/android-miner/update`,
-  ];
+  const urls = await updateManifestUrls(base);
+  const headers = await updateManifestHeaders();
   let lastErr = null;
   for (const url of urls) {
     try {
-      const data = await fetchJsonUrl(url);
+      const data = await fetchJsonUrl(url, headers);
       if (!data?.ok) {
         lastErr = new Error("Update manifest unavailable");
         continue;
@@ -288,12 +345,12 @@ async function readInstalledVersion() {
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
 
-  const stamped = document.body?.dataset?.appVersion;
-  const fromStamp = normalizeVersionInfo(
-    stamped ? { versionName: String(stamped), versionCode: 0 } : null,
-    "dataset",
+  const nativeStamp = document.body?.dataset?.nativeApkVersion;
+  const fromNativeStamp = normalizeVersionInfo(
+    nativeStamp ? { versionName: String(nativeStamp), versionCode: 0 } : null,
+    "native-stamp",
   );
-  if (fromStamp) return fromStamp;
+  if (fromNativeStamp) return fromNativeStamp;
 
   return { versionName: null, versionCode: 0, source: "unknown" };
 }
@@ -366,14 +423,15 @@ function setVersionLine(apkVersion, webBundleVersion = "") {
   if (!targets.length) return;
   const apk = formatInstalledVersion(apkVersion);
   const web = String(webBundleVersion || "").trim();
+  const channel = isBetaChannelEnabled() ? " · beta channel" : " · stable channel";
   const text =
     apk && web
-      ? `Installed: APK v${apk} · UI ${web}`
+      ? `Installed: APK v${apk} · UI ${web}${channel}`
       : apk
-        ? `Installed: APK v${apk} · UI bundled`
+        ? `Installed: APK v${apk} · UI bundled${channel}`
         : web
-          ? `Installed UI: ${web}`
-          : "Installed version: —";
+          ? `Installed UI: ${web}${channel}`
+          : `Installed version: —${channel}`;
   targets.forEach((el) => {
     el.textContent = text;
   });
@@ -635,8 +693,8 @@ async function maybeApplyApkUpdate(plugin, manifest, installed, options = {}) {
 
   setUpdateStatus(`${updateLabel} — downloading…`, "warn");
   if (!plugin?.downloadAndInstallApk) {
-    setUpdateStatus(`${updateLabel} — open downloads to update manually`, "warn");
-    return { updateAvailable: true, installed, manifest, needsManual: true };
+    openApkDownloadUrl(manifest, updateLabel);
+    return { updateAvailable: true, installed, manifest, needsManual: true, prompted: true };
   }
 
   const allowed = await ensureInstallPermission(plugin);
@@ -665,6 +723,10 @@ async function maybeApplyApkUpdate(plugin, manifest, installed, options = {}) {
 }
 
 export async function runAndroidUpdateCheck(options = {}) {
+  if (isDesktopAppContext()) {
+    const { runDesktopUpdateCheck } = await import("./desktop-update.js");
+    return runDesktopUpdateCheck(options);
+  }
   if (!isAndroidAppContext() || updateInFlight) return null;
   const auto = options.force === true || isAndroidAutoUpdateEnabled();
   if (!auto && !options.manual) return null;
@@ -682,7 +744,15 @@ export async function runAndroidUpdateCheck(options = {}) {
     ]);
     setVersionLine(installed.versionName, installedWeb);
 
-    const plugin = await resolveUpdatePlugin();
+    let plugin = await resolveUpdatePlugin();
+    if (!plugin?.downloadAndApplyWebBundle && !plugin?.downloadAndInstallApk) {
+      const remoteApk = String(manifest.apk_version || manifest.version || "").trim();
+      const installedVersion = formatInstalledVersion(installed.versionName);
+      if (remoteApk && versionIsOlder(installedVersion, remoteApk)) {
+        openApkDownloadUrl(manifest, "Native bridge not ready");
+        return { updateAvailable: true, installed, manifest, needsManual: true };
+      }
+    }
     const webResult = await maybeApplyWebBundleUpdate(plugin, manifest, {
       ...options,
       installedApk: installed.versionName,
@@ -770,6 +840,10 @@ export async function runAndroidUpdateCheck(options = {}) {
 }
 
 export function initAndroidUpdateOptions() {
+  if (isDesktopAppContext()) {
+    void import("./desktop-update.js").then((m) => m.initDesktopUpdateOptions());
+    return;
+  }
   if (!isAndroidAppContext() || optionsHooked) return;
   optionsHooked = true;
 
@@ -794,6 +868,8 @@ export function initAndroidUpdateOptions() {
       onClick: () => runAndroidUpdateCheck({ manual: true, force: true }),
     });
   }
+  void initBetaChannelOptions();
+
   if (checkbox) {
     checkbox.checked = isAndroidAutoUpdateEnabled();
     checkbox.addEventListener("change", () => {
@@ -846,6 +922,10 @@ function initAndroidDownloadsLinks() {
 }
 
 export async function initAndroidAppUpdate(options = {}) {
+  if (isDesktopAppContext()) {
+    const { initDesktopAppUpdate } = await import("./desktop-update.js");
+    return initDesktopAppUpdate(options);
+  }
   if (!isAndroidAppContext()) return null;
   initAndroidUpdateOptions();
   try {

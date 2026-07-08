@@ -74,11 +74,7 @@ public class MiningForegroundService extends Service {
     }
 
     private Notification buildNotification(String title, String body) {
-        Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
-        if (launch == null) {
-            launch = new Intent();
-        }
-        launch.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+        Intent launch = buildResumeMainIntent();
         PendingIntent contentIntent = PendingIntent.getActivity(
             this,
             0,
@@ -109,6 +105,14 @@ public class MiningForegroundService extends Service {
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build();
+    }
+
+    private Intent buildResumeMainIntent() {
+        Intent launch = new Intent(Intent.ACTION_MAIN);
+        launch.addCategory(Intent.CATEGORY_LAUNCHER);
+        launch.setClassName(getPackageName(), "org.bloodstone.miner.MainActivity");
+        launch.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        return launch;
     }
 
     private void createNotificationChannel() {

@@ -12,11 +12,14 @@ from urllib.parse import quote
 
 sys.path.insert(0, "/root")
 import bloodstone_branding
+import bloodstone_client_ip
+import bloodstone_device_guard
 import bloodstone_time
 
 from flask import (
     Flask,
     flash,
+    g,
     redirect,
     render_template,
     request,
@@ -144,7 +147,24 @@ def verify_csrf():
 
 
 def client_ip():
-    return (request.headers.get("X-Real-IP") or request.remote_addr or "").strip()
+    return bloodstone_client_ip.client_ip_from_request(request)
+
+
+@app.before_request
+def bind_device_identity():
+    current, new_token = bloodstone_device_guard.ensure_device_token(request)
+    g.device_token = current
+    g.new_device_token = new_token
+
+
+@app.after_request
+def persist_device_cookie(response):
+    token = getattr(g, "new_device_token", None)
+    if token:
+        bloodstone_device_guard.attach_device_cookie(
+            response, token, secure=bool(request.is_secure)
+        )
+    return response
 
 
 def valid_address(addr):
@@ -279,14 +299,24 @@ def claim():
 
     ip = client_ip()
     user_id = int(user["id"])
+    device_token = getattr(g, "device_token", None) or getattr(
+        g, "new_device_token", None
+    )
+    abuse = bloodstone_device_guard.load_abuse_settings()
+
     bound_user_id = faucet_db.bound_user_id_for_ip(ip)
     if bound_user_id is not None and bound_user_id != user_id:
-        flash(
-            "This IP address is already linked to another wallet account. "
-            "Log in with that account to claim, or use a different network.",
-            "error",
-        )
+        flash(bloodstone_device_guard.claim_blocked_message(by_ip=True), "error")
         return redirect(url_for("index"))
+
+    if abuse["enforce_device_binding"] and device_token:
+        bound_device_user = faucet_db.bound_user_id_for_device(device_token)
+        if bound_device_user is not None and bound_device_user != user_id:
+            flash(
+                bloodstone_device_guard.claim_blocked_message(by_device=True),
+                "error",
+            )
+            return redirect(url_for("index"))
 
     address_wait = faucet_db.active_cooldown_for_address(address)
     if address_wait:
@@ -329,7 +359,15 @@ def claim():
         cfg["claim_cooldown_max_hours"],
     )
     cooldown_until = int(time.time()) + cooldown_seconds
-    faucet_db.record_claim(address, amount, txid, ip, cooldown_until, user_id=user_id)
+    faucet_db.record_claim(
+        address,
+        amount,
+        txid,
+        ip,
+        cooldown_until,
+        user_id=user_id,
+        device_token=device_token,
+    )
     flash(f"Sent {amount:g} STONE to {address}.", "success")
     return render_template(
         "claim_success.html",

@@ -47,6 +47,12 @@ final class NodeModeUtil {
         return !"lan-client".equals(m);
     }
 
+    /** Pruned, full, and mesh nodes may host wallet.dat on-device; consensus modes stay wallet-less. */
+    static boolean supportsOnDeviceWallet(String mode) {
+        String m = normalize(mode);
+        return "pruned".equals(m) || "full".equals(m) || "mesh".equals(m);
+    }
+
     static File datadir(Context context, String mode) {
         String m = normalize(mode);
         String subdir;

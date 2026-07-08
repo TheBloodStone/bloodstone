@@ -17,6 +17,8 @@
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
+            android:clearTaskOnLaunch="false"
+            android:alwaysRetainTaskState="true"
             android:exported="true">
 
             <intent-filter>
@@ -33,6 +35,11 @@
 
         <service
             android:name="org.bloodstone.plugins.localnode.LocalNodeForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <service
+            android:name="org.bloodstone.plugins.chainmesh.InternetGatewayForegroundService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 

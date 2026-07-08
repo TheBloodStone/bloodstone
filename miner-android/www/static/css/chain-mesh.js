@@ -15,9 +15,9 @@ const JOB_CACHE_KEY = "bloodstone-chain-mesh-job-cache";
 const PENDING_SHARES_KEY = "bloodstone-chain-mesh-pending-shares";
 const PEER_IPS_KEY = "bloodstone-chain-mesh-peer-ips";
 const DEFAULT_BACKUP_PCT = 10;
-const MAX_LOCAL_CHUNKS_WEB = 32;
-const MAX_LOCAL_CHUNKS_ANDROID = 64;
-const MAX_LOCAL_CHUNKS_MESH = 128;
+const MAX_LOCAL_CHUNKS_WEB = 48;
+const MAX_LOCAL_CHUNKS_ANDROID = 96;
+const MAX_LOCAL_CHUNKS_MESH = 192;
 const SYNC_INTERVAL_MS = 5 * 60 * 1000;
 // Keep each JSON POST under ~1 MiB on strict proxies (256 KiB chunk ≈ 350 KiB base64).
 const UPLOAD_BATCH_MAX = 2;
@@ -145,17 +145,43 @@ function b64ToBytes(b64) {
   return bytes;
 }
 
+async function evictOldestNativeChunk() {
+  const plugin = chainMeshNative();
+  if (!plugin?.listChunks || !plugin?.removeChunk) return false;
+  try {
+    const res = await plugin.listChunks();
+    const chunks = res?.chunks || [];
+    if (!chunks.length) return false;
+    chunks.sort((a, b) => (a.savedAt || 0) - (b.savedAt || 0));
+    const oldest = chunks[0]?.chunkHash;
+    if (!oldest) return false;
+    await plugin.removeChunk({ chunkHash: oldest });
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 async function nativePutChunk(record) {
   const plugin = chainMeshNative();
   if (!plugin) return false;
-  await plugin.putChunk({
+  const payload = {
     chunkHash: record.chunk_hash,
     dataB64: bytesToB64(record.data),
     sourceFile: record.source_file || "",
     fileOffset: record.file_offset || 0,
     size: record.size || record.data?.length || 0,
-  });
-  return true;
+  };
+  try {
+    await plugin.putChunk(payload);
+    return true;
+  } catch (err) {
+    const msg = String(err?.message || err || "");
+    if (!/capacity|maximum|full/i.test(msg)) throw err;
+    if (!(await evictOldestNativeChunk())) throw err;
+    await plugin.putChunk(payload);
+    return true;
+  }
 }
 
 async function nativeGetAllChunks() {
@@ -869,6 +895,8 @@ export function canMineOffline() {
 export async function syncChainMesh() {
   const canStore = chainMeshNative() || "indexedDB" in window;
   if (!canStore) return null;
+
+  await configureMeshForNodeMode(meshNodeMode);
 
   const manifest = await fetchManifest();
   const deviceId = await resolveDeviceId();

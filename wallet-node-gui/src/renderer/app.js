@@ -178,9 +178,9 @@ function updateDashboard(status) {
   if (showPeerWarning && els.syncAlertText) {
     const seed = document.getElementById("addnode")?.value || "64.188.22.190:17333";
     els.syncAlertText.textContent =
-      `The node cannot download blocks until it connects to the seed at ${seed}. ` +
-      "Open Settings, confirm the seed address, save, then restart the node. " +
-      "Allow bloodstoned.exe through Windows Firewall (port 17333).";
+      `The node cannot download blocks until it connects to Bloodstone peers (seeds: ${seed} and 192.119.82.145:17333). ` +
+      "Open Settings, save, then restart the node. " +
+      "Allow bloodstoned.exe through Windows Firewall for outbound and inbound TCP port 17333.";
   }
 }
 

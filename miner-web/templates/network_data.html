@@ -10,6 +10,7 @@
   <div class="btn-row">
     <a class="btn btn-small" href="{{ url_for('index') }}#chain-mesh-panel">Mining dashboard Time Capsule</a>
     <a class="btn btn-small" href="{{ url_for('mesh_search_page') }}">Open full-screen mesh search</a>
+    <a class="btn btn-small" href="{{ url_for('blurt_mesh_traffic_page') }}">Blurt mesh traffic</a>
     <a class="btn btn-ghost btn-small" href="https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Economic-Model-White-Paper.docx">Economic white paper</a>
     <a class="btn btn-ghost btn-small" href="https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Chain-Mesh-Storage-White-Paper.docx">Storage white paper</a>
     <a class="btn btn-ghost btn-small" href="https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Decentralized-Network-White-Paper.docx">Network white paper</a>
@@ -80,6 +81,10 @@
         <input type="checkbox" id="mesh-asset-submit-anchor" checked>
         <span>Request BSM1 on-chain anchor after approval</span>
       </label>
+      <label class="mesh-upload-check">
+        <input type="checkbox" id="mesh-asset-submit-pin" checked>
+        <span>Keep complete file + all chunks on this device (backup &amp; LAN sharing)</span>
+      </label>
       <div class="mesh-upload-actions">
         <button type="submit" class="btn btn-small" id="mesh-asset-submit-btn">Submit for admin review</button>
         <span class="muted small" id="mesh-asset-submit-progress"></span>
@@ -133,6 +138,24 @@
     <p class="muted small">
       CLI (VPS): <span class="mono">python3 /root/chain-mesh-export-backup.py</span> ·
       <span class="mono">python3 /root/chain-mesh-import-backup.py file.zip</span>
+    </p>
+  </div>
+</section>
+
+<section class="panel network-data-panel" id="nd-pinned-panel">
+  <div class="panel-head">
+    <h2>Files kept on this device</h2>
+    <p class="muted small panel-sub">
+      Pin complete mesh files on your phone or PC — every chunk stays local, survives Time Capsule rotation,
+      and is shared over Wi‑Fi (<span class="mono">:18341/chunk/&lt;hash&gt;</span>) for neighbors to download.
+    </p>
+  </div>
+  <div class="panel-body">
+    <p class="muted small mesh-upload-status" id="mesh-pinned-status">Loading…</p>
+    <ul class="mesh-pinned-list" id="mesh-pinned-assets-list"></ul>
+    <p class="muted small">
+      Use <strong>Keep</strong> in the catalog below, or <strong>Keep on device</strong> in the asset viewer.
+      Uploads pin automatically when the checkbox above is enabled.
     </p>
   </div>
 </section>
@@ -365,6 +388,10 @@ GET  /api/local-node/nearby</pre>
         <button type="button" class="btn btn-small" id="nd-receive-btn">Download &amp; verify</button>
       </div>
     </label>
+    <label class="mesh-upload-check">
+      <input type="checkbox" id="nd-receive-pin" checked>
+      <span>Keep complete file + all chunks on this device after download</span>
+    </label>
     <label class="field mesh-library-search-wrap">
       <span class="muted small">Filter library</span>
       <input type="search" id="mesh-library-search" class="mono" placeholder="Search name or key…" autocomplete="off">
@@ -414,13 +441,15 @@ GET  /api/local-node/nearby</pre>
 {% endblock %}
 {% block extra_scripts %}
 <script type="module">
-  import { initNetworkDataPortal } from "{{ url_for('static', filename='js/network-data-portal.js') }}?v=20260704-mesh-keys";
+  import { initNetworkDataPortal } from "{{ url_for('static', filename='js/network-data-portal.js') }}?v=20260707-pin";
+  import { initMeshAssetPinUi } from "{{ url_for('static', filename='js/mesh-asset-pin.js') }}?v=20260707-pin";
   import { initMeshBackupUi } from "{{ url_for('static', filename='js/mesh-backup.js') }}?v=20260704-mesh-backup";
   import { initMeshPacketLan } from "{{ url_for('static', filename='js/mesh-packet-ui.js') }}?v=20260704-bsm3b";
   import { initMeshIpTunnel } from "{{ url_for('static', filename='js/mesh-ip-tunnel-ui.js') }}?v=20260704-bsm4e";
   import { initShareInternetPanel } from "{{ url_for('static', filename='js/mesh-share-internet.js') }}?v=20260705-inet";
   import { resolveDeviceId } from "{{ url_for('static', filename='js/chain-mesh.js') }}?v=20260705-inet";
   initNetworkDataPortal();
+  initMeshAssetPinUi();
   initMeshBackupUi();
   initMeshPacketLan();
   initMeshIpTunnel();

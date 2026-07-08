@@ -77,12 +77,12 @@ _BASE_POOLS = {
         "start_script": "/root/start-bloodstone-stratum-rod-neoscrypt.sh",
         "restart_script": "/root/restart-bloodstone-stratum-rod-neoscrypt.sh",
         "share_difficulty": 1e-6,
-        "miner_hint": "SpaceXpanse ROD mainnet neoscrypt-xaya (browser + CPU)",
+        "miner_hint": "SpaceXpanse ROD neoscrypt-xaya — ccminer/sgminer (GPU) or cpuminer-opt (CPU)",
         "stratum_user": "YOUR_ROD_ADDRESS",
         "stratum_pass": "x",
         "example_cmd": (
-            "sgminer -k neoscrypt -o stratum+tcp://{ip}:{port} "
-            "-u YOUR_ROD_ADDRESS -p x"
+            "ccminer -a neoscrypt-xaya -o stratum+tcp://{ip}:{port} "
+            "-u YOUR_ROD_ADDRESS.rig1 -p x"
         ),
     },
 }
