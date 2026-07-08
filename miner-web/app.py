@@ -2330,12 +2330,89 @@ def api_convergence_dtn_forward_flush():
         limit = int(payload.get("limit") or request.args.get("limit") or 3)
     except (TypeError, ValueError):
         limit = 3
+    force = payload.get("force") in (True, "1", 1) or request.args.get("force") in ("1", "true", "yes")
     return jsonify(
         cm.convergence_dtn_forward_flush_payload(
             upstream_url=str(payload.get("upstream_url") or request.args.get("upstream_url") or ""),
             limit=limit,
+            force=bool(force),
         )
     )
+
+
+@app.route("/api/convergence/dtn/flush-window")
+@app.route("/mining/api/convergence/dtn/flush-window")
+def api_convergence_dtn_flush_window():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_dtn_flush_window_payload())
+
+
+@app.route("/api/convergence/dtn/compact", methods=["POST"])
+@app.route("/mining/api/convergence/dtn/compact", methods=["POST"])
+def api_convergence_dtn_compact():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_dtn_compact_payload())
+
+
+@app.route("/api/convergence/dtn/upkeep", methods=["POST"])
+@app.route("/mining/api/convergence/dtn/upkeep", methods=["POST"])
+def api_convergence_dtn_upkeep():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    force = payload.get("force") in (True, "1", 1) or request.args.get("force") in ("1", "true", "yes")
+    return jsonify(cm.convergence_dtn_upkeep_payload(force_flush=bool(force)))
+
+
+@app.route("/api/convergence/dtn/peers")
+@app.route("/mining/api/convergence/dtn/peers")
+def api_convergence_dtn_peers():
+    import chain_mesh.api as cm
+
+    try:
+        limit = int(request.args.get("limit") or 30)
+    except (TypeError, ValueError):
+        limit = 30
+    return jsonify(cm.convergence_dtn_peers_payload(limit=limit))
+
+
+@app.route("/api/convergence/dtn/peers/discover", methods=["POST"])
+@app.route("/mining/api/convergence/dtn/peers/discover", methods=["POST"])
+def api_convergence_dtn_peers_discover():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_dtn_peers_discover_payload())
+
+
+@app.route("/api/convergence/dtn/peers/register", methods=["POST"])
+@app.route("/mining/api/convergence/dtn/peers/register", methods=["POST"])
+def api_convergence_dtn_peers_register():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_dtn_peer_register_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/dtn/replication/heal", methods=["POST"])
+@app.route("/mining/api/convergence/dtn/replication/heal", methods=["POST"])
+def api_convergence_dtn_replication_heal():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(
+            cm.convergence_dtn_replication_heal_payload(
+                region=str(payload.get("region") or request.args.get("region") or ""),
+                limit=int(payload.get("limit") or request.args.get("limit") or 10),
+            )
+        )
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
 
 
 @app.route("/api/convergence/dtn/replication/status")

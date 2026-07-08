@@ -38,9 +38,9 @@ def main() -> int:
         for a in (spatial_sync.get("accounts") or [])
         if a.get("ok")
     )
-    dtn_flush = None
-    if os.environ.get("DTN_AUTO_FLUSH", "0").strip() in ("1", "true", "yes"):
-        dtn_flush = dtn.flush_forward_queue()
+    dtn_upkeep = dtn.upkeep_dtn(
+        force_flush=os.environ.get("DTN_AUTO_FLUSH", "0").strip() in ("1", "true", "yes")
+    )
     print(
         "convergence",
         "registry_accounts=" + str(len(reg.get("accounts") or [])),
@@ -50,8 +50,9 @@ def main() -> int:
         "spatial_indexed=" + str(spatial_indexed),
         "compute_credited=" + str(depin_sync.get("compute_credited", 0)),
         "bandwidth_credited=" + str(depin_sync.get("bandwidth_credited", 0)),
-        "dtn_pending=" + str(dtn.list_pending_forwards(limit=1).get("pending_count", 0)),
-        "dtn_delivered=" + str((dtn_flush or {}).get("delivered", 0)),
+        "dtn_pending=" + str(dtn_upkeep.get("pending", 0)),
+        "dtn_delivered=" + str((dtn_upkeep.get("flush") or {}).get("delivered", 0)),
+        "dtn_peers=" + str((dtn_upkeep.get("peers") or {}).get("count", 0)),
     )
     return 0
 

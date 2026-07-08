@@ -143,7 +143,22 @@ curl -s -X POST .../api/convergence/dtn/replication/check -d '{"region":"eu-west
 curl -s '.../api/convergence/dtn/replication/status?region=eu-west'
 ```
 
-Bundle contents: `blurt-anchors.json`, `provenance-anchors.json`, `agent-identities.json`, optional `chunks/`.
+Bundle contents: `blurt-anchors.json`, `provenance-anchors.json`, `agent-identities.json`, `spatial-manifests.json`, optional `chunks/`.
+
+### DTN hardening (v0.13+)
+
+| Feature | Config / API |
+|---------|----------------|
+| SHA256 dedup | Automatic on import + queue |
+| Flush windows | `DTN_FLUSH_WINDOWS_UTC=02:00-02:30,14:00-14:30` · `GET …/dtn/flush-window` |
+| Retry + backoff | `DTN_MAX_RETRIES=5` · `DTN_RETRY_BACKOFF_SEC=60,300,900,3600,7200` |
+| Bundle TTL | `DTN_BUNDLE_TTL_SEC=604800` (7 days) |
+| Peer discovery | LAN heartbeat + `DTN_PEER_URLS` · `POST …/dtn/peers/discover` |
+| Compaction | `POST …/dtn/compact` — prune delivered, dedupe pending |
+| Unified upkeep | `POST …/dtn/upkeep` — expire, compact, discover, quorum, flush |
+| Quorum heal | `POST …/dtn/replication/heal` — queue minimal chunk bundles |
+
+Force flush outside window: `POST …/dtn/forward/flush` with `{"force":true}`.
 
 ---
 
@@ -283,7 +298,7 @@ Supports HTTP Range — HTML5 `<video>` compatible.
 - Spatial manifest sync (`bloodstone_spatial_manifest/v1` scan)
 - Storage outpost transfer scan (`@bloodstone-storage`)
 - DePIN outpost transfer scan (`@bloodstone-depin` — compute + bandwidth memos)
-- DTN forward flush when `DTN_AUTO_FLUSH=1` (store-and-forward uplink window)
+- DTN unified upkeep (`upkeep_dtn`) when `DTN_AUTO_FLUSH=1` — compact, peer discovery, quorum, windowed flush
 
 ---
 
