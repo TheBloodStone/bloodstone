@@ -2542,6 +2542,44 @@ def api_convergence_tenant_manifest_gossip_snapshots():
     return jsonify(cm.convergence_tenant_manifest_gossip_snapshots_payload())
 
 
+@app.route("/api/convergence/tenant/route/ledger/status")
+@app.route("/mining/api/convergence/tenant/route/ledger/status")
+def api_convergence_tenant_route_ledger_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_route_ledger_status_payload())
+
+
+@app.route("/api/convergence/tenant/route/ledger/assignments")
+@app.route("/mining/api/convergence/tenant/route/ledger/assignments")
+def api_convergence_tenant_route_ledger_assignments():
+    import chain_mesh.api as cm
+
+    return jsonify(
+        cm.convergence_tenant_route_ledger_assignments_payload(
+            tenant_id=str(request.args.get("tenant_id") or ""),
+            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            limit=int(request.args.get("limit") or 20),
+        )
+    )
+
+
+@app.route("/api/convergence/tenant/upkeep/status")
+@app.route("/mining/api/convergence/tenant/upkeep/status")
+def api_convergence_tenant_upkeep_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_upkeep_status_payload())
+
+
+@app.route("/api/convergence/tenant/upkeep/run", methods=["POST"])
+@app.route("/mining/api/convergence/tenant/upkeep/run", methods=["POST"])
+def api_convergence_tenant_upkeep_run():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_upkeep_run_payload())
+
+
 @app.route("/api/convergence/compute/job/status")
 @app.route("/mining/api/convergence/compute/job/status")
 def api_convergence_compute_job_status():

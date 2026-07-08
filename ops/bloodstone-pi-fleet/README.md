@@ -417,6 +417,26 @@ curl -X POST http://127.0.0.1:8887/api/convergence/tenant/npu/probe \
   -d '{"runtime":"onnx","model_path":"/var/lib/bloodstone/models/edge.onnx"}'
 ```
 
+### Wave Y — route ledger + coordinator tenant dispatch + unified upkeep
+
+**Route assignment ledger** tracks provider picks per tenant author:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/tenant/route/ledger/status | jq .
+curl -fsS 'http://127.0.0.1:8887/api/convergence/tenant/route/ledger/assignments?blurt_author=meshops' | jq .
+```
+
+**Unified tenant upkeep** — quorum, gossip, broadcast queue in one cycle:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/tenant/upkeep/status | jq .
+curl -X POST http://127.0.0.1:8887/api/convergence/tenant/upkeep/run
+```
+
+**NPU probe-on-bind** rejects invalid model paths (`TENANT_NPU_PROBE_ON_BIND=1`).
+
+Coordinator dispatch now includes `tenant_route` + `blurt_author` for cross-node inference.
+
 ### Coordinator AI dispatch (Wave N)
 
 When no local provider matches and uplink is stable, edge nodes HTTP-dispatch to the coordinator instead of queue-only fallback:

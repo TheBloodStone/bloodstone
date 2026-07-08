@@ -40,6 +40,7 @@ def dashboard_payload(
     )
     from chain_mesh import tenant_ai_route as troute
     from chain_mesh import tenant_npu_models as tnpu
+    from chain_mesh import tenant_route_ledger as tledger
     from chain_mesh import tenant_submit_gate as tgate
 
     quorum = tgate.quorum_for_author(tenant_id=tid, blurt_author=author) if author else {}
@@ -57,6 +58,11 @@ def dashboard_payload(
         troute.resolve_job_inference_spec(
             {"blurt_author": author, "tenant_id": tid, "ai_spec": {}}
         )
+        if author
+        else {}
+    )
+    route_history = (
+        tledger.list_assignments(tenant_id=tid, blurt_author=author, limit=3)
         if author
         else {}
     )
@@ -80,6 +86,7 @@ def dashboard_payload(
         "npu_models": npu_models,
         "submit_gate": submit_gate,
         "ai_route": ai_route,
+        "route_history": route_history,
     }
 
 
@@ -172,8 +179,8 @@ def dashboard_page_html() -> str:
 </head>
 <body>
   <main>
-    <h1>Tenant Dashboard <span class="badge">Wave X</span></h1>
-    <p class="meta">Per-author caps, quorum, NPU models, and AI route hints.</p>
+    <h1>Tenant Dashboard <span class="badge">Wave Y</span></h1>
+    <p class="meta">Per-author caps, quorum, NPU models, route ledger, and upkeep.</p>
     <div>
       <input id="author" placeholder="blurt author" />
       <input id="stone" placeholder="STONE address (optional)" />
@@ -185,6 +192,7 @@ def dashboard_page_html() -> str:
     <div class="card" id="npu" style="margin-top:0.75rem;display:none"></div>
     <div class="card" id="submit" style="margin-top:0.75rem;display:none"></div>
     <div class="card" id="route" style="margin-top:0.75rem;display:none"></div>
+    <div class="card" id="history" style="margin-top:0.75rem;display:none"></div>
     <p class="meta"><a href="{public}/api/convergence/tenant/status">API status</a> ·
       <a href="{public}/api/convergence/status">Convergence</a></p>
   </main>
@@ -243,6 +251,15 @@ def dashboard_page_html() -> str:
           rEl.innerHTML = '<h2>AI route</h2><div>' + ar.runtime +
             (ar.model_path ? ' · ' + ar.model_path : '') + ' [' + (ar.hardware_kind || 'cpu') + ']</div>';
         }} else {{ rEl.style.display = 'none'; }}
+        const hist = (data.route_history || {{}}).assignments || [];
+        const hEl = document.getElementById('history');
+        if (hist.length) {{
+          hEl.style.display = 'block';
+          hEl.innerHTML = '<h2>route ledger</h2>' + hist.map(h =>
+            '<div>' + (h.provider_id || '?') + ' · ' + (h.runtime || '') +
+            ' · ' + (h.route_status || '') + '</div>'
+          ).join('');
+        }} else {{ hEl.style.display = 'none'; }}
       }}).catch(e => document.getElementById('status').textContent = String(e));
     }};
   </script>

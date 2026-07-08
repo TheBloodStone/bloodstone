@@ -1336,6 +1336,39 @@ def convergence_tenant_manifest_gossip_snapshots_payload() -> Dict[str, Any]:
     }
 
 
+def convergence_tenant_route_ledger_status_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_route_ledger as tledger
+
+    return tledger.status_payload()
+
+
+def convergence_tenant_route_ledger_assignments_payload(
+    *,
+    tenant_id: str = "",
+    blurt_author: str = "",
+    limit: int = 20,
+) -> Dict[str, Any]:
+    from chain_mesh import tenant_route_ledger as tledger
+
+    return tledger.list_assignments(
+        tenant_id=tenant_id,
+        blurt_author=blurt_author,
+        limit=limit,
+    )
+
+
+def convergence_tenant_upkeep_status_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_upkeep as tup
+
+    return tup.status_payload()
+
+
+def convergence_tenant_upkeep_run_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_upkeep as tup
+
+    return tup.upkeep_tenant()
+
+
 def convergence_tenant_dashboard_page_payload() -> str:
     from chain_mesh import tenant_dashboard as tdash
 

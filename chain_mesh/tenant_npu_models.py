@@ -69,6 +69,15 @@ def bind_npu_model(
         raise ValueError(f"runtime must be one of: {sorted(VALID_RUNTIMES)}")
     path = (model_path or "").strip()
     hw = (hardware_kind or "cpu").strip().lower()[:32]
+    probe_result: Dict[str, Any] = {}
+    if path and os.environ.get("TENANT_NPU_PROBE_ON_BIND", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+    ):
+        probe_result = probe_model(runtime=rt, model_path=path)
+        if not probe_result.get("loadable") and path:
+            raise ValueError(probe_result.get("detail") or probe_result.get("error") or "model probe failed")
     now = _now()
     with _conn() as conn:
         conn.execute(
@@ -94,6 +103,7 @@ def bind_npu_model(
         "runtime": rt,
         "model_path": path,
         "hardware_kind": hw,
+        "probe": probe_result or None,
     }
 
 

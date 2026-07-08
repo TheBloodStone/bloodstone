@@ -1124,15 +1124,23 @@ def dispatch_to_coordinator(*, job_id: str) -> Dict[str, Any]:
     raw = get_chunk(str(prompt_key or "")) if prompt_key else None
     prompt_text = raw.decode("utf-8", errors="replace") if raw else ""
 
+    from chain_mesh import tenant_ai_route as troute
+
+    tenant_spec = troute.resolve_job_inference_spec(job)
     base = _coordinator_base_url()
     url = f"{base}/api/convergence/ai/dispatch"
-    payload = {
-        "job_id": job_id,
-        "callback_url": f"{_public_callback_base()}/api/convergence/ai/callback",
-        "origin_node_id": _node_id(),
-        "job": job,
-        "prompt_text": prompt_text,
-    }
+    payload = troute.build_dispatch_payload(
+        job,
+        spec=tenant_spec,
+        base_payload={
+            "job_id": job_id,
+            "callback_url": f"{_public_callback_base()}/api/convergence/ai/callback",
+            "origin_node_id": _node_id(),
+            "job": job,
+            "prompt_text": prompt_text,
+            "tenant_route": tenant_spec,
+        },
+    )
     try:
         resp = requests.post(
             url,
@@ -1278,6 +1286,18 @@ def route_inference_job(*, job_id: str, force: bool = False) -> Dict[str, Any]:
         dispatch = dispatch_inference_job(
             job_id=job_id, provider=provider, tenant_spec=tenant_spec
         )
+        try:
+            from chain_mesh import tenant_route_ledger as tledger
+
+            tledger.record_assignment(
+                job=job,
+                provider=provider,
+                tenant_spec=tenant_spec,
+                score=score,
+                route_status="assigned",
+            )
+        except Exception:
+            pass
         return {
             "ok": True,
             "job_id": job_id,
@@ -1605,7 +1625,7 @@ def status_payload(*, include_uplink: bool = True) -> Dict[str, Any]:
         "uplink": uplink,
         "providers_count": providers_count,
         "last_upkeep": dict(_LAST_UPKEEP),
-        "wave": "X",
+        "wave": "Y",
         "coordinator_dispatch": AI_COORDINATOR_DISPATCH_ENABLE,
         "coordinator_node": _is_coordinator_node(),
         "gossip_sign": _gossip_sign_status(),

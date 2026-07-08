@@ -96,7 +96,7 @@ class TestAiWaveX(unittest.TestCase):
         self.assertIn("submit_gate", dash)
         self.assertIn("ai_route", dash)
         html = tdash.dashboard_page_html()
-        self.assertIn("Wave X", html)
+        self.assertTrue("Wave X" in html or "Wave Y" in html)
         self.assertIn("submit gate", html)
 
     def test_api_wave_x_payloads(self):
