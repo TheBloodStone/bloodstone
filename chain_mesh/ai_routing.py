@@ -1,4 +1,4 @@
-"""Wave M — on-device AI routing for inference compute jobs."""
+"""Wave M/N — on-device AI routing for inference compute jobs."""
 
 from __future__ import annotations
 
@@ -42,8 +42,22 @@ AI_DTN_EXPORT_ROUTES = os.environ.get("AI_DTN_EXPORT_ROUTES", "0").strip() in (
     "true",
     "yes",
 )
+AI_COORDINATOR_DISPATCH_ENABLE = os.environ.get(
+    "AI_COORDINATOR_DISPATCH_ENABLE", "1"
+).strip() not in ("0", "false", "no")
+AI_COORDINATOR_STUB = os.environ.get("AI_COORDINATOR_STUB", "1").strip() not in (
+    "0",
+    "false",
+    "no",
+)
+AI_COORDINATOR_DISPATCH_LIMIT = max(
+    1, int(os.environ.get("AI_COORDINATOR_DISPATCH_LIMIT", "5"))
+)
 
 COORDINATOR_AI_ID = "bloodstone-coordinator-v1-ai"
+COORDINATOR_NODE_IDS = frozenset(
+    {"coordinator-vps", "heal-coordinator", "coordinator", "coordinator-vps-ai"}
+)
 _PRIVATE_NETS = (
     ipaddress.ip_network("10.0.0.0/8"),
     ipaddress.ip_network("172.16.0.0/12"),
@@ -160,6 +174,74 @@ def _validate_dispatch_url(url: str) -> str:
     return url.strip()
 
 
+def _coordinator_base_url() -> str:
+    from chain_mesh import dtn_sync as dtn
+
+    return (
+        os.environ.get("DTN_UPSTREAM_URL")
+        or os.environ.get("BLOODSTONE_PUBLIC_ROOT")
+        or dtn.DTN_UPSTREAM_URL
+    ).rstrip("/")
+
+
+def _public_callback_base() -> str:
+    base = (os.environ.get("BLOODSTONE_PUBLIC_ROOT") or "").strip().rstrip("/")
+    if base:
+        return base
+    lan_port = int(os.environ.get("DTN_LAN_WEB_PORT", "8887"))
+    from chain_mesh import mdns_discovery as mdns
+
+    host = mdns._lan_ip() or "127.0.0.1"
+    return f"http://{host}:{lan_port}"
+
+
+def _is_coordinator_node() -> bool:
+    flag = os.environ.get("AI_COORDINATOR_MODE", "").strip().lower()
+    if flag in ("1", "true", "yes"):
+        return True
+    if _node_id().lower() in COORDINATOR_NODE_IDS:
+        return True
+    public_host = (os.environ.get("BLOODSTONE_PUBLIC_HOST") or "").strip().lower()
+    return bool(public_host and "mytunnel" in public_host)
+
+
+def _inference_reachable(provider: Dict[str, Any]) -> bool:
+    endpoints = json.loads(provider.get("endpoints_json") or "{}")
+    url = str(endpoints.get("inference_url") or "").strip()
+    if not url:
+        return False
+    parsed = urlparse(url)
+    host = parsed.hostname
+    if not host:
+        return False
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        with socket.create_connection((host, port), timeout=2):
+            return True
+    except Exception:
+        return False
+
+
+def _parse_ai_runtimes(value: Any) -> List[str]:
+    if not value:
+        return []
+    if isinstance(value, list):
+        return [str(r).strip().lower() for r in value if str(r).strip()]
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return []
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    return [str(r).strip().lower() for r in parsed if str(r).strip()]
+            except Exception:
+                pass
+        return [r.strip().lower() for r in raw.split(",") if r.strip()]
+    return []
+
+
 def score_provider(
     provider: Dict[str, Any],
     job: Dict[str, Any],
@@ -215,6 +297,17 @@ def pick_best_provider(
 
 def ensure_coordinator_ai_provider() -> None:
     providers.ensure_default_provider()
+    public = _coordinator_base_url()
+    lan_port = int(os.environ.get("DTN_LAN_WEB_PORT", "8887"))
+    endpoints: Dict[str, Any] = {
+        "health_url": f"{public}/api/convergence/ai/provider/health",
+        "dispatch_url": f"{public}/api/convergence/ai/dispatch",
+        "callback_url": f"{public}/api/convergence/ai/callback",
+    }
+    if _is_coordinator_node() and AI_INFERENCE_PORT:
+        endpoints["inference_url"] = (
+            f"http://127.0.0.1:{AI_INFERENCE_PORT}/v1/completions"
+        )
     register_local_provider(
         provider_id=COORDINATOR_AI_ID,
         node_id="coordinator-vps",
@@ -223,7 +316,9 @@ def ensure_coordinator_ai_provider() -> None:
         region="global",
         offline_capable=False,
         source="coordinator",
-        endpoints={},
+        endpoints=endpoints,
+        flops_per_sec=int(os.environ.get("AI_COORDINATOR_FLOPS_PER_SEC", "1000000000")),
+        max_concurrent=int(os.environ.get("AI_COORDINATOR_MAX_CONCURRENT", "4")),
     )
 
 
@@ -287,8 +382,8 @@ def discover_ai_providers() -> Dict[str, Any]:
     except Exception:
         pass
 
-    mesh = providers.list_providers()
-    for row in mesh.get("providers") or []:
+    mesh_rows = providers.list_providers()
+    for row in mesh_rows or []:
         roles = row.get("roles") or []
         if isinstance(roles, str):
             try:
@@ -310,6 +405,44 @@ def discover_ai_providers() -> Dict[str, Any]:
                 },
             )
             discovered += 1
+
+    try:
+        from chain_mesh import lan_registry as lan
+
+        lan_port = int(os.environ.get("DTN_LAN_WEB_PORT", "8887"))
+        for node in lan.list_lan_ai_nodes():
+            runtimes = _parse_ai_runtimes(node.get("ai_runtimes"))
+            if not runtimes:
+                continue
+            device_id = str(node.get("device_id") or "").strip().lower()
+            lan_ip = str(node.get("lan_ip") or "").strip()
+            if not device_id or not lan_ip:
+                continue
+            port = int(node.get("ai_inference_port") or 0)
+            endpoints: Dict[str, str] = {
+                "health_url": (
+                    f"http://{lan_ip}:{lan_port}/api/convergence/ai/provider/health"
+                ),
+            }
+            if port > 0:
+                endpoints["inference_url"] = f"http://{lan_ip}:{port}/v1/completions"
+            aip.register_ai_provider(
+                provider_id=f"{device_id}-ai",
+                source="lan",
+                body={
+                    "provider_id": f"{device_id}-ai",
+                    "node_id": device_id,
+                    "display_name": str(node.get("model") or device_id),
+                    "runtimes": runtimes,
+                    "region": _region(),
+                    "offline_capable": True,
+                    "endpoints": endpoints,
+                    "hardware": {"kind": str(node.get("peer_kind") or "android")},
+                },
+            )
+            discovered += 1
+    except Exception:
+        pass
 
     total = aip.list_ai_providers(limit=200).get("count") or 0
     return {"ok": True, "discovered": discovered, "total": total}
@@ -515,6 +648,22 @@ def dispatch_inference_job(*, job_id: str, provider: Dict[str, Any]) -> Dict[str
                 last_error = f"HTTP {resp.status_code}"
                 continue
             body = resp.json()
+            async_status = str(
+                body.get("route_status") or body.get("status") or ""
+            ).strip().lower()
+            if async_status == "running":
+                sync_compute_job_route(
+                    job_id=job_id,
+                    provider_id=str(provider.get("provider_id") or ""),
+                    route_status="running",
+                    reason="dispatch_ack",
+                )
+                return {
+                    "ok": True,
+                    "job_id": job_id,
+                    "async": True,
+                    "route_status": "running",
+                }
             output_key = str(body.get("output_asset_key") or "").strip()
             if not output_key:
                 choices = body.get("choices") or []
@@ -525,7 +674,7 @@ def dispatch_inference_job(*, job_id: str, provider: Dict[str, Any]) -> Dict[str
                     import hashlib
 
                     output_key = hashlib.sha256(text.encode()).hexdigest()
-                    put_chunk(output_key, text.encode("utf-8"))
+                    put_chunk(text.encode("utf-8"), expected_hash=output_key)
             if output_key:
                 with _conn() as conn:
                     row = conn.execute(
@@ -569,6 +718,414 @@ def dispatch_inference_job(*, job_id: str, provider: Dict[str, Any]) -> Dict[str
         reason=last_error,
     )
     return {"ok": False, "error": last_error}
+
+
+def _ingest_remote_dispatch_job(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh.store import put_chunk
+
+    job_row = payload.get("job")
+    prompt_text = str(payload.get("prompt_text") or "")
+    imported = 0
+    if isinstance(job_row, dict):
+        imported = cjobs.import_job_rows([job_row])
+    job = cjobs.get_compute_job(job_id=str(payload.get("job_id") or ""))
+    if not job:
+        return {"ok": False, "error": "job not found"}
+    spec = _job_ai_spec(job)
+    prompt_key = str(spec.get("prompt_asset_key") or "").strip()
+    if prompt_text and prompt_key and len(prompt_key) == 64:
+        put_chunk(prompt_text.encode("utf-8"), expected_hash=prompt_key)
+    return {"ok": True, "imported": imported, "job_id": job.get("job_id")}
+
+
+def _coordinator_stub_complete(*, job_id: str) -> Dict[str, Any]:
+    import hashlib
+
+    from chain_mesh.store import put_chunk
+
+    job = cjobs.get_compute_job(job_id=job_id)
+    if not job:
+        return {"ok": False, "error": "job not found"}
+    text = (
+        f"[coordinator-stub] inference complete for {job_id} "
+        f"at {_now()} on {_node_id()}"
+    )
+    output_key = hashlib.sha256(text.encode()).hexdigest()
+    put_chunk(text.encode("utf-8"), expected_hash=output_key)
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT job_json FROM bloodstone_compute_jobs WHERE job_id=? AND is_current=1",
+            (job_id,),
+        ).fetchone()
+        if row:
+            jb = json.loads(row["job_json"] or "{}")
+            jb["output_asset_key"] = output_key
+            jb["status"] = "completed"
+            conn.execute(
+                """
+                UPDATE bloodstone_compute_jobs
+                SET output_asset_key = ?, job_json = ?, status = 'completed', updated_at = ?
+                WHERE job_id = ? AND is_current = 1
+                """,
+                (output_key, json.dumps(jb), _now(), job_id),
+            )
+    sync_compute_job_route(
+        job_id=job_id,
+        provider_id=COORDINATOR_AI_ID,
+        route_status="completed",
+        reason="coordinator_stub",
+    )
+    debit_compute_job(
+        job_id=job_id,
+        stone_address=str(job.get("stone_address") or ""),
+        flops_budget=int(job.get("flops_budget") or 0),
+    )
+    return {"ok": True, "job_id": job_id, "output_asset_key": output_key, "stub": True}
+
+
+def post_ai_callback_remote(
+    *,
+    callback_url: str,
+    job_id: str,
+    status: str = "completed",
+    output_asset_key: str = "",
+    provider_id: str = "",
+    reason: str = "",
+) -> Dict[str, Any]:
+    url = (callback_url or "").strip()
+    if not url:
+        return {"ok": False, "skipped": True, "reason": "no callback_url"}
+    payload = {
+        "job_id": job_id,
+        "status": status,
+        "output_asset_key": output_asset_key,
+        "provider_id": provider_id or COORDINATOR_AI_ID,
+        "reason": reason,
+    }
+    try:
+        resp = requests.post(url, json=payload, timeout=15, allow_redirects=False)
+        body: Dict[str, Any] = {}
+        try:
+            body = resp.json() if resp.content else {}
+        except Exception:
+            body = {}
+        return {
+            "ok": resp.status_code < 400,
+            "status_code": resp.status_code,
+            "callback_url": url,
+            "body": body,
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "callback_url": url}
+
+
+def ingest_ai_callback(payload: Dict[str, Any]) -> Dict[str, Any]:
+    init_ai_routing_db()
+    jid = str(payload.get("job_id") or "").strip()
+    if not jid:
+        raise ValueError("job_id required")
+    status = str(payload.get("status") or "completed").strip().lower()
+    provider_id = str(payload.get("provider_id") or COORDINATOR_AI_ID)
+    reason = str(payload.get("reason") or "callback")[:256]
+    output_key = str(payload.get("output_asset_key") or "").strip()
+
+    job = cjobs.get_compute_job(job_id=jid)
+    if not job:
+        raise ValueError("job not found")
+
+    if status == "completed" and output_key:
+        with _conn() as conn:
+            row = conn.execute(
+                "SELECT job_json FROM bloodstone_compute_jobs WHERE job_id=? AND is_current=1",
+                (jid,),
+            ).fetchone()
+            if row:
+                jb = json.loads(row["job_json"] or "{}")
+                jb["output_asset_key"] = output_key
+                jb["status"] = "completed"
+                conn.execute(
+                    """
+                    UPDATE bloodstone_compute_jobs
+                    SET output_asset_key = ?, job_json = ?, status = 'completed', updated_at = ?
+                    WHERE job_id = ? AND is_current = 1
+                    """,
+                    (output_key, json.dumps(jb), _now(), jid),
+                )
+        sync_compute_job_route(
+            job_id=jid,
+            provider_id=provider_id,
+            route_status="completed",
+            reason=reason,
+        )
+        debit_compute_job(
+            job_id=jid,
+            stone_address=str(job.get("stone_address") or ""),
+            flops_budget=int(job.get("flops_budget") or 0),
+        )
+        return {"ok": True, "job_id": jid, "route_status": "completed", "output_asset_key": output_key}
+
+    if status == "running":
+        sync_compute_job_route(
+            job_id=jid,
+            provider_id=provider_id,
+            route_status="running",
+            reason=reason,
+        )
+        return {"ok": True, "job_id": jid, "route_status": "running"}
+
+    sync_compute_job_route(
+        job_id=jid,
+        provider_id=provider_id,
+        route_status="failed",
+        reason=reason or status,
+    )
+    with _conn() as conn:
+        conn.execute(
+            """
+            UPDATE bloodstone_compute_jobs
+            SET status = 'failed', updated_at = ?
+            WHERE job_id = ? AND is_current = 1
+            """,
+            (_now(), jid),
+        )
+    return {"ok": True, "job_id": jid, "route_status": "failed"}
+
+
+def coordinator_dispatch_job(
+    *,
+    job_id: str,
+    callback_url: str = "",
+    origin_node_id: str = "",
+    payload: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    if not AI_ROUTING_ENABLE:
+        return {"ok": True, "skipped": True, "reason": "AI_ROUTING_ENABLE off"}
+
+    init_ai_routing_db()
+    body = dict(payload or {})
+    body["job_id"] = (job_id or body.get("job_id") or "").strip()
+    if body.get("job") or body.get("prompt_text"):
+        ingest = _ingest_remote_dispatch_job(body)
+        if not ingest.get("ok"):
+            return ingest
+
+    jid = body["job_id"]
+    if not jid:
+        raise ValueError("job_id required")
+
+    job = cjobs.get_compute_job(job_id=jid)
+    if not job:
+        return {"ok": False, "error": "job not found"}
+    if job.get("job_type") != "inference":
+        raise ValueError("job_type must be inference")
+
+    cb = (callback_url or body.get("callback_url") or "").strip()
+    origin = (origin_node_id or body.get("origin_node_id") or "").strip()
+
+    sync_compute_job_route(
+        job_id=jid,
+        provider_id=COORDINATOR_AI_ID,
+        route_status="running",
+        reason="coordinator_dispatch",
+        route_json={"origin_node_id": origin, "callback_url": cb},
+    )
+
+    ensure_coordinator_ai_provider()
+    provider = aip.get_ai_provider(provider_id=COORDINATOR_AI_ID) or {}
+    dispatch: Dict[str, Any] = {"ok": False, "error": "inference unreachable", "skipped": True}
+    if _inference_reachable(provider):
+        dispatch = dispatch_inference_job(job_id=jid, provider=provider)
+    if dispatch.get("ok"):
+        if dispatch.get("async"):
+            if cb:
+                post_ai_callback_remote(
+                    callback_url=cb,
+                    job_id=jid,
+                    status="running",
+                    provider_id=COORDINATOR_AI_ID,
+                    reason="dispatch_ack",
+                )
+            return {
+                "ok": True,
+                "job_id": jid,
+                "route_status": "running",
+                "provider_id": COORDINATOR_AI_ID,
+                "dispatch": dispatch,
+                "callback": bool(cb),
+            }
+        if cb:
+            post_ai_callback_remote(
+                callback_url=cb,
+                job_id=jid,
+                status="completed",
+                output_asset_key=str(dispatch.get("output_asset_key") or ""),
+                provider_id=COORDINATOR_AI_ID,
+                reason="dispatch_ok",
+            )
+        return {
+            "ok": True,
+            "job_id": jid,
+            "route_status": "completed",
+            "provider_id": COORDINATOR_AI_ID,
+            "dispatch": dispatch,
+            "callback": bool(cb),
+        }
+
+    if AI_COORDINATOR_STUB:
+        stub = _coordinator_stub_complete(job_id=jid)
+        if stub.get("ok") and cb:
+            post_ai_callback_remote(
+                callback_url=cb,
+                job_id=jid,
+                status="completed",
+                output_asset_key=str(stub.get("output_asset_key") or ""),
+                provider_id=COORDINATOR_AI_ID,
+                reason="coordinator_stub",
+            )
+        return {
+            "ok": bool(stub.get("ok")),
+            "job_id": jid,
+            "route_status": "completed" if stub.get("ok") else "failed",
+            "provider_id": COORDINATOR_AI_ID,
+            "dispatch": dispatch,
+            "stub": stub,
+            "callback": bool(cb),
+        }
+
+    sync_compute_job_route(
+        job_id=jid,
+        provider_id=COORDINATOR_AI_ID,
+        route_status="failed",
+        reason=str(dispatch.get("error") or "dispatch_failed"),
+    )
+    if cb:
+        post_ai_callback_remote(
+            callback_url=cb,
+            job_id=jid,
+            status="failed",
+            provider_id=COORDINATOR_AI_ID,
+            reason=str(dispatch.get("error") or "dispatch_failed"),
+        )
+    return {
+        "ok": False,
+        "job_id": jid,
+        "route_status": "failed",
+        "provider_id": COORDINATOR_AI_ID,
+        "dispatch": dispatch,
+    }
+
+
+def dispatch_to_coordinator(*, job_id: str) -> Dict[str, Any]:
+    if not AI_COORDINATOR_DISPATCH_ENABLE:
+        return {"ok": False, "skipped": True, "reason": "AI_COORDINATOR_DISPATCH_ENABLE off"}
+
+    job = cjobs.get_compute_job(job_id=job_id)
+    if not job:
+        return {"ok": False, "error": "job not found"}
+
+    from chain_mesh.store import get_chunk
+
+    spec = _job_ai_spec(job)
+    prompt_key = spec.get("prompt_asset_key") or (
+        (job.get("input_asset_keys") or [None])[0]
+    )
+    raw = get_chunk(str(prompt_key or "")) if prompt_key else None
+    prompt_text = raw.decode("utf-8", errors="replace") if raw else ""
+
+    base = _coordinator_base_url()
+    url = f"{base}/api/convergence/ai/dispatch"
+    payload = {
+        "job_id": job_id,
+        "callback_url": f"{_public_callback_base()}/api/convergence/ai/callback",
+        "origin_node_id": _node_id(),
+        "job": job,
+        "prompt_text": prompt_text,
+    }
+    try:
+        resp = requests.post(
+            url,
+            json=payload,
+            timeout=AI_DISPATCH_TIMEOUT_SEC,
+            allow_redirects=False,
+        )
+        body: Dict[str, Any] = {}
+        try:
+            body = resp.json() if resp.content else {}
+        except Exception:
+            body = {}
+        if resp.status_code >= 400:
+            return {
+                "ok": False,
+                "error": body.get("error") or f"HTTP {resp.status_code}",
+                "status_code": resp.status_code,
+                "dispatch_url": url,
+            }
+        route_status = str(body.get("route_status") or "running").strip().lower()
+        if route_status in ("completed", "running"):
+            sync_compute_job_route(
+                job_id=job_id,
+                provider_id=COORDINATOR_AI_ID,
+                route_status=route_status,
+                reason="coordinator_http_dispatch",
+                route_json={"dispatch_url": url, "origin_node_id": _node_id()},
+            )
+        return {
+            "ok": True,
+            "job_id": job_id,
+            "route_status": route_status,
+            "dispatch_url": url,
+            "coordinator": body,
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "dispatch_url": url}
+
+
+def process_coordinator_dispatch_queue(*, limit: int = 0) -> Dict[str, Any]:
+    if not _is_coordinator_node():
+        return {"ok": True, "skipped": True, "reason": "not coordinator node"}
+    if not AI_COORDINATOR_DISPATCH_ENABLE:
+        return {"ok": True, "skipped": True, "reason": "AI_COORDINATOR_DISPATCH_ENABLE off"}
+
+    init_ai_routing_db()
+    lim = max(1, int(limit or AI_COORDINATOR_DISPATCH_LIMIT))
+    with _conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT a.job_id, a.route_json
+            FROM ai_route_assignments a
+            JOIN bloodstone_compute_jobs j
+              ON j.job_id = a.job_id AND j.is_current = 1
+            WHERE a.is_current = 1
+              AND a.route_status = 'coordinator'
+              AND j.status = 'pending'
+              AND j.job_type = 'inference'
+            ORDER BY a.updated_at ASC
+            LIMIT ?
+            """,
+            (lim,),
+        ).fetchall()
+
+    processed = 0
+    results: List[Dict[str, Any]] = []
+    for row in rows:
+        jid = str(row["job_id"])
+        route_json: Dict[str, Any] = {}
+        try:
+            route_json = json.loads(row["route_json"] or "{}")
+        except Exception:
+            route_json = {}
+        try:
+            res = coordinator_dispatch_job(
+                job_id=jid,
+                callback_url=str(route_json.get("callback_url") or ""),
+                origin_node_id=str(route_json.get("origin_node_id") or ""),
+            )
+            results.append(res)
+            if res.get("ok"):
+                processed += 1
+        except Exception as exc:
+            results.append({"ok": False, "job_id": jid, "error": str(exc)})
+    return {"ok": True, "processed": processed, "results": results[:10]}
 
 
 def route_inference_job(*, job_id: str, force: bool = False) -> Dict[str, Any]:
@@ -636,17 +1193,45 @@ def route_inference_job(*, job_id: str, force: bool = False) -> Dict[str, Any]:
     if uplink.get("uplink_stable"):
         sync_compute_job_route(
             job_id=job_id,
-            provider_id="bloodstone-coordinator-v1",
+            provider_id=COORDINATOR_AI_ID,
             route_status="coordinator",
             reason="no_local_provider",
             uplink=uplink,
             offline_mode=offline_mode,
+            route_json={"callback_url": f"{_public_callback_base()}/api/convergence/ai/callback"},
         )
+        if _is_coordinator_node():
+            dispatch = coordinator_dispatch_job(
+                job_id=job_id,
+                callback_url=f"{_public_callback_base()}/api/convergence/ai/callback",
+                origin_node_id=_node_id(),
+            )
+            return {
+                "ok": bool(dispatch.get("ok")),
+                "job_id": job_id,
+                "route_status": dispatch.get("route_status", "coordinator"),
+                "provider_id": COORDINATOR_AI_ID,
+                "offline_mode": offline_mode,
+                "dispatch": dispatch,
+            }
+        dispatch = dispatch_to_coordinator(job_id=job_id)
+        if dispatch.get("ok"):
+            return {
+                "ok": True,
+                "job_id": job_id,
+                "route_status": dispatch.get("route_status", "running"),
+                "provider_id": COORDINATOR_AI_ID,
+                "offline_mode": offline_mode,
+                "dispatch": dispatch,
+            }
         return {
             "ok": True,
             "job_id": job_id,
             "route_status": "coordinator",
-            "next_steps": "flush DTN or wait for coordinator upkeep",
+            "provider_id": COORDINATOR_AI_ID,
+            "offline_mode": offline_mode,
+            "next_steps": "coordinator dispatch pending — retry upkeep or flush DTN",
+            "dispatch": dispatch,
         }
 
     from chain_mesh import dtn_sync as dtn
@@ -811,12 +1396,14 @@ def upkeep_ai() -> Dict[str, Any]:
     probe = probe_ai_providers()
     purge = purge_stale_ai_providers()
     routed = route_pending_inference_jobs()
+    coord = process_coordinator_dispatch_queue()
     result = {
         "ok": True,
         "discovered": discover.get("total"),
         "probed": probe.get("probed"),
         "purged": purge.get("purged"),
         "routed": routed.get("routed"),
+        "coordinator_dispatched": coord.get("processed"),
     }
     _LAST_UPKEEP.clear()
     _LAST_UPKEEP.update(result)
@@ -840,11 +1427,16 @@ def status_payload() -> Dict[str, Any]:
         "uplink": uplink,
         "providers_count": providers_count,
         "last_upkeep": dict(_LAST_UPKEEP),
+        "wave": "N",
+        "coordinator_dispatch": AI_COORDINATOR_DISPATCH_ENABLE,
+        "coordinator_node": _is_coordinator_node(),
         "apis": {
             "status": f"{public}/api/convergence/ai/status",
             "providers": f"{public}/api/convergence/ai/providers",
             "route": f"{public}/api/convergence/ai/route",
             "submit": f"{public}/api/convergence/ai/submit",
+            "dispatch": f"{public}/api/convergence/ai/dispatch",
+            "callback": f"{public}/api/convergence/ai/callback",
             "provider_health": f"{public}/api/convergence/ai/provider/health",
         },
     }

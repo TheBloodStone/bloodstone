@@ -270,6 +270,8 @@ def lan_register(payload: Dict[str, Any], *, public_ip: str) -> Dict[str, Any]:
             consensus_only=bool(payload.get("consensus_only", False)),
             tip_hash=str(payload.get("tip_hash") or payload.get("best_block_hash") or ""),
             best_block_hash=str(payload.get("best_block_hash") or payload.get("tip_hash") or ""),
+            ai_runtimes=payload.get("ai_runtimes"),
+            ai_inference_port=int(payload.get("ai_inference_port") or 0),
         ),
     }
 
@@ -1433,6 +1435,23 @@ def convergence_ai_discover_payload() -> Dict[str, Any]:
     from chain_mesh import ai_routing as ai
 
     return ai.discover_ai_providers()
+
+
+def convergence_ai_dispatch_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh import ai_routing as ai
+
+    return ai.coordinator_dispatch_job(
+        job_id=str(payload.get("job_id") or ""),
+        callback_url=str(payload.get("callback_url") or ""),
+        origin_node_id=str(payload.get("origin_node_id") or ""),
+        payload=payload,
+    )
+
+
+def convergence_ai_callback_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh import ai_routing as ai
+
+    return ai.ingest_ai_callback(payload)
 
 
 def convergence_dtn_replication_heal_payload(

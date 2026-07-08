@@ -1,5 +1,6 @@
 """LAN local-node registry — phones advertise RPC/stratum endpoints for same-network peers."""
 
+import json
 import os
 import sqlite3
 import time
@@ -67,6 +68,38 @@ def init_lan_db() -> None:
             conn.execute(
                 "ALTER TABLE chain_lan_nodes ADD COLUMN best_block_hash TEXT NOT NULL DEFAULT ''"
             )
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(chain_lan_nodes)").fetchall()}
+        if "ai_runtimes" not in cols:
+            conn.execute(
+                "ALTER TABLE chain_lan_nodes ADD COLUMN ai_runtimes TEXT NOT NULL DEFAULT '[]'"
+            )
+        if "ai_inference_port" not in cols:
+            conn.execute(
+                "ALTER TABLE chain_lan_nodes ADD COLUMN ai_inference_port INTEGER NOT NULL DEFAULT 0"
+            )
+
+
+def _normalize_ai_runtimes(value: Any) -> str:
+    if not value:
+        return "[]"
+    if isinstance(value, list):
+        runtimes = [str(r).strip().lower() for r in value if str(r).strip()]
+        return json.dumps(runtimes)
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return "[]"
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+                if isinstance(parsed, list):
+                    runtimes = [str(r).strip().lower() for r in parsed if str(r).strip()]
+                    return json.dumps(runtimes)
+            except Exception:
+                pass
+        runtimes = [r.strip().lower() for r in raw.split(",") if r.strip()]
+        return json.dumps(runtimes)
+    return "[]"
 
 
 def register_lan_node(
@@ -89,6 +122,8 @@ def register_lan_node(
     consensus_only: bool = False,
     tip_hash: str = "",
     best_block_hash: str = "",
+    ai_runtimes: Any = None,
+    ai_inference_port: int = 0,
 ) -> Dict[str, Any]:
     init_lan_db()
     did = (device_id or "").strip().lower()
@@ -103,8 +138,8 @@ def register_lan_node(
                 stratum_port_yespower, chunk_port,
                 rpc_user, peer_kind, model, mode, block_height, pruned,
                 sync_progress, chain_bytes, consensus_only, tip_hash,
-                best_block_hash, last_seen
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                best_block_hash, ai_runtimes, ai_inference_port, last_seen
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(device_id) DO UPDATE SET
                 public_ip = excluded.public_ip,
                 lan_ip = excluded.lan_ip,
@@ -123,6 +158,8 @@ def register_lan_node(
                 consensus_only = excluded.consensus_only,
                 tip_hash = excluded.tip_hash,
                 best_block_hash = excluded.best_block_hash,
+                ai_runtimes = excluded.ai_runtimes,
+                ai_inference_port = excluded.ai_inference_port,
                 last_seen = excluded.last_seen
             """,
             (
@@ -144,6 +181,8 @@ def register_lan_node(
                 1 if consensus_only else 0,
                 (tip_hash or best_block_hash or "").strip().lower()[:64],
                 (best_block_hash or tip_hash or "").strip().lower()[:64],
+                _normalize_ai_runtimes(ai_runtimes),
+                max(0, int(ai_inference_port)),
                 now,
             ),
         )
@@ -152,6 +191,27 @@ def register_lan_node(
     except Exception:
         pass
     return {"device_id": did, "lan_ip": lan_ip, "last_seen": now}
+
+
+def list_lan_ai_nodes(*, ttl_sec: int = _LAN_TTL_SEC) -> List[Dict[str, Any]]:
+    """Return LAN nodes advertising on-device AI runtimes."""
+    init_lan_db()
+    cutoff = _now() - ttl_sec
+    with mesh_db._conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT device_id, lan_ip, peer_kind, model, ai_runtimes,
+                   ai_inference_port, last_seen
+            FROM chain_lan_nodes
+            WHERE last_seen >= ?
+              AND ai_runtimes IS NOT NULL
+              AND ai_runtimes != ''
+              AND ai_runtimes != '[]'
+            ORDER BY last_seen DESC
+            """,
+            (cutoff,),
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def active_lan_node_count(*, ttl_sec: int = _LAN_TTL_SEC) -> int:

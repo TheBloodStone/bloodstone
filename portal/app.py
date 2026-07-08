@@ -1557,6 +1557,28 @@ def api_convergence_ai_provider_health():
     )
 
 
+@app.route("/api/convergence/ai/dispatch", methods=["POST"])
+def api_convergence_ai_dispatch():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_ai_dispatch_payload(payload))
+    except (ValueError, TypeError, PermissionError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/ai/callback", methods=["POST"])
+def api_convergence_ai_callback():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_ai_callback_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
 @app.route("/api/convergence/spatial/manifest", methods=["GET", "POST"])
 def api_convergence_spatial_manifest():
     import chain_mesh.api as cm

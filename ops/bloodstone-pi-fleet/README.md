@@ -205,6 +205,25 @@ Run llama.cpp on `:8081` for local dispatch. AI provider discovery uses `_bloods
 
 Design doc: `bloodstone-docs/Wave-M-On-Device-AI-Routing-Design.md`
 
+### Coordinator AI dispatch (Wave N)
+
+When no local provider matches and uplink is stable, edge nodes HTTP-dispatch to the coordinator instead of queue-only fallback:
+
+```bash
+curl -fsS https://bloodstonewallet.mytunnel.org/api/convergence/ai/status | jq '.wave,.apis.dispatch,.apis.callback'
+curl -X POST https://bloodstonewallet.mytunnel.org/api/convergence/ai/dispatch \
+  -H 'Content-Type: application/json' \
+  -d '{"job_id":"job-STONE1-infer-01","callback_url":"https://pi.example/api/convergence/ai/callback"}'
+```
+
+Android handsets can advertise AI via LAN heartbeat:
+
+```bash
+curl -X POST http://127.0.0.1:8887/api/lan/register \
+  -H 'Content-Type: application/json' \
+  -d '{"device_id":"pixel-8-shed","lan_ip":"192.168.1.55","ai_runtimes":["tflite","cpu-inference"],"ai_inference_port":8090}'
+```
+
 ### Manual peer register
 
 ```bash
