@@ -1386,6 +1386,96 @@ def api_convergence_dtn_planetary_round():
     return jsonify(cm.convergence_dtn_planetary_round_payload(limit=limit))
 
 
+@app.route("/api/convergence/bridge/status")
+def api_convergence_bridge_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_bridge_status_payload())
+
+
+@app.route("/api/convergence/bridge/quote")
+def api_convergence_bridge_quote():
+    import chain_mesh.api as cm
+
+    try:
+        return jsonify(
+            cm.convergence_bridge_quote_payload(
+                direction=str(request.args.get("direction") or ""),
+                amount=request.args.get("amount") or request.args.get("blurt_amount") or request.args.get("stone_amount"),
+                stone_address=str(request.args.get("stone_address") or ""),
+                blurt_account=str(request.args.get("blurt_account") or ""),
+            )
+        )
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/bridge/initiate", methods=["POST"])
+def api_convergence_bridge_initiate():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_bridge_initiate_payload(payload))
+    except (ValueError, TypeError, RuntimeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/bridge/claim", methods=["POST"])
+def api_convergence_bridge_claim():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(
+            cm.convergence_bridge_claim_payload(
+                swap_id=str(payload.get("swap_id") or request.args.get("swap_id") or ""),
+                preimage=str(payload.get("preimage") or request.args.get("preimage") or ""),
+            )
+        )
+    except (ValueError, TypeError, RuntimeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/bridge/attest", methods=["POST"])
+def api_convergence_bridge_attest():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(
+            cm.convergence_bridge_attest_payload(
+                swap_id=str(payload.get("swap_id") or ""),
+                stone_txid=str(payload.get("stone_txid") or ""),
+            )
+        )
+    except (ValueError, TypeError, RuntimeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/bridge/intents")
+def api_convergence_bridge_intents():
+    import chain_mesh.api as cm
+
+    try:
+        limit = int(request.args.get("limit") or 50)
+    except (TypeError, ValueError):
+        limit = 50
+    return jsonify(
+        cm.convergence_bridge_intents_payload(
+            status=str(request.args.get("status") or ""),
+            limit=limit,
+        )
+    )
+
+
+@app.route("/api/convergence/bridge/sync", methods=["POST"])
+def api_convergence_bridge_sync():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_bridge_sync_payload())
+
+
 @app.route("/api/convergence/spatial/manifest", methods=["GET", "POST"])
 def api_convergence_spatial_manifest():
     import chain_mesh.api as cm

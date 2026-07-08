@@ -170,6 +170,24 @@ curl -X POST http://127.0.0.1:8887/api/convergence/dtn/planetary/round
 
 Gossip exchange (`bloodstone_dtn_gossip/v1`) now carries `quorum_snapshots` for peer votes. Planetary rollup runs automatically in DTN upkeep when `DTN_PLANETARY_ENABLE=1`.
 
+### BLURT↔STONE bridge (Wave L)
+
+HTLC-style atomic swap intents between BLURT and STONE mesh credits:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/bridge/status | jq .
+curl -fsS 'http://127.0.0.1:8887/api/convergence/bridge/quote?direction=blurt_to_stone&amount=10&stone_address=STONE...' | jq .
+curl -X POST http://127.0.0.1:8887/api/convergence/bridge/initiate \
+  -H 'Content-Type: application/json' \
+  -d '{"direction":"blurt_to_stone","amount":"10","stone_address":"STONE..."}'
+# Fund: send BLURT to @bloodstone-bridge with memo swap:lock:<swap_id>
+curl -X POST http://127.0.0.1:8887/api/convergence/bridge/claim \
+  -H 'Content-Type: application/json' \
+  -d '{"swap_id":"bswap-...","preimage":"<secret from initiate>"}'
+```
+
+Bridge lock transfers sync automatically during convergence upkeep when `BRIDGE_SWAP_ENABLE=1`.
+
 ### Manual peer register
 
 ```bash

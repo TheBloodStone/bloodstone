@@ -6,6 +6,7 @@ import os
 from typing import Any, Dict, List
 
 from chain_mesh import agent_identity as agents
+from chain_mesh import bridge_swap as bridge
 from chain_mesh import blurt_registry_v2 as blurt_reg
 from chain_mesh import blog_manifest as blog
 from chain_mesh import condenser_offline as coff
@@ -68,7 +69,10 @@ def layer_status() -> List[Dict[str, Any]]:
             "layer": 4,
             "name": "Circulatory Economy (STONE + BLURT memo rails)",
             "status": "beta",
-            "detail": "storage | compute | bandwidth BLURT→STONE credit rails (enforcement on)",
+            "detail": (
+                f"storage | compute | bandwidth BLURT→STONE memo rails + "
+                f"{bridge.BRIDGE_FORMAT} atomic swaps (enforcement on)"
+            ),
             "api": f"{public}/api/convergence/depin/quota",
             "storage_api": f"{public}/api/convergence/storage/quota",
         },
@@ -93,7 +97,7 @@ def status_payload() -> Dict[str, Any]:
         "ok": True,
         "vision": "Sovereign Mesh 2030 — Blurt trust anchor + Bloodstone memory fabric",
         "tagline": "Autonomous, self-healing nervous system — identity owns truth, hardware owns the network",
-        "roadmap": "Wave A–J ✓ · Wave K: planetary DTN quorum ✓",
+        "roadmap": "Wave A–K ✓ · Wave L: BLURT↔STONE bridge + atomic swaps ✓",
         "layers": layer_status(),
         "mesh_v2": {
             "spec": v2_sys.get("spec"),
@@ -128,6 +132,7 @@ def status_payload() -> Dict[str, Any]:
         "mesh_anchor_id": blurt_reg.CUSTOM_JSON_ID,
         "dtn": dtn.status_payload(),
         "planetary_quorum": planetary.status_payload(),
+        "bridge_swap": bridge.status_payload(),
         "condenser_offline": coff.status_payload(),
         "spatial_manifest_id": spatial.SPATIAL_MANIFEST_ID,
         "spatial_asset_prefix": "assets/spatial/",

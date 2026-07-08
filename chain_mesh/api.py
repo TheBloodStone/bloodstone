@@ -1318,6 +1318,64 @@ def convergence_dtn_planetary_round_payload(*, limit: int = 0) -> Dict[str, Any]
     return planetary.planetary_exchange_round(limit=limit)
 
 
+def convergence_bridge_status_payload() -> Dict[str, Any]:
+    from chain_mesh import bridge_swap as bridge
+
+    return bridge.status_payload()
+
+
+def convergence_bridge_quote_payload(
+    *,
+    direction: str = "",
+    amount: Any = None,
+    stone_address: str = "",
+    blurt_account: str = "",
+) -> Dict[str, Any]:
+    from chain_mesh import bridge_swap as bridge
+
+    return bridge.quote_swap(
+        direction=direction,
+        amount=amount,
+        stone_address=stone_address,
+        blurt_account=blurt_account,
+    )
+
+
+def convergence_bridge_initiate_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh import bridge_swap as bridge
+
+    return bridge.initiate_swap(
+        direction=str(payload.get("direction") or ""),
+        amount=payload.get("amount") or payload.get("blurt_amount") or payload.get("stone_amount"),
+        stone_address=str(payload.get("stone_address") or ""),
+        blurt_account=str(payload.get("blurt_account") or ""),
+    )
+
+
+def convergence_bridge_claim_payload(*, swap_id: str, preimage: str) -> Dict[str, Any]:
+    from chain_mesh import bridge_swap as bridge
+
+    return bridge.claim_swap(swap_id=swap_id, preimage=preimage)
+
+
+def convergence_bridge_attest_payload(*, swap_id: str, stone_txid: str) -> Dict[str, Any]:
+    from chain_mesh import bridge_swap as bridge
+
+    return bridge.attest_stone_funding(swap_id=swap_id, stone_txid=stone_txid)
+
+
+def convergence_bridge_intents_payload(*, status: str = "", limit: int = 50) -> Dict[str, Any]:
+    from chain_mesh import bridge_swap as bridge
+
+    return bridge.list_intents(status=status, limit=limit)
+
+
+def convergence_bridge_sync_payload() -> Dict[str, Any]:
+    from chain_mesh import bridge_swap as bridge
+
+    return bridge.sync_bridge_transfers()
+
+
 def convergence_dtn_replication_heal_payload(
     *,
     region: str = "",
