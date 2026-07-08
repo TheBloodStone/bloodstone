@@ -82,12 +82,12 @@ EXTRA_LIBRARIES += \
 noinst_LTLIBRARIES = $(LIBBITCOINCONSENSUS)
 
 bin_PROGRAMS =
-noinst_PROGRAMS = spacexpanse-hash
+noinst_PROGRAMS = spacexpanse-hash bloodstone-hash
 TESTS =
 BENCHMARKS =
 
 if BUILD_BITCOIND
-  bin_PROGRAMS += spacexpansed
+  bin_PROGRAMS += bloodstoned spacexpansed
 endif
 
 if BUILD_BITCOIN_NODE
@@ -95,7 +95,7 @@ if BUILD_BITCOIN_NODE
 endif
 
 if BUILD_BITCOIN_CLI
-  bin_PROGRAMS += spacexpanse-cli
+  bin_PROGRAMS += bloodstone-cli spacexpanse-cli
 endif
 
 if BUILD_BITCOIN_TX
@@ -373,6 +373,7 @@ libbitcoin_server_a_SOURCES = \
   policy/rbf.cpp \
   policy/settings.cpp \
   pow.cpp \
+  quasar/braid_validation.cpp \
   rest.cpp \
   rpc/auxpow_miner.cpp \
   rpc/blockchain.cpp \
@@ -460,7 +461,7 @@ libbitcoin_wallet_tool_a_SOURCES = \
   $(BITCOIN_CORE_H)
 
 # crypto primitives library
-crypto_libbitcoin_crypto_base_a_CPPFLAGS = $(AM_CPPFLAGS)
+crypto_libbitcoin_crypto_base_a_CPPFLAGS = $(AM_CPPFLAGS) -I$(srcdir)/crypto/yespower
 crypto_libbitcoin_crypto_base_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
 crypto_libbitcoin_crypto_base_a_CFLAGS = $(AM_CFLAGS) $(PIE_FLAGS)
 crypto_libbitcoin_crypto_base_a_SOURCES = \
@@ -479,6 +480,16 @@ crypto_libbitcoin_crypto_base_a_SOURCES = \
   crypto/hmac_sha512.h \
   crypto/neoscrypt.h \
   crypto/neoscrypt.c \
+  crypto/yespowerr16.h \
+  crypto/yespowerr16.cpp \
+  crypto/yespower/yespower.h \
+  crypto/yespower/yespower.c \
+  crypto/yespower/hmac-sha256-hash.c \
+  crypto/yespower/hmac-sha256-hash.h \
+  crypto/yespower/sha256-hash.c \
+  crypto/yespower/sha256-hash.h \
+  crypto/yespower/sph_sha2.c \
+  crypto/yespower/sph_sha2.h \
   crypto/poly1305.h \
   crypto/poly1305.cpp \
   crypto/muhash.h \
@@ -697,11 +708,21 @@ bitcoin_bin_ldadd = \
 
 bitcoin_bin_ldadd += $(BOOST_LIBS) $(BDB_LIBS) $(MINIUPNPC_LIBS) $(NATPMP_LIBS) $(EVENT_PTHREADS_LIBS) $(EVENT_LIBS) $(ZMQ_LIBS) $(SQLITE_LIBS)
 
-spacexpansed_SOURCES = $(bitcoin_daemon_sources) init/bitcoind.cpp
-spacexpansed_CPPFLAGS = $(bitcoin_bin_cppflags)
-spacexpansed_CXXFLAGS = $(bitcoin_bin_cxxflags)
-spacexpansed_LDFLAGS = $(bitcoin_bin_ldflags)
-spacexpansed_LDADD = $(LIBBITCOIN_SERVER) $(bitcoin_bin_ldadd)
+bloodstoned_SOURCES = $(bitcoin_daemon_sources) init/bitcoind.cpp
+bloodstoned_CPPFLAGS = $(bitcoin_bin_cppflags) -I$(srcdir)/crypto/yespower
+bloodstoned_CXXFLAGS = $(bitcoin_bin_cxxflags)
+bloodstoned_LDFLAGS = $(bitcoin_bin_ldflags)
+bloodstoned_LDADD = $(LIBBITCOIN_SERVER) $(bitcoin_bin_ldadd) \
+	$(if $(findstring mingw,$(HOST)),crypto/yespower/libbitcoin_crypto_base_a-yespower.o \
+	crypto/yespower/libbitcoin_crypto_base_a-hmac-sha256-hash.o \
+	crypto/yespower/libbitcoin_crypto_base_a-sha256-hash.o \
+	crypto/yespower/libbitcoin_crypto_base_a-sph_sha2.o $(PTHREAD_LIBS),)
+
+spacexpansed_SOURCES = $(bloodstoned_SOURCES)
+spacexpansed_CPPFLAGS = $(bloodstoned_CPPFLAGS)
+spacexpansed_CXXFLAGS = $(bloodstoned_CXXFLAGS)
+spacexpansed_LDFLAGS = $(bloodstoned_LDFLAGS)
+spacexpansed_LDADD = $(bloodstoned_LDADD)
 
 spacexpanse_node_SOURCES = $(bitcoin_daemon_sources) init/bitcoin-node.cpp
 spacexpanse_node_CPPFLAGS = $(bitcoin_bin_cppflags)
@@ -726,6 +747,12 @@ spacexpanse_cli_LDADD = \
   $(LIBBITCOIN_CRYPTO)
 
 spacexpanse_cli_LDADD += $(BOOST_LIBS) $(EVENT_LIBS)
+
+bloodstone_cli_SOURCES = $(spacexpanse_cli_SOURCES)
+bloodstone_cli_CPPFLAGS = $(spacexpanse_cli_CPPFLAGS)
+bloodstone_cli_CXXFLAGS = $(spacexpanse_cli_CXXFLAGS)
+bloodstone_cli_LDFLAGS = $(spacexpanse_cli_LDFLAGS)
+bloodstone_cli_LDADD = $(spacexpanse_cli_LDADD)
 #
 
 # bitcoin-tx binary #
@@ -763,6 +790,12 @@ spacexpanse_hash_LDADD = \
   $(LIBUNIVALUE) \
   $(LIBSECP256K1)
 spacexpanse_hash_LDADD += $(BOOST_LIBS)
+
+bloodstone_hash_SOURCES = $(spacexpanse_hash_SOURCES)
+bloodstone_hash_CPPFLAGS = $(spacexpanse_hash_CPPFLAGS) -I$(srcdir)/crypto/yespower
+bloodstone_hash_CXXFLAGS = $(spacexpanse_hash_CXXFLAGS)
+bloodstone_hash_LDFLAGS = $(spacexpanse_hash_LDFLAGS)
+bloodstone_hash_LDADD = $(spacexpanse_hash_LDADD)
 #
 
 # bitcoin-wallet binary #

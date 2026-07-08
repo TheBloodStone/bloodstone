@@ -103,7 +103,7 @@ def activation_params() -> Dict[str, Any]:
     return {
         "deployment": "quasar_braid_finality",
         "version": 1,
-        "phase": 4,
+        "phase": 5,
         "version_bit": int(os.environ.get("QUASAR_FORK_BIT", "3")),
         "start_height": int(os.environ.get("QUASAR_FORK_START_HEIGHT", "0")),
         "timeout_height": int(os.environ.get("QUASAR_FORK_TIMEOUT_HEIGHT", "0")),
@@ -112,8 +112,13 @@ def activation_params() -> Dict[str, Any]:
         "window_blocks": int(os.environ.get("QUASAR_FORK_WINDOW", "2016")),
         "state": os.environ.get("QUASAR_FORK_STATE", "defined"),
         "enforcement_mode": ENFORCEMENT_MODE,
+        "consensus_braid_rejection": True,
+        "consensus_rule": (
+            "When deployment is active, deferred epochs without cross-algo restitch "
+            "are rejected at epoch boundaries (ContextualCheckBlock)."
+        ),
         "note": (
-            "Phase 4 fork rehearsal: miners signal version bit 3 in block nVersion. "
-            "Policy enforcement remains live; consensus braid rejection activates after lock-in."
+            "Phase 5: consensus braid validation ships in core; active only after "
+            "quasar_braid_finality lock-in. Policy enforcement remains parallel."
         ),
     }

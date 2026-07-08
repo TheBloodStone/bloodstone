@@ -73,7 +73,7 @@ static RPCHelpMan getquasaractivation()
     {
         UniValue ret(UniValue::VOBJ);
         ret.pushKV("deployment", "quasar_braid_finality");
-        ret.pushKV("phase", 4);
+        ret.pushKV("phase", 5);
         ret.pushKV("version_bit", 3);
         ret.pushKV("state", gArgs.GetArg("-quasarbraidfork", "defined"));
         ret.pushKV("enforcement_mode", gArgs.GetArg("-quasarenforce", "policy"));
@@ -81,7 +81,8 @@ static RPCHelpMan getquasaractivation()
         ret.pushKV("window_blocks", 2016);
         ret.pushKV("threshold_mainnet", 1815);
         ret.pushKV("threshold_testnet", 1512);
-        ret.pushKV("note", "Phase 4 fork rehearsal: signal version bit 3; braid rejection activates after lock-in.");
+        ret.pushKV("consensus_braid_rejection", true);
+        ret.pushKV("note", "Phase 5: consensus braid rejection at epoch boundaries when deployment active; signal bit 3 for lock-in.");
         return ret;
     }};
 }

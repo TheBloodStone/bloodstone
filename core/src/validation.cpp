@@ -51,6 +51,7 @@
 #include <util/strencodings.h>
 #include <util/system.h>
 #include <util/translation.h>
+#include <quasar/braid_validation.h>
 #include <validationinterface.h>
 #include <warnings.h>
 
@@ -1216,6 +1217,16 @@ bool CheckProofOfWork(const CBlockHeader& block, const Consensus::Params& params
     return true;
 }
 
+static CAmount GetEffectiveInitialSubsidy(int nHeight, const Consensus::Params& consensusParams)
+{
+    if (consensusParams.nIncreasedSubsidyHeight > 0
+            && nHeight >= consensusParams.nIncreasedSubsidyHeight
+            && consensusParams.increasedInitialSubsidy > 0) {
+        return consensusParams.increasedInitialSubsidy;
+    }
+    return consensusParams.initialSubsidy;
+}
+
 CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
 {
     /* Special rule:  Before the post-ICO fork, the block reward is always set
@@ -1225,6 +1236,8 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
           && !consensusParams.rules->ForkInEffect (Consensus::Fork::POST_ICO,
                                                    nHeight))
         return COIN;
+
+    const CAmount baseInitial = GetEffectiveInitialSubsidy(nHeight, consensusParams);
 
     int halvings = nHeight / consensusParams.nSubsidyHalvingInterval;
     // Force block reward to zero when right shift is undefined.
@@ -1245,8 +1258,14 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
         CAmount inflateCoins = round(1833823998 * (pow(1.02956, halvings - 3) - pow(1.02956, halvings - 4)));
         // subsidy is inflateCoins / 210000 * COIN
         nSubsidy = ((int)round((inflateCoins / 1054080.0) * 100)) * (COIN / 100);
+        // Bloodstone relaunch (initialSubsidy < 800 ROD): scale inflation-era
+        // subsidies so era 5+ does not jump above the legacy 800-ROD curve.
+        const CAmount legacyInitial = 800 * COIN;
+        if (baseInitial > 0 && baseInitial != legacyInitial) {
+            nSubsidy = (CAmount)((int64_t)nSubsidy * (int64_t)baseInitial / (int64_t)legacyInitial);
+        }
     } else { 
-        nSubsidy = consensusParams.initialSubsidy;
+        nSubsidy = baseInitial;
         // Subsidy is cut in half every 210,000 blocks which will occur approximately every 4 years.
         nSubsidy >>= halvings; 
         }
@@ -3258,6 +3277,10 @@ static bool ContextualCheckBlock(const CBlock& block, BlockValidationState& stat
     // failed).
     if (GetBlockWeight(block) > MAX_BLOCK_WEIGHT) {
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-blk-weight", strprintf("%s : weight limit failed", __func__));
+    }
+
+    if (!QuasarCheckBraidFinality(block, pindexPrev, consensusParams, state)) {
+        return false;
     }
 
     return true;

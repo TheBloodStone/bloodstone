@@ -69,7 +69,7 @@ Append `?persist=1` to write `status.json` for dashboards.
 
 | Phase | Focus |
 |-------|-------|
-| **Phase 5** (proposed) | Consensus braid validation in `validation.cpp` when fork `active` |
+| **Phase 5** (live) | Consensus braid validation in `validation.cpp` when fork `active` — see [Phase 5 doc](./Bloodstone-QUASAR-Phase5-Consensus-Braid-Validation.md) |
 | **Parallel** | Mainnet start-height vote, exchange operator sign-off |
 
 ---

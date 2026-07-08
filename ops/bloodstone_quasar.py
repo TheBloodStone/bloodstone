@@ -9,8 +9,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import pool_algos as palgos
 
-QUASAR_VERSION = "4.0"
-QUASAR_PHASE = 4
+QUASAR_VERSION = "5.0"
+QUASAR_PHASE = 5
 
 EPOCH_BLOCKS = int(os.environ.get("QUASAR_EPOCH_BLOCKS", "10"))
 SKEW_SHA256D_FRACTION = float(os.environ.get("QUASAR_SKEW_SHA256D_FRACTION", "0.85"))

@@ -51,6 +51,7 @@
 #include <util/strencodings.h>
 #include <util/system.h>
 #include <util/translation.h>
+#include <quasar/braid_validation.h>
 #include <validationinterface.h>
 #include <warnings.h>
 
@@ -3276,6 +3277,10 @@ static bool ContextualCheckBlock(const CBlock& block, BlockValidationState& stat
     // failed).
     if (GetBlockWeight(block) > MAX_BLOCK_WEIGHT) {
         return state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-blk-weight", strprintf("%s : weight limit failed", __func__));
+    }
+
+    if (!QuasarCheckBraidFinality(block, pindexPrev, consensusParams, state)) {
+        return false;
     }
 
     return true;
