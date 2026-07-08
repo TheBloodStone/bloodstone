@@ -528,7 +528,7 @@ UniValue GetDifficultyJson(const CChain& chain)
     LOCK(cs_main);
 
     UniValue result(UniValue::VOBJ);
-    for (const PowAlgo algo : {PowAlgo::SHA256D, PowAlgo::NEOSCRYPT})
+    for (const PowAlgo algo : {PowAlgo::SHA256D, PowAlgo::NEOSCRYPT, PowAlgo::YESPOWER})
       {
         const uint32_t nextWork
             = GetNextWorkRequired (algo, chain.Tip (),
@@ -1669,6 +1669,7 @@ RPCHelpMan getblockchaininfo()
     SoftForkDescPushBack(tip, softforks, consensusParams, Consensus::DEPLOYMENT_SEGWIT);
     SoftForkDescPushBack(tip, softforks, consensusParams, Consensus::DEPLOYMENT_TESTDUMMY);
     SoftForkDescPushBack(tip, softforks, consensusParams, Consensus::DEPLOYMENT_TAPROOT);
+    SoftForkDescPushBack(tip, softforks, consensusParams, Consensus::DEPLOYMENT_QUASAR_BRAID);
     obj.pushKV("softforks", softforks);
 
     obj.pushKV("warnings", GetWarnings(false).original);

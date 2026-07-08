@@ -103,14 +103,17 @@ def activation_params() -> Dict[str, Any]:
     return {
         "deployment": "quasar_braid_finality",
         "version": 1,
+        "phase": 4,
+        "version_bit": int(os.environ.get("QUASAR_FORK_BIT", "3")),
         "start_height": int(os.environ.get("QUASAR_FORK_START_HEIGHT", "0")),
         "timeout_height": int(os.environ.get("QUASAR_FORK_TIMEOUT_HEIGHT", "0")),
-        "threshold": int(os.environ.get("QUASAR_FORK_THRESHOLD", "750")),
-        "window_blocks": int(os.environ.get("QUASAR_FORK_WINDOW", "1008")),
+        "threshold": int(os.environ.get("QUASAR_FORK_THRESHOLD", "1815")),
+        "threshold_testnet": int(os.environ.get("QUASAR_FORK_THRESHOLD_TESTNET", "1512")),
+        "window_blocks": int(os.environ.get("QUASAR_FORK_WINDOW", "2016")),
         "state": os.environ.get("QUASAR_FORK_STATE", "defined"),
         "enforcement_mode": ENFORCEMENT_MODE,
         "note": (
-            "Phase 3 policy enforcement is live. Consensus soft-fork activation "
-            "requires miner signaling when start_height is configured."
+            "Phase 4 fork rehearsal: miners signal version bit 3 in block nVersion. "
+            "Policy enforcement remains live; consensus braid rejection activates after lock-in."
         ),
     }

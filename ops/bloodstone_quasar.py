@@ -9,8 +9,8 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import pool_algos as palgos
 
-QUASAR_VERSION = "3.0"
-QUASAR_PHASE = 3
+QUASAR_VERSION = "4.0"
+QUASAR_PHASE = 4
 
 EPOCH_BLOCKS = int(os.environ.get("QUASAR_EPOCH_BLOCKS", "10"))
 SKEW_SHA256D_FRACTION = float(os.environ.get("QUASAR_SKEW_SHA256D_FRACTION", "0.85"))
@@ -320,12 +320,32 @@ def build_status(rpc: Callable, *, use_cache: bool = True) -> Dict[str, Any]:
 
     braid_index = {"ok": False}
     activation = {}
+    signaling = {"ok": False}
+    fork_rehearsal = {"ok": False}
     try:
         import bloodstone_braid_index as bbi
         import bloodstone_quasar_enforcement as bqe
+        import bloodstone_quasar_signaling as bqs
 
         braid_index = bbi.index_payload(epochs=3)
         activation = bqe.activation_params()
+        signaling = bqs.signaling_payload(rpc)
+        if activation.get("state") == "defined" and signaling.get("state"):
+            activation["state"] = signaling.get("state")
+    except Exception:
+        pass
+    try:
+        import bloodstone_quasar_fork as bqf
+
+        fork_rehearsal = {
+            "ok": True,
+            "readiness": bqf.readiness_checks(
+                rpc,
+                signaling=signaling,
+                braid_index=braid_index,
+                activation=activation,
+            ),
+        }
     except Exception:
         pass
 
@@ -337,6 +357,8 @@ def build_status(rpc: Callable, *, use_cache: bool = True) -> Dict[str, Any]:
         "enforcement_mode": activation.get("enforcement_mode", "policy"),
         "braid_index": braid_index,
         "activation": activation,
+        "signaling": signaling,
+        "fork_rehearsal": fork_rehearsal,
         "tip_height": tip,
         "tip_hash": tip_hash,
         "epoch_blocks": EPOCH_BLOCKS,
@@ -397,6 +419,12 @@ def exchange_quasar_fields(status: Dict[str, Any], public_root: str) -> Dict[str
         "braid_index_synced_height": (status.get("braid_index") or {}).get("synced_height"),
         "braid_index_status": (status.get("braid_index") or {}).get("braid_status"),
         "fork_state": (status.get("activation") or {}).get("state"),
+        "signaling_blocks": (status.get("signaling") or {}).get("signaling_blocks"),
+        "signaling_threshold": (status.get("signaling") or {}).get("threshold_blocks"),
+        "fork_rehearsal_ready": bool((status.get("fork_rehearsal") or {}).get("readiness", {}).get("ready")),
+        "signaling_url": f"{public_root.rstrip('/')}/api/quasar/signaling",
+        "fork_rehearsal_url": f"{public_root.rstrip('/')}/api/quasar/fork-rehearsal",
+        "miner_guide_url": f"{public_root.rstrip('/')}/downloads/Bloodstone-QUASAR-Phase4-Miner-Operator-Guide.md",
         "status_url": f"{public_root.rstrip('/')}/api/quasar/status",
         "braid_index_url": f"{public_root.rstrip('/')}/api/quasar/braid-index",
         "enforcement_url": f"{public_root.rstrip('/')}/api/quasar/enforcement/check",

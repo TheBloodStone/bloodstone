@@ -7,6 +7,7 @@
 
 #include <chainparamsseeds.h>
 #include <consensus/merkle.h>
+#include <core_io.h>
 #include <deploymentinfo.h>
 #include <hash.h> // for signet block challenge hash
 #include <powdata.h>
@@ -25,14 +26,13 @@ namespace
 
 constexpr const char pszTimestampTestnet[] = "SpaceXpance Testnet";
 constexpr const char pszTimestampMainnet[]
-    = "01/Jun/2022: "
-      "NASA has hosted the Martian Metaverse Creation Challenge";
+    = "22/Jun/2026: Bloodstone independent chain relaunch";
 
 /* Premined amount is 199,999.998 ROD.  This is the maximum possible number of
    coins needed to support the project for at least 4 years.  If this is not the case
    and we need to reduce the coin supply, excessive coins will be burnt by
    sending to an unspendable OP_RETURN output.  */
-constexpr CAmount premineAmount = 199999998 * COIN;
+constexpr CAmount premineAmount = 199999998LL * COIN;
 
 /*
 The premine on testnet, signet and regtest is sent to a 1-of-2 multisig address.
@@ -68,6 +68,32 @@ premine script is:
 */
 constexpr const char hexPremineAddressMainnet[]
     = "fe546eafc3574b33f1c9e20a4d44680c4e54074d";
+
+/* Bloodstone relaunch genesis premine pays P2PKH (not the legacy P2SH above).
+   Address: SZNtmBMyx2Cr9VMrj5vk5EYTUn1naedu5N */
+constexpr const char hexPreminePubKeyHashMainnet[]
+    = "848e5af187579f268773a58e44e882d2c04ca883";
+
+/* Canonical mainnet genesis from the live chain (avoids cross-platform
+   reconstruction drift in CreateGenesisBlockP2PKH).  */
+constexpr const char hexMainnetGenesisBlock[] =
+    "010000000000000000000000000000000000000000000000000000000000000000000000"
+    "cb8e0bb4cf2e286f66a23102e2a0f89a7110a264ed84ab6695e6fc7a5c59ed3f"
+    "0056216a000000000000000002f0ff0f1e"
+    "000000000000000000000000000000000000000000000000000000000000000000000000"
+    "d071bfe9508f56a0315158cd19bd6254698a81245b82ad0d639e0374502204df"
+    "00000000000000003a490a00"
+    "0101000000010000000000000000000000000000000000000000000000000000000000000000"
+    "ffffffff333232322f4a756e2f323032363a20426c6f6f6473746f6e6520696e646570656e64656e7420636861696e2072656c61756e6368"
+    "ffffffff01003e96d3e40d47001976a914848e5af187579f268773a58e44e882d2c04ca88388ac00000000";
+
+CBlock LoadMainnetGenesisBlock ()
+{
+  CBlock block;
+  if (!DecodeHexBlk (block, hexMainnetGenesisBlock))
+    throw std::runtime_error ("Failed to decode mainnet genesis block");
+  return block;
+}
 
 CBlock CreateGenesisBlock(const CScript& genesisInputScript, const CScript& genesisOutputScript, uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
@@ -124,6 +150,27 @@ CreateGenesisBlock (const uint32_t nTime, const uint32_t nNonce,
                              nVersion, premineAmount);
 }
 
+CBlock
+CreateGenesisBlockP2PKH (const uint32_t nTime, const uint32_t nNonce,
+                       const uint32_t nBits,
+                       const std::string& timestamp,
+                       const uint160& preminePubKeyHash)
+{
+  const std::vector<unsigned char> timestampData(timestamp.begin (),
+                                                 timestamp.end ());
+  const CScript genesisInput = CScript () << timestampData;
+
+  std::vector<unsigned char>
+    pubKeyHash (preminePubKeyHash.begin (), preminePubKeyHash.end ());
+  std::reverse (pubKeyHash.begin (), pubKeyHash.end ());
+  const CScript genesisOutput = CScript ()
+    << OP_DUP << OP_HASH160 << pubKeyHash << OP_EQUALVERIFY << OP_CHECKSIG;
+
+  const int32_t nVersion = 1;
+  return CreateGenesisBlock (genesisInput, genesisOutput, nTime, nNonce, nBits,
+                             nVersion, premineAmount);
+}
+
 /**
  * Mines the genesis block (by finding a suitable nonce only).  When done, it
  * prints the found nonce and block hash and exits.
@@ -162,7 +209,9 @@ public:
         consensus.signet_blocks = false;
         consensus.signet_challenge.clear();
         consensus.nSubsidyHalvingInterval = 1054080; // 4216320;
-        consensus.initialSubsidy = 800 * COIN;
+        consensus.initialSubsidy = 100 * COIN; // Bloodstone relaunch PoW era-0 reward
+        consensus.nIncreasedSubsidyHeight = 12000; // subsidy fork: 1000 STONE from here
+        consensus.increasedInitialSubsidy = 1000 * COIN;
         consensus.BIP16Height = 0;
         consensus.BIP34Height = 1;
         consensus.BIP65Height = 0;
@@ -185,12 +234,18 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 0; // No activation delay
 
+        // QUASAR braid finality — mainnet defined only until operator vote
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].bit = 3;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].min_activation_height = 0;
+
         // The best chain should have at least this much work.
         // The value is the chain work of the SpaceXpanse mainnet chain at height
         // 800'000 with best block hash:
         // 4d26cb0da44a06a2f5dc639e921f49a62714b6156256caf8461840adb66dc83f
-        consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000007d524faed2c48c6c828");
-        consensus.defaultAssumeValid = uint256S("0x4d26cb0da44a06a2f5dc639e921f49a62714b6156256caf8461840adb66dc83f"); // 800'000
+        consensus.nMinimumChainWork = uint256S("0x0000000000000000000000000000000000000000000000000000000000000000");
+        consensus.defaultAssumeValid = uint256S("0x0000000000000000000000000000000000000000000000000000000000000000");
 
         consensus.nAuxpowChainId = 1899;
 
@@ -205,52 +260,28 @@ public:
         pchMessageStart[1] = 0xf2;
         pchMessageStart[2] = 0xf6;
         pchMessageStart[3] = 0x93;
-        nDefaultPort = 11998;
+        nDefaultPort = 17333;
         nPruneAfterHeight = 100000;
         m_assumed_blockchain_size = 5;
         m_assumed_chain_state_size = 1;
 
-        genesis = CreateGenesisBlock (1654336219, 18073, 0x1e0ffff0,
-                                      pszTimestampMainnet,
-                                      uint160S (hexPremineAddressMainnet));
-        consensus.hashGenesisBlock = genesis.GetHash();
-/*        
-        consensus.hashGenesisBlock = uint256S("0x");
-        if (true && (genesis.GetHash() != consensus.hashGenesisBlock)) { 
-        std::cout << "Mining Mainnet genesis block..." << std::endl;
+        genesis = LoadMainnetGenesisBlock ();
+        consensus.hashGenesisBlock = uint256S("0xdf04225074039e630dad825b24818a695462bd19cd585131a0568f50e9bf71d0");
+        assert(genesis.GetHash() == consensus.hashGenesisBlock);
+        assert(genesis.hashMerkleRoot == uint256S("0x3fed595c7afce69566ab84ed64a210719af8a0e20231a2666f282ecfb40b8ecb"));
+        assert(BlockMerkleRoot(genesis) == genesis.hashMerkleRoot);
 
-        genesis.nTime = GetTime ();
+        vSeeds.emplace_back("64.188.22.190:17333");
+        vSeeds.emplace_back("192.119.82.145:17333");
 
-        auto& fakeHeader = genesis.pow.initFakeHeader (genesis);
-        while (!genesis.pow.checkProofOfWork (fakeHeader, consensus))
-          {
-            assert (fakeHeader.nNonce < std::numeric_limits<uint32_t>::max ());
-            ++fakeHeader.nNonce;
-            if (fakeHeader.nNonce % 1000 == 0)
-              std::cout << "  nNonce = " << fakeHeader.nNonce << "..." << std::endl;
-          }
-
-        std::cout << "Found nonce: " << fakeHeader.nNonce << std::endl;
-        std::cout << "nTime: " << genesis.nTime << std::endl;
-        std::cout << "Block hash: " << genesis.GetHash ().GetHex () << std::endl;
-        std::cout << "Merkle root: " << genesis.hashMerkleRoot.GetHex () << std::endl;
-        }
-        std::cout << std::string("Finished calculating Mainnet Genesis Block.\n");        
-*/        
-        assert(consensus.hashGenesisBlock == uint256S("0x5d4b20be4fc87d2333aea5235d9de1c685696fc935f806a9ffd71c9f9abf3c57"));
-        assert(genesis.hashMerkleRoot == uint256S("0xafdbec35a16bea610dafafeee5a8cd072dc74a056894a12165da027079d5e138"));
-
-        vSeeds.emplace_back("seed1.spacexpanse.net");
-        vSeeds.emplace_back("seed2.spacexpanse.net");
-
-        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,60);
-        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,75);
-        base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,78);
+        base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,63);
+        base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,125);
+        base58Prefixes[SECRET_KEY] =     std::vector<unsigned char>(1,191);
         /* FIXME: Update these below.  */
         base58Prefixes[EXT_PUBLIC_KEY] = {0x04, 0x88, 0xE4, 0xAD};
         base58Prefixes[EXT_SECRET_KEY] = {0x04, 0x88, 0x1E, 0xB2};
 
-        bech32_hrp = "rod";
+        bech32_hrp = "stone";
 
         vFixedSeeds = std::vector<uint8_t>(std::begin(chainparams_seed_main), std::end(chainparams_seed_main));
 
@@ -260,14 +291,9 @@ public:
         m_is_mockable_chain = false;
 
         checkpointData = {
-//            {{ 0, uint256S("0x0")}}, 
-
             {
-                {0, uint256S("5d4b20be4fc87d2333aea5235d9de1c685696fc935f806a9ffd71c9f9abf3c57")},      
-                {48550, uint256S("9f7abe9fa74ea774f66a89beebb9381d1bfb6434c132a2d0b12e50ba8634bf69")},    
-                {800001, uint256S("c8f940192478381008b63f6b522aa609060fe8024436e68bb0e2d4f617d1c7f3")},   
+                {0, uint256S("df04225074039e630dad825b24818a695462bd19cd585131a0568f50e9bf71d0")},
             }
-          
         };
 
         m_assumeutxo_data = MapAssumeutxo{
@@ -275,10 +301,10 @@ public:
         };
 
         chainTxData = ChainTxData{
-            // Data from RPC: getchaintxstats 800001 c8f940192478381008b63f6b522aa609060fe8024436e68bb0e2d4f617d1c7f3
-            /* nTime    */ 1680320335, // 1626099379,
-            /* nTxCount */ 92864, // 4457837,
-            /* dTxRate  */ 0.03371758688912199, // 0.034450420845411,
+            // Relaunch chain (July 2026): getchaintxstats at tip height ~9509
+            /* nTime    */ 1783414380,
+            /* nTxCount */ 15533,
+            /* dTxRate  */ 0.01624726047818059,
         };
     }
 
@@ -299,6 +325,8 @@ public:
         consensus.signet_challenge.clear();
         consensus.nSubsidyHalvingInterval = 1054080; // 2880;
         consensus.initialSubsidy = 800 * COIN; //10 * COIN;
+        consensus.nIncreasedSubsidyHeight = 0;
+        consensus.increasedInitialSubsidy = 0;
         consensus.BIP16Height = 0;
         consensus.BIP34Height = 1;
         consensus.BIP65Height = 0;
@@ -321,6 +349,12 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 0; // No activation delay
+
+        // QUASAR braid finality — testnet rehearsal (2026-07-01 UTC)
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].bit = 3;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nStartTime = 1782777600;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nTimeout = 1830316800; // 2028-01-01 UTC
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].min_activation_height = 0;
 
         // The value is the chain work of the SpaceXpanse testnet chain at height
         // 110'000 with best block hash:
@@ -373,8 +407,8 @@ public:
 
         vFixedSeeds.clear();
         vSeeds.clear();
-        vSeeds.emplace_back("seed1.testnet.spacexpanse.net");
-        vSeeds.emplace_back("seed2.testnet.spacexpanse.net");
+        vSeeds.emplace_back("seed1.testnet.bloodstone.net");
+        vSeeds.emplace_back("seed2.testnet.bloodstone.net");
 
         base58Prefixes[PUBKEY_ADDRESS] = std::vector<unsigned char>(1,122);
         base58Prefixes[SCRIPT_ADDRESS] = std::vector<unsigned char>(1,137);
@@ -496,6 +530,11 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 0; // No activation delay
 
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].bit = 3;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].min_activation_height = 0;
+
         consensus.nAuxpowChainId = 1899;
 
         consensus.rules.reset(new Consensus::TestNetConsensus());
@@ -571,10 +610,11 @@ public:
         strNetworkID =  CBaseChainParams::REGTEST;
         consensus.signet_blocks = false;
         consensus.signet_challenge.clear();
-        consensus.nSubsidyHalvingInterval = 360; // 150;
-        // The subsidy for regtest net is kept same as upstream Bitcoin, so
-        // that we don't have to update many of the tests unnecessarily.
-        consensus.initialSubsidy = 800 * COIN; //50 * COIN;
+        // Research fork: first halving interval 1000 blocks (was 150/360 for legacy tests).
+        consensus.nSubsidyHalvingInterval = 1000;
+        consensus.initialSubsidy = 100 * COIN;
+        consensus.nIncreasedSubsidyHeight = 1000; // mirrors mainnet 12000 fork at shorter scale
+        consensus.increasedInitialSubsidy = 1000 * COIN;
         consensus.BIP16Height = 0;
         consensus.BIP34Height = 500; // BIP34 activated on regtest (Used in functional tests)
         consensus.BIP65Height = 1351; // BIP65 activated on regtest (Used in functional tests)
@@ -596,6 +636,11 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 0; // No activation delay
+
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].bit = 3;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].min_activation_height = 0;
 
         consensus.nMinimumChainWork = uint256{};
         consensus.defaultAssumeValid = uint256{};
@@ -803,7 +848,7 @@ AvgTargetSpacing (const Consensus::Params& params, const unsigned height)
      block times).  */
   int64_t numer = 1;
   int64_t denom = 0;
-  for (const PowAlgo algo : {PowAlgo::SHA256D, PowAlgo::NEOSCRYPT})
+  for (const PowAlgo algo : {PowAlgo::SHA256D, PowAlgo::NEOSCRYPT, PowAlgo::YESPOWER})
     {
       const int64_t spacing = params.rules->GetTargetSpacing(algo, height);
 

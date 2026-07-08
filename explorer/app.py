@@ -435,6 +435,27 @@ def api_quasar_activation():
     return jsonify(qapi.activation_payload())
 
 
+@app.route("/api/quasar/signaling")
+def api_quasar_signaling():
+    import bloodstone_quasar_api as qapi
+
+    try:
+        return jsonify(qapi.signaling_payload(rpc))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 503
+
+
+@app.route("/api/quasar/fork-rehearsal")
+def api_quasar_fork_rehearsal():
+    import bloodstone_quasar_api as qapi
+
+    persist = (request.args.get("persist") or "").strip().lower() in ("1", "true", "yes")
+    try:
+        return jsonify(qapi.fork_rehearsal_payload(rpc, persist=persist))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 503
+
+
 @app.route("/api/stats")
 def api_stats():
     info = rpc("getblockchaininfo")

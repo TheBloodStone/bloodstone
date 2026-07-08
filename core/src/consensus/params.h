@@ -33,6 +33,12 @@ enum class Fork
    */
   POST_ICO,
 
+  /** Yespower is accepted as a stand-alone PoW algorithm. */
+  YESPOWER,
+
+  /** All three PoW algorithms are valid at every block. */
+  MULTI_ALGO,
+
 };
 
 /**
@@ -86,12 +92,26 @@ public:
            still four blocks every two minutes (for an average of 30 seconds
            per block), but three of them standalone and only one merge-mined.
            This yields the desired 75%/25% split of block rewards.  */
+        if (!ForkInEffect (Fork::MULTI_ALGO, height))
+        {
+            switch (algo)
+            {
+                case PowAlgo::SHA256D:
+                    return 120;
+                case PowAlgo::NEOSCRYPT:
+                    return 40;
+                default:
+                    assert(false);
+            }
+        }
+
+        /* Triple-algo Bloodstone: ~90s average block time, one block per algo slot. */
         switch (algo)
         {
             case PowAlgo::SHA256D:
-                return 120;
             case PowAlgo::NEOSCRYPT:
-                return 40;
+            case PowAlgo::YESPOWER:
+                return 270;
             default:
                 assert(false);
         }
@@ -103,6 +123,10 @@ public:
         {
             case Fork::POST_ICO:
                 return height >= 55560;   /* Set to end at 12:00 01.07.22 */
+            case Fork::YESPOWER:
+                return height >= 1;
+            case Fork::MULTI_ALGO:
+                return height >= 1;
             default:
                 assert (false);
         }
@@ -161,6 +185,7 @@ constexpr bool ValidDeployment(BuriedDeployment dep) { return dep <= DEPLOYMENT_
 enum DeploymentPos : uint16_t {
     DEPLOYMENT_TESTDUMMY,
     DEPLOYMENT_TAPROOT, // Deployment of Schnorr/Taproot (BIPs 340-342)
+    DEPLOYMENT_QUASAR_BRAID, // QUASAR epoch braid finality (Phase 4 rehearsal)
     // NOTE: Also add new deployments to VersionBitsDeploymentInfo in deploymentinfo.cpp
     MAX_VERSION_BITS_DEPLOYMENTS
 };
@@ -205,6 +230,13 @@ struct Params {
     int nSubsidyHalvingInterval;
     /** Initial block reward.  */
     CAmount initialSubsidy;
+    /**
+     * Optional scheduled increase of era-0 subsidy (0 = disabled).
+     * From this height onward, increasedInitialSubsidy is used for halving
+     * math; earlier heights keep initialSubsidy. Existing blocks are unchanged.
+     */
+    int nIncreasedSubsidyHeight;
+    CAmount increasedInitialSubsidy;
     /** Block height at which BIP16 becomes active */
     int BIP16Height;
     /** Block height at which BIP34 becomes active */

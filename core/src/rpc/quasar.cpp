@@ -61,11 +61,15 @@ static RPCHelpMan getquasaractivation()
     {
         UniValue ret(UniValue::VOBJ);
         ret.pushKV("deployment", "quasar_braid_finality");
-        ret.pushKV("phase", 3);
+        ret.pushKV("phase", 4);
+        ret.pushKV("version_bit", 3);
         ret.pushKV("state", gArgs.GetArg("-quasarbraidfork", "defined"));
         ret.pushKV("enforcement_mode", gArgs.GetArg("-quasarenforce", "policy"));
         ret.pushKV("epoch_blocks", gArgs.GetIntArg("-quasarepochblocks", 10));
-        ret.pushKV("note", "Policy enforcement live; consensus fork requires miner activation.");
+        ret.pushKV("window_blocks", 2016);
+        ret.pushKV("threshold_mainnet", 1815);
+        ret.pushKV("threshold_testnet", 1512);
+        ret.pushKV("note", "Phase 4 fork rehearsal: signal version bit 3; braid rejection activates after lock-in.");
         return ret;
     }};
 }

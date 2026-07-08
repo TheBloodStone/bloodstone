@@ -3149,6 +3149,31 @@ def api_quasar_activation():
     return jsonify(qapi.activation_payload())
 
 
+@app.route("/api/quasar/signaling")
+@app.route("/mining/api/quasar/signaling")
+def api_quasar_signaling():
+    import bloodstone_quasar_api as qapi
+    import node_rpc
+
+    try:
+        return jsonify(qapi.signaling_payload(node_rpc.rpc))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 503
+
+
+@app.route("/api/quasar/fork-rehearsal")
+@app.route("/mining/api/quasar/fork-rehearsal")
+def api_quasar_fork_rehearsal():
+    import bloodstone_quasar_api as qapi
+    import node_rpc
+
+    persist = (request.args.get("persist") or "").strip().lower() in ("1", "true", "yes")
+    try:
+        return jsonify(qapi.fork_rehearsal_payload(node_rpc.rpc, persist=persist))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 503
+
+
 @app.route("/api/pool/dual-stats")
 def api_pool_dual_stats():
     """Per-chain dual-mining share/block counts (24h window by default)."""

@@ -8,6 +8,8 @@ import bloodstone_braid_index as bbi
 import bloodstone_lan_echo as ble
 import bloodstone_quasar as bq
 import bloodstone_quasar_enforcement as bqe
+import bloodstone_quasar_fork as bqf
+import bloodstone_quasar_signaling as bqs
 import bloodstone_quasar_tripwire as bqt
 import bloodstone_witness as bw
 
@@ -94,6 +96,16 @@ def enforcement_check(amount_stone: float, rpc: Callable) -> Dict[str, Any]:
 
 def activation_payload() -> Dict[str, Any]:
     return bqe.activation_params()
+
+
+def signaling_payload(rpc: Callable) -> Dict[str, Any]:
+    return bqs.signaling_payload(rpc)
+
+
+def fork_rehearsal_payload(rpc: Callable, *, persist: bool = False) -> Dict[str, Any]:
+    if persist:
+        return bqf.persist_rehearsal_status(rpc)
+    return bqf.rehearsal_payload(rpc)
 
 
 def emit_coordinator_witness(rpc: Callable) -> Dict[str, Any]:

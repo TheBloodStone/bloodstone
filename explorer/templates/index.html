@@ -43,7 +43,7 @@
 <section class="panel quasar-panel" id="quasar-panel" data-initial-status="{{ quasar.braid_status|default('unknown') }}">
   <div class="panel-head">
     <h2>QUASAR Epoch Braid</h2>
-    <span class="muted" id="quasar-updated">Phase 3 · braid index + enforcement</span>
+    <span class="muted" id="quasar-updated">Phase 4 · fork signaling rehearsal</span>
   </div>
   <div class="quasar-grid">
     <div class="quasar-stat">
@@ -95,6 +95,15 @@
         {% if quasar.braid_index and quasar.braid_index.synced_height %}
         h{{ quasar.braid_index.synced_height }} · {{ quasar.braid_index.braid_status|default('—') }}
         {% else %}not synced{% endif %}
+      </div>
+    </div>
+    <div class="quasar-stat">
+      <div class="stat-label">Fork signaling</div>
+      <div class="stat-value mono small" id="quasar-signaling">
+        {% if quasar.signaling %}
+        {{ quasar.signaling.signaling_blocks|default(0) }}/{{ quasar.signaling.threshold_blocks|default(1815) }}
+        · {{ quasar.signaling.state|default('defined') }}
+        {% else %}—{% endif %}
       </div>
     </div>
     <div class="quasar-stat wide">

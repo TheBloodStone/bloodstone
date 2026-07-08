@@ -57,7 +57,7 @@
           <div class="hydra-layer live"><span class="hydra-num">L6</span> Exchange witness policy <span class="hydra-status live">Live</span></div>
           <div class="hydra-layer live"><span class="hydra-num">L5</span> LAN echo quorum <span class="hydra-status live">Live</span></div>
           <div class="hydra-layer live"><span class="hydra-num">L4</span> Mesh witness capsules (BSM1) <span class="hydra-status live">Live</span></div>
-          <div class="hydra-layer live"><span class="hydra-num">L3</span> Epoch braid finality + enforcement <span class="hydra-status live">Phase 3</span></div>
+          <div class="hydra-layer live"><span class="hydra-num">L3</span> Epoch braid finality + enforcement <span class="hydra-status live">Phase 4</span></div>
           <div class="hydra-layer live"><span class="hydra-num">L2</span> Tri-algo work tensor <span class="hydra-status live">Live</span></div>
           <div class="hydra-layer live"><span class="hydra-num">L1</span> Triple-purpose PoW <span class="hydra-status live">Live</span></div>
         </div>
@@ -138,6 +138,9 @@
           <li><a href="{{ public_root }}/api/quasar/activation">/api/quasar/activation</a> — optional soft-fork deployment parameters</li>
           <li>POST <a href="{{ public_root }}/api/quasar/enforcement/check">/api/quasar/enforcement/check</a> — spend policy gate (<code>{"amount_stone": N}</code>)</li>
           <li><a href="{{ downloads_base }}/Bloodstone-QUASAR-Witness-Aware-Confirmation-Guide.md">Witness-aware confirmation guide</a> — integrator playbook (Phase 3)</li>
+          <li><a href="{{ public_root }}/api/quasar/signaling">/api/quasar/signaling</a> — miner version-bit signaling tracker (bit 3)</li>
+          <li><a href="{{ public_root }}/api/quasar/fork-rehearsal">/api/quasar/fork-rehearsal</a> — testnet rehearsal readiness</li>
+          <li><a href="{{ downloads_base }}/Bloodstone-QUASAR-Phase4-Miner-Operator-Guide.md">Miner operator guide</a> — signal the braid finality fork</li>
           <li><a href="{{ downloads_base }}/Bloodstone-QUASAR-Phase3-Braid-Finality-Proposal.md">Phase 3 braid finality proposal</a> — policy + consensus roadmap</li>
           <li><a href="{{ downloads_base }}/Bloodstone-QUASAR-Exchange-One-Pager.html">QUASAR exchange one-pager (print PDF)</a> · <a href="{{ downloads_base }}/Bloodstone-QUASAR-Exchange-One-Pager.docx">.docx</a></li>
           <li><a href="{{ downloads_base }}/Bloodstone-RPC-Reference.md">RPC reference</a> — <code>getblockchaininfo</code>, <code>getchaintips</code>, <code>getmininginfo</code></li>

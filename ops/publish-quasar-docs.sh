@@ -31,6 +31,8 @@ FILES=(
   Bloodstone-QUASAR-Witness-Aware-Confirmation-Guide.md
   Bloodstone-QUASAR-Phase3-Braid-Finality-Proposal.md
   Bloodstone-QUASAR-Attack-Budget-Appendix.md
+  Bloodstone-QUASAR-Phase4-Miner-Operator-Guide.md
+  Bloodstone-QUASAR-Phase4-Fork-Rehearsal-Proposal.md
 )
 
 for f in "${FILES[@]}"; do

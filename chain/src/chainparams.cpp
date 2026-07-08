@@ -234,6 +234,12 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 0; // No activation delay
 
+        // QUASAR braid finality — mainnet defined only until operator vote
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].bit = 3;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].min_activation_height = 0;
+
         // The best chain should have at least this much work.
         // The value is the chain work of the SpaceXpanse mainnet chain at height
         // 800'000 with best block hash:
@@ -343,6 +349,12 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nStartTime = Consensus::BIP9Deployment::NEVER_ACTIVE;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 0; // No activation delay
+
+        // QUASAR braid finality — testnet rehearsal (2026-07-01 UTC)
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].bit = 3;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nStartTime = 1782777600;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nTimeout = 1830316800; // 2028-01-01 UTC
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].min_activation_height = 0;
 
         // The value is the chain work of the SpaceXpanse testnet chain at height
         // 110'000 with best block hash:
@@ -518,6 +530,11 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 0; // No activation delay
 
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].bit = 3;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].min_activation_height = 0;
+
         consensus.nAuxpowChainId = 1899;
 
         consensus.rules.reset(new Consensus::TestNetConsensus());
@@ -619,6 +636,11 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 0; // No activation delay
+
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].bit = 3;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
+        consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].min_activation_height = 0;
 
         consensus.nMinimumChainWork = uint256{};
         consensus.defaultAssumeValid = uint256{};

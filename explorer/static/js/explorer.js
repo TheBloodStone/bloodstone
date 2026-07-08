@@ -80,6 +80,10 @@ function updateQuasarPanel(data) {
     const st = data.braid_index.braid_status || "—";
     indexEl.textContent = h ? `h${h} · ${st}` : "not synced";
   }
+  const signalEl = document.getElementById("quasar-signaling");
+  if (signalEl && data.signaling) {
+    signalEl.textContent = `${data.signaling.signaling_blocks || 0}/${data.signaling.threshold_blocks || 1815} · ${data.signaling.state || "defined"}`;
+  }
   const updatedEl = document.getElementById("quasar-updated");
   if (updatedEl) {
     const phase = data.phase ? `Phase ${data.phase}` : "Phase 3";

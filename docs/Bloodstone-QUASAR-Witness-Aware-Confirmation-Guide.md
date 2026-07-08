@@ -1,7 +1,7 @@
 # Bloodstone QUASAR — Witness-Aware Confirmation Guide
 
 **Audience:** CEX integrators, custody engineers, GleecDEX / AtomicDEX operators  
-**Phase:** QUASAR 3 (live) — braid index, spend enforcement, witness capsules, LAN echo, tripwires
+**Phase:** QUASAR 4 (live) — fork signaling rehearsal, braid index, spend enforcement, witness, LAN echo, tripwires
 **Updated:** July 2026
 
 ---
@@ -27,7 +27,9 @@ QUASAR Phase 1 adds a **software policy layer** so exchanges do not credit depos
 | `GET /api/quasar/alerts` | Active anomaly tripwire alerts |
 | `GET /api/quasar/braid-index` | Persistent epoch braid index (`?sync=1` to refresh) |
 | `POST /api/quasar/enforcement/check` | Spend policy gate — `{"amount_stone": N}` |
-| `GET /api/quasar/activation` | Soft-fork deployment descriptor (research) |
+| `GET /api/quasar/activation` | Soft-fork deployment descriptor |
+| `GET /api/quasar/signaling` | Miner version-bit signaling (bit 3) |
+| `GET /api/quasar/fork-rehearsal` | Testnet rehearsal readiness |
 
 Poll status every **60–120 seconds** (or on each deposit detection). Cache TTL on the server is ~45s.
 
