@@ -653,6 +653,21 @@ def index():
     )
 
 
+@app.route("/quasar/")
+def quasar_page():
+    downloads_base = os.environ.get(
+        "BLOODSTONE_PUBLIC_DOWNLOADS_BASE",
+        f"{PUBLIC_ROOT.rstrip('/')}/downloads",
+    )
+    return render_template(
+        "quasar.html",
+        public_root=PUBLIC_ROOT,
+        downloads_base=downloads_base.rstrip("/"),
+        coin_icon_url=bloodstone_branding.coin_icon_url(PUBLIC_ROOT),
+        updated=bloodstone_time.now_pacific(),
+    )
+
+
 @app.route("/exchange/")
 def exchange_page():
     listing = exchange_listing()

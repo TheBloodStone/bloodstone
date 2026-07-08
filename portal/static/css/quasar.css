@@ -1,0 +1,220 @@
+/* QUASAR 51% defense landing — extends portal.css */
+
+.quasar-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid #3d3520;
+  background:
+    radial-gradient(ellipse 120% 80% at 10% -20%, rgba(212, 160, 23, 0.22) 0%, transparent 55%),
+    radial-gradient(ellipse 80% 60% at 90% 110%, rgba(110, 181, 255, 0.12) 0%, transparent 50%),
+    linear-gradient(165deg, #12141a 0%, #0d0f14 45%, #141820 100%);
+  padding: 2.5rem 2rem 2.25rem;
+  margin-bottom: 2rem;
+}
+
+.quasar-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(212, 160, 23, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(212, 160, 23, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.quasar-hero-inner {
+  position: relative;
+  z-index: 1;
+  max-width: 52rem;
+}
+
+.quasar-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #111;
+  background: linear-gradient(90deg, var(--accent-soft), var(--accent));
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  margin-bottom: 1rem;
+}
+
+.quasar-hero h1 {
+  font-size: clamp(2rem, 5vw, 3.1rem);
+  line-height: 1.08;
+  margin: 0 0 0.75rem;
+  letter-spacing: -0.02em;
+}
+
+.quasar-hero h1 em {
+  font-style: normal;
+  color: var(--accent-soft);
+}
+
+.quasar-tagline {
+  font-size: clamp(1.05rem, 2.5vw, 1.35rem);
+  color: var(--muted);
+  margin: 0 0 1.25rem;
+  max-width: 42ch;
+}
+
+.quasar-punch {
+  font-size: 1.05rem;
+  color: var(--text);
+  border-left: 3px solid var(--accent);
+  padding-left: 1rem;
+  margin: 0 0 1.5rem;
+  max-width: 48ch;
+}
+
+.quasar-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-bottom: 1.25rem;
+}
+
+.quasar-cta-primary {
+  background: var(--accent);
+  color: #111 !important;
+  font-weight: 700;
+  padding: 0.65rem 1.2rem;
+  border-radius: var(--radius);
+  text-decoration: none !important;
+}
+
+.quasar-cta-secondary {
+  border: 1px solid var(--border);
+  color: var(--text) !important;
+  padding: 0.65rem 1.2rem;
+  border-radius: var(--radius);
+  text-decoration: none !important;
+}
+
+.quasar-cta-secondary:hover {
+  border-color: var(--accent-soft);
+}
+
+.quasar-built-with {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.quasar-built-with strong {
+  color: var(--accent-soft);
+}
+
+.hydra-stack {
+  display: grid;
+  gap: 0.45rem;
+  margin: 1.5rem 0 0;
+  max-width: 28rem;
+}
+
+.hydra-layer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(21, 25, 34, 0.85);
+  font-size: 0.88rem;
+}
+
+.hydra-layer.live {
+  border-color: #2d5a3a;
+  background: rgba(30, 50, 38, 0.5);
+}
+
+.hydra-layer.phase {
+  border-color: #3a3550;
+}
+
+.hydra-num {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--accent-soft);
+  min-width: 1.6rem;
+}
+
+.hydra-status {
+  margin-left: auto;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.hydra-status.live { color: var(--success); }
+.hydra-status.phase { color: #9b8cff; }
+
+.quasar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.quasar-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.15rem;
+}
+
+.quasar-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  color: var(--accent-soft);
+}
+
+.quasar-card p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.scenario-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.scenario-table th,
+.scenario-table td {
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.scenario-table th {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.scenario-outcome {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.quasar-footer-quote {
+  text-align: center;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--accent-soft);
+  margin: 2.5rem 0 1rem;
+  padding: 1.5rem;
+  border: 1px dashed #3d3520;
+  border-radius: var(--radius);
+}

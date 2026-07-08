@@ -1,0 +1,121 @@
+=== BLOODSTONE QUASAR — X/TWITTER THREAD ===
+Paste each block as a separate post. Link: https://bloodstonewallet.mytunnel.org/quasar/
+
+--- POST 1/12 ---
+Most chains: "get 51% hashrate, you win."
+
+Bloodstone: "which hashrate? which market? which tip did the phones see? which mesh anchor did you forge? which LAN echoed a different reality?"
+
+We built QUASAR — a 7-layer immune system against 51% attacks.
+
+🧵👇
+
+--- POST 2/12 ---
+A 51% attack isn't magic. It's a budget problem:
+
+Can you build a private fork with MORE valid work than the public chain — and outrun honest propagation long enough to double-spend?
+
+On Bloodstone, that budget is absurd.
+
+--- POST 3/12 ---
+L1 LIVE: Triple-purpose PoW
+
+• SHA256d (merge-mined auxpow)
+• Neoscrypt (GPU/CPU)
+• Yespower (phones, laptops, Pi)
+
+Kill one lane? The other two keep producing blocks.
+
+You cannot silence the chain by winning ONE marketplace.
+
+--- POST 4/12 ---
+L2 LIVE: The work tensor
+
+Chain tip ≠ "longest chain."
+
+It's MOST WEIGHTED WORK.
+
+SHA256d is deliberately down-weighted vs CPU lanes.
+
+Rent 80% of SHA256? You're winning the loud section of the orchestra — not the score.
+
+--- POST 5/12 ---
+L3–L7: The QUASAR envelope (rolling out)
+
+• Epoch braid finality — 3-algo time braid, not one height
+• Mesh witness capsules — BSM1-anchored "I saw this block"
+• LAN echo quorum — Wi‑Fi nodes cross-check the tip
+• Exchange witness policy — deposits wait for reality
+• Pool tripwires — scream when SHA256 rent spikes
+
+--- POST 6/12 ---
+Scene: Attacker rents SHA256 and tries a 6-block reorg.
+
+L2: still needs CPU lane work
+L3: braid skew → deferred finality
+L4–L5: mesh + LAN disagree with private fork
+L6: exchange won't credit shallow confirms
+L7: tripwire already fired
+
+Outcome: expensive, loud, slow. Bad business.
+
+--- POST 7/12 ---
+Scene: Attacker Sybils 10,000 fake "nodes."
+
+Fake HTTP peers are cheap.
+
+Mesh witness capsules with anchor fees are not.
+
+LAN Echo needs real mDNS on real Wi‑Fi — not a CSV of VPS IPs.
+
+Sybil budget: $50 → fleet-scale sync theater.
+
+--- POST 8/12 ---
+Scene: "I'll 51% the POOL, not the chain."
+
+Pool dominance ≠ canonical tip on full nodes.
+
+We separate payout drama from consensus truth.
+
+Miners may argue in Discord. The chain stays honest on full nodes.
+
+--- POST 9/12 ---
+What makes this different:
+
+Thousands of Android nodes on household Wi‑Fi.
+Pruned/full bloodstoned on phones.
+LAN stratum + pool coordinator.
+Chain mesh with on-chain BSM1 anchors.
+
+This isn't a hashrate poster. It's a distributed immune system.
+
+--- POST 10/12 ---
+Built with Grok Build — not slides:
+
+✅ Multi-algo consensus in Core
+✅ Fleet Android nodes + LAN mining
+✅ Mesh publication infrastructure
+✅ Beta/LAN-gated OTA (don't blast experiments globally)
+✅ Gated GitLab releases when READY
+
+Software architecture > mood boards.
+
+--- POST 11/12 ---
+For exchanges:
+
+Run YOUR node. Never trust pool RPC alone.
+Poll /api/exchange + witness depth.
+Bump confirmations when SHA256-heavy epochs skew.
+
+One-pager + full white paper:
+https://bloodstonewallet.mytunnel.org/downloads/
+
+--- POST 12/12 ---
+The line for skeptics:
+
+"You don't need 51% of one hash. You need 51% of reality."
+
+Full QUASAR landing + docs:
+https://bloodstonewallet.mytunnel.org/quasar/
+
+Bloodstone · STONE · July 2026

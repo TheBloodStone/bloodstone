@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bloodstone QUASAR — Exchange One-Pager</title>
+  <style>
+    @media print { body { margin: 0.6in; } .no-print { display: none; } }
+    body { font-family: system-ui, sans-serif; max-width: 8in; margin: 1rem auto; color: #111; line-height: 1.4; font-size: 11pt; }
+    h1 { font-size: 1.5rem; color: #5b21b6; margin: 0 0 0.25rem; }
+    .sub { color: #555; margin: 0 0 1rem; font-size: 0.9rem; }
+    h2 { font-size: 1rem; margin: 1.1rem 0 0.4rem; border-bottom: 2px solid #e4e4e7; padding-bottom: 0.2rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin: 0.4rem 0; }
+    th, td { border: 1px solid #ddd; padding: 0.35rem 0.5rem; text-align: left; vertical-align: top; }
+    th { background: #f4f4f5; }
+    .tagline { font-weight: 700; border-left: 4px solid #d4a017; padding-left: 0.75rem; margin: 0.75rem 0; }
+    ul { margin: 0.3rem 0; padding-left: 1.2rem; }
+    li { margin: 0.2rem 0; }
+    a { color: #5b21b6; }
+    footer { margin-top: 1.5rem; font-size: 0.8rem; color: #666; }
+  </style>
+</head>
+<body>
+  <p class="no-print"><a href="https://bloodstonewallet.mytunnel.org/quasar/">← QUASAR hub</a> · Print this page to PDF (Ctrl+P)</p>
+  <h1>Bloodstone QUASAR — Exchange One-Pager</h1>
+  <p class="sub">51% defense summary · v1.0 · July 2026 · https://bloodstonewallet.mytunnel.org/exchange/</p>
+  <p class="tagline">You don't need 51% of one hash. You need 51% of reality.</p>
+
+  <h2>Listing quick facts</h2>
+  <table>
+    <tr><th>Item</th><th>Value</th></tr>
+    <tr><td>Ticker</td><td>STONE</td></tr>
+    <tr><td>PoW</td><td>SHA256d (auxpow) + Neoscrypt + Yespower</td></tr>
+    <tr><td>Default deposit confirms</td><td>6 — increase per QUASAR signals</td></tr>
+    <tr><td>Listing JSON</td><td>/api/exchange</td></tr>
+    <tr><td>ElectrumX SSL</td><td>ssl://bloodstonewallet.mytunnel.org:50002</td></tr>
+    <tr><td>Never use</td><td>Pool VPS RPC for deposits</td></tr>
+  </table>
+
+  <h2>QUASAR layers</h2>
+  <table>
+    <tr><th>Layer</th><th>Status</th><th>Exchange action</th></tr>
+    <tr><td>L1–L2 Multi-algo + weighted work</td><td>Live</td><td>Three attack markets; SHA256 rent ≠ takeover</td></tr>
+    <tr><td>L3 Epoch braid finality</td><td>Phase 1</td><td>Bump confirms if SHA256-heavy epoch</td></tr>
+    <tr><td>L4–L5 Mesh + LAN witnesses</td><td>Phase 2</td><td>Halt on witness split</td></tr>
+    <tr><td>L6 Exchange witness policy</td><td>Phase 1</td><td>Poll with /api/exchange</td></tr>
+    <tr><td>L7 Pool tripwires</td><td>Phase 2</td><td>Alert on rental spike</td></tr>
+  </table>
+
+  <h2>Integrator checklist</h2>
+  <ul>
+    <li>Deploy <code>bloodstone-exchange-node</code> package (txindex=1, own hot wallet)</li>
+    <li>Poll <code>/api/exchange</code> + (when live) <code>/api/quasar/status</code></li>
+    <li>Compare <code>getblockchaininfo</code> / <code>getchaintips</code> before large credits</li>
+    <li>Read full white paper on /downloads/</li>
+  </ul>
+
+  <h2>Links</h2>
+  <ul>
+    <li><a href="https://bloodstonewallet.mytunnel.org/quasar/">QUASAR landing</a></li>
+    <li><a href="https://bloodstonewallet.mytunnel.org/exchange/">Exchange listing pack</a></li>
+    <li><a href="https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-QUASAR-51-Percent-Defense-White-Paper.md">Full white paper</a></li>
+  </ul>
+
+  <footer>Bloodstone · STONE mainnet · Built with Grok Build</footer>
+</body>
+</html>
