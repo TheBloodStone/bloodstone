@@ -146,7 +146,7 @@ def dashboard_page_html() -> str:
 </head>
 <body>
   <main>
-    <h1>Tenant Dashboard <span class="badge">Wave U</span></h1>
+    <h1>Tenant Dashboard <span class="badge">Wave V</span></h1>
     <p class="meta">Per-author caps across compute, bandwidth, and storage DePIN rails.</p>
     <div>
       <input id="author" placeholder="blurt author" />

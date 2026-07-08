@@ -1180,6 +1180,47 @@ def convergence_tenant_fleet_sign_status_payload() -> Dict[str, Any]:
     return tsign.status_payload()
 
 
+def convergence_tenant_fleet_quorum_status_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_fleet_quorum as tquorum
+
+    return tquorum.status_payload()
+
+
+def convergence_tenant_fleet_quorum_snapshots_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_fleet_quorum as tquorum
+
+    snap = tquorum.build_quorum_snapshot()
+    return {
+        "ok": True,
+        "format": tquorum.QUORUM_FORMAT,
+        "snapshot": snap,
+    }
+
+
+def convergence_tenant_broadcast_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh import tenant_broadcast as tb
+
+    return tb.broadcast_tenant_payload(payload)
+
+
+def convergence_tenant_broadcast_queue_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_broadcast as tb
+
+    return tb.prepare_tenant_broadcast_queue()
+
+
+def convergence_tenant_sync_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_broadcast as tb
+
+    return tb.sync_registry_tenants()
+
+
+def convergence_tenant_broadcast_status_payload() -> Dict[str, Any]:
+    from chain_mesh import tenant_broadcast as tb
+
+    return tb.status_payload()
+
+
 def convergence_tenant_dashboard_page_payload() -> str:
     from chain_mesh import tenant_dashboard as tdash
 

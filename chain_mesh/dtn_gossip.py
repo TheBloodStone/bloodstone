@@ -141,6 +141,16 @@ def build_exchange_payload() -> Dict[str, Any]:
     except Exception:
         pass
 
+    tenant_quorum_snapshots: List[Dict[str, Any]] = []
+    try:
+        from chain_mesh import tenant_fleet_quorum as tquorum
+
+        snap = tquorum.build_quorum_snapshot()
+        if snap:
+            tenant_quorum_snapshots.append(snap)
+    except Exception:
+        pass
+
     return {
         "ok": True,
         "format": GOSSIP_FORMAT,
@@ -152,6 +162,7 @@ def build_exchange_payload() -> Dict[str, Any]:
         "quorum_snapshots": quorum_snapshots,
         "ai_provider_snapshots": ai_provider_snapshots,
         "tenant_snapshots": tenant_snapshots,
+        "tenant_quorum_snapshots": tenant_quorum_snapshots,
         "max_hops": GOSSIP_MAX_HOPS,
         "rumor_ttl_sec": GOSSIP_RUMOR_TTL_SEC,
     }
@@ -287,14 +298,27 @@ def ingest_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         pass
 
     tenant_votes = 0
+    tenant_quorum_votes = 0
     try:
-        from chain_mesh import tenant_fleet_sync as tfleet
+        from chain_mesh import tenant_fleet_quorum as tquorum
 
         snaps = [
             row for row in (payload.get("tenant_snapshots") or []) if isinstance(row, dict)
         ]
-        ingest_t = tfleet.ingest_tenant_snapshots(snaps)
-        tenant_votes = int(ingest_t.get("recorded") or 0)
+        ingest_t = tquorum.ingest_with_quorum(
+            snaps, reporter_node_id=str(payload.get("node_id") or "")
+        )
+        if tquorum.QUORUM_ENFORCE:
+            tenant_votes = int((ingest_t.get("applied") or {}).get("applied") or 0)
+        else:
+            tenant_votes = int((ingest_t.get("ingest") or {}).get("recorded") or 0)
+        quorum_snaps = [
+            row
+            for row in (payload.get("tenant_quorum_snapshots") or [])
+            if isinstance(row, dict)
+        ]
+        ingest_q = tquorum.ingest_quorum_snapshots(quorum_snaps)
+        tenant_quorum_votes = int(ingest_q.get("votes_recorded") or 0)
     except Exception:
         pass
 
@@ -308,6 +332,7 @@ def ingest_exchange_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "quorum_votes_recorded": quorum_votes,
         "ai_providers_recorded": ai_votes,
         "tenant_bindings_recorded": tenant_votes,
+        "tenant_quorum_votes_recorded": tenant_quorum_votes,
         "reply": build_exchange_payload(),
     }
 

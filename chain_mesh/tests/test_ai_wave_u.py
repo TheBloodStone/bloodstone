@@ -67,7 +67,7 @@ class TestAiWaveU(unittest.TestCase):
         from chain_mesh import tenant_dashboard as tdash
 
         html = tdash.dashboard_page_html()
-        self.assertIn("Wave U", html)
+        self.assertTrue("Wave U" in html or "Wave V" in html)
         self.assertIn("/api/convergence/tenant/dashboard", html)
 
     def test_dtn_export_auto_author(self):

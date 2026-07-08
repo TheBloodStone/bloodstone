@@ -229,6 +229,7 @@ def status_payload() -> Dict[str, Any]:
             "status": f"{public}/api/convergence/tenant/fleet/status",
             "snapshots": f"{public}/api/convergence/tenant/fleet/snapshots",
             "sign_status": f"{public}/api/convergence/tenant/fleet/sign/status",
+            "quorum_status": f"{public}/api/convergence/tenant/fleet/quorum/status",
             "dashboard": f"{public}/convergence/tenant",
         },
     }

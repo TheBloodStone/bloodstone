@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wave U — OpenAI-compatible inference shim with NPU-aware ONNX / TFLite / llama.cpp delegates."""
+"""Wave V — OpenAI-compatible inference shim with Hailo/Coral NPU execution delegates."""
 
 from __future__ import annotations
 
@@ -22,6 +22,20 @@ TIMEOUT_SEC = max(5, int(os.environ.get("AI_INFERENCE_TIMEOUT_SEC", "120")))
 
 _DELEGATES: Dict[str, bool] = {}
 _NPU_RUNTIMES: List[str] = []
+_NPU_HARDWARE: Dict[str, Any] = {}
+
+
+def _npu_hardware() -> Dict[str, Any]:
+    global _NPU_HARDWARE
+    if _NPU_HARDWARE:
+        return _NPU_HARDWARE
+    try:
+        from chain_mesh import ai_npu_detect as npu
+
+        _NPU_HARDWARE = npu.detect_npu_hardware()
+    except Exception:
+        _NPU_HARDWARE = {"ok": True, "hardware": {"kind": "cpu"}, "runtimes": []}
+    return _NPU_HARDWARE
 
 
 def _npu_runtime_prefs() -> List[str]:
@@ -50,47 +64,97 @@ def _probe_delegates() -> Dict[str, bool]:
     global _DELEGATES
     if _DELEGATES:
         return _DELEGATES
+    hw = _npu_hardware().get("hardware") or {}
+    kind = str(hw.get("kind") or "cpu").lower()
     delegates = {
         "llama.cpp": bool(LLAMA_URL),
         "cpu-inference": True,
         "onnx": False,
         "tflite": False,
+        "hailo-onnx": False,
+        "coral-tflite": False,
     }
+    try:
+        import onnxruntime as ort  # noqa: F401
+
+        delegates["onnx"] = True
+        if kind in ("hailo", "hybrid"):
+            providers = ort.get_available_providers()
+            delegates["hailo-onnx"] = any("hailo" in p.lower() for p in providers)
+            if not delegates["hailo-onnx"]:
+                delegates["hailo-onnx"] = bool(hw.get("devices") or hw.get("hailo"))
+    except Exception:
+        pass
+    try:
+        try:
+            import tflite_runtime.interpreter as tflite  # noqa: F401
+        except ImportError:
+            import tensorflow as tf  # noqa: F401
+
+        delegates["tflite"] = True
+        if kind in ("coral", "hybrid"):
+            delegates["coral-tflite"] = bool(hw.get("devices") or hw.get("coral"))
+    except Exception:
+        pass
     if ONNX_MODEL and os.path.isfile(ONNX_MODEL):
-        try:
-            import onnxruntime  # noqa: F401
-
-            delegates["onnx"] = True
-        except Exception:
-            delegates["onnx"] = False
-    else:
-        try:
-            import onnxruntime  # noqa: F401
-
-            delegates["onnx"] = True
-        except Exception:
-            pass
+        delegates["onnx"] = True
     if TFLITE_MODEL and os.path.isfile(TFLITE_MODEL):
-        try:
-            import tflite_runtime.interpreter as tflite  # noqa: F401
-
-            delegates["tflite"] = True
-        except Exception:
-            try:
-                import tensorflow as tf  # noqa: F401
-
-                delegates["tflite"] = bool(tf.lite)
-            except Exception:
-                pass
-    else:
-        try:
-            import tflite_runtime.interpreter as tflite  # noqa: F401
-
-            delegates["tflite"] = True
-        except Exception:
-            pass
+        delegates["tflite"] = True
     _DELEGATES = delegates
     return delegates
+
+
+def _onnx_execution_providers() -> List[str]:
+    hw = _npu_hardware().get("hardware") or {}
+    kind = str(hw.get("kind") or "cpu").lower()
+    providers = ["CPUExecutionProvider"]
+    if kind in ("hailo", "hybrid"):
+        try:
+            import onnxruntime as ort
+
+            for name in ort.get_available_providers():
+                if "hailo" in name.lower():
+                    return [name, "CPUExecutionProvider"]
+        except Exception:
+            pass
+        if hw.get("devices") or hw.get("hailo"):
+            return ["HailoExecutionProvider", "CPUExecutionProvider"]
+    return providers
+
+
+def _tflite_interpreter(model_path: str):
+    delegate = None
+    hw = _npu_hardware().get("hardware") or {}
+    kind = str(hw.get("kind") or "cpu").lower()
+    if kind in ("coral", "hybrid"):
+        lib = (os.environ.get("CORAL_EDGETPU_LIB") or "").strip()
+        candidates = [lib] if lib else [
+            "/usr/lib/aarch64-linux-gnu/libedgetpu.so.1",
+            "/usr/lib/libedgetpu.so.1",
+        ]
+        for path in candidates:
+            if path and os.path.isfile(path):
+                try:
+                    from tflite_runtime.interpreter import load_delegate
+
+                    delegate = load_delegate(path)
+                    break
+                except Exception:
+                    try:
+                        import tensorflow as tf  # type: ignore
+
+                        delegate = tf.lite.experimental.load_delegate(path)
+                        break
+                    except Exception:
+                        pass
+    try:
+        from tflite_runtime.interpreter import Interpreter
+    except ImportError:
+        from tensorflow.lite import Interpreter  # type: ignore
+
+    if delegate is not None:
+        return Interpreter(model_path=model_path, experimental_delegates=[delegate])
+    return Interpreter(model_path=model_path)
 
 
 def _infer_runtime(body: Dict[str, Any]) -> str:
@@ -139,7 +203,8 @@ def _onnx_completion(body: Dict[str, Any], *, stub_only: bool = False) -> Dict[s
             import numpy as np
             import onnxruntime as ort
 
-            session = ort.InferenceSession(ONNX_MODEL, providers=["CPUExecutionProvider"])
+            providers = _onnx_execution_providers()
+            session = ort.InferenceSession(ONNX_MODEL, providers=providers)
             inputs = session.get_inputs()
             if inputs:
                 shape = [1]
@@ -147,7 +212,8 @@ def _onnx_completion(body: Dict[str, Any], *, stub_only: bool = False) -> Dict[s
                     shape.append(int(dim) if isinstance(dim, int) and dim > 0 else 8)
                 arr = np.zeros(shape, dtype=np.float32)
                 outputs = session.run(None, {inputs[0].name: arr})
-                text = f"ONNX inference ok ({len(outputs)} outputs) for: {prompt[:80]}"
+                provider = providers[0] if providers else "CPUExecutionProvider"
+                text = f"ONNX/{provider} inference ok ({len(outputs)} outputs) for: {prompt[:80]}"
             else:
                 text = f"ONNX session ready for: {prompt[:80]}"
         except Exception as exc:
@@ -167,9 +233,14 @@ def _tflite_completion(body: Dict[str, Any], *, stub_only: bool = False) -> Dict
             except ImportError:
                 from tensorflow.lite import Interpreter  # type: ignore
 
-            interpreter = Interpreter(model_path=TFLITE_MODEL)
+            interpreter = _tflite_interpreter(TFLITE_MODEL)
             interpreter.allocate_tensors()
-            text = f"TFLite inference ready ({len(interpreter.get_input_details())} inputs) for: {prompt[:80]}"
+            hw = _npu_hardware().get("hardware") or {}
+            kind = str(hw.get("kind") or "cpu")
+            text = (
+                f"TFLite/{kind} inference ready "
+                f"({len(interpreter.get_input_details())} inputs) for: {prompt[:80]}"
+            )
         except Exception as exc:
             text = f"TFLite delegate error: {exc}"
     else:
@@ -250,7 +321,8 @@ class InferenceHandler(BaseHTTPRequestHandler):
                     "port": PORT,
                     "delegates": _probe_delegates(),
                     "npu_runtimes": _npu_runtime_prefs(),
-                    "wave": "U",
+                    "npu_hardware": (_npu_hardware().get("hardware") or {}),
+                    "wave": "V",
                 },
             )
             return
@@ -261,6 +333,7 @@ class InferenceHandler(BaseHTTPRequestHandler):
                     "ok": True,
                     "delegates": _probe_delegates(),
                     "npu_runtimes": _npu_runtime_prefs(),
+                    "npu_hardware": (_npu_hardware().get("hardware") or {}),
                 },
             )
             return

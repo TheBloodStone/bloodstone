@@ -13,6 +13,8 @@ from chain_mesh import ai_routing as ai
 from chain_mesh import bandwidth_tenant_quota as bwtenant
 from chain_mesh import compute_tenant_quota as tenant
 from chain_mesh import storage_tenant_quota as stenant
+from chain_mesh import tenant_broadcast as tbroadcast
+from chain_mesh import tenant_fleet_quorum as tquorum
 from chain_mesh import bridge_swap as bridge
 from chain_mesh import condenser_offline as coff
 from chain_mesh import blurt_registry_v2 as br
@@ -59,6 +61,10 @@ def main() -> int:
     stenant_sync = stenant.sync_bindings_from_jobs()
     ai_provider_sync = aip.sync_registry_providers()
     ai_broadcast_queue = aip.prepare_broadcast_queue()
+    tenant_broadcast_queue = tbroadcast.prepare_tenant_broadcast_queue()
+    tenant_registry_sync = tbroadcast.sync_registry_tenants()
+    tenant_quorum = tquorum.update_quorum_state()
+    tenant_quorum_apply = tquorum.apply_satisfied_bindings()
     ai_upkeep = ai.upkeep_ai()
     dtn_upkeep = dtn.upkeep_dtn(
         force_flush=os.environ.get("DTN_AUTO_FLUSH", "0").strip() in ("1", "true", "yes")
@@ -90,6 +96,10 @@ def main() -> int:
         "stenant_bound=" + str(stenant_sync.get("bound", 0)),
         "ai_providers_synced=" + str(ai_provider_sync.get("indexed", 0)),
         "ai_broadcast_queue=" + str(ai_broadcast_queue.get("count", 0)),
+        "tenant_broadcast_queue=" + str(tenant_broadcast_queue.get("count", 0)),
+        "tenant_manifest_synced=" + str(tenant_registry_sync.get("indexed", 0)),
+        "tenant_quorum_satisfied=" + str(tenant_quorum.get("pairs_satisfied", 0)),
+        "tenant_quorum_applied=" + str(tenant_quorum_apply.get("applied", 0)),
     )
     return 0
 

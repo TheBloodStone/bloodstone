@@ -345,6 +345,31 @@ curl -fsS http://127.0.0.1:8081/v1/runtimes | jq .
 
 **DTN export** auto-resolves `blurt_author` from tenant bindings when only `stone_address` is set.
 
+### Wave V — tenant quorum + Blurt manifest broadcast + NPU execution
+
+**Fleet quorum** — N-of-M signed tenant snapshots before bindings apply:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/tenant/fleet/quorum/status | jq .
+curl -fsS http://127.0.0.1:8887/api/convergence/tenant/fleet/quorum/snapshots | jq .
+```
+
+**Blurt tenant manifest** (`bloodstone_tenant_manifest/v1`) broadcast queue:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/tenant/broadcast/queue | jq .
+curl -X POST http://127.0.0.1:8887/api/convergence/tenant/broadcast \
+  -H 'Content-Type: application/json' \
+  -d '{"blurt_author":"meshops","flops_cap":5000000,"bandwidth_bytes_cap":100000000}'
+curl -X POST http://127.0.0.1:8887/api/convergence/tenant/sync
+```
+
+**Hailo/Coral execution** in inference shim (not just detection):
+
+```bash
+curl -fsS http://127.0.0.1:8081/health | jq '.wave,.delegates,.npu_hardware'
+```
+
 ### Coordinator AI dispatch (Wave N)
 
 When no local provider matches and uplink is stable, edge nodes HTTP-dispatch to the coordinator instead of queue-only fallback:

@@ -2374,6 +2374,58 @@ def convergence_tenant_dashboard_page():
     return cm.convergence_tenant_dashboard_page_payload()
 
 
+@app.route("/api/convergence/tenant/fleet/quorum/status")
+@app.route("/mining/api/convergence/tenant/fleet/quorum/status")
+def api_convergence_tenant_fleet_quorum_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_fleet_quorum_status_payload())
+
+
+@app.route("/api/convergence/tenant/fleet/quorum/snapshots")
+@app.route("/mining/api/convergence/tenant/fleet/quorum/snapshots")
+def api_convergence_tenant_fleet_quorum_snapshots():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_fleet_quorum_snapshots_payload())
+
+
+@app.route("/api/convergence/tenant/broadcast", methods=["POST"])
+@app.route("/mining/api/convergence/tenant/broadcast", methods=["POST"])
+def api_convergence_tenant_broadcast():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_tenant_broadcast_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/tenant/broadcast/queue")
+@app.route("/mining/api/convergence/tenant/broadcast/queue")
+def api_convergence_tenant_broadcast_queue():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_broadcast_queue_payload())
+
+
+@app.route("/api/convergence/tenant/broadcast/status")
+@app.route("/mining/api/convergence/tenant/broadcast/status")
+def api_convergence_tenant_broadcast_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_broadcast_status_payload())
+
+
+@app.route("/api/convergence/tenant/sync", methods=["POST"])
+@app.route("/mining/api/convergence/tenant/sync", methods=["POST"])
+def api_convergence_tenant_sync():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_tenant_sync_payload())
+
+
 @app.route("/api/convergence/compute/job/status")
 @app.route("/mining/api/convergence/compute/job/status")
 def api_convergence_compute_job_status():
