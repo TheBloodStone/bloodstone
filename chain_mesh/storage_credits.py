@@ -109,11 +109,29 @@ def credit_from_blurt_transfer(
         return {"ok": True, "id": int(cur.lastrowid), "stone_address": addr, "bytes_credited": credited}
 
 
-def record_usage(stone_address: str, *, delta_bytes: int) -> Dict[str, Any]:
+def record_usage(
+    stone_address: str,
+    *,
+    delta_bytes: int,
+    blurt_author: str = "",
+    tenant_id: str = "",
+) -> Dict[str, Any]:
     init_storage_credits_db()
     addr = (stone_address or "").strip()
     delta = int(delta_bytes)
     now = _now()
+    if (blurt_author or "").strip():
+        try:
+            from chain_mesh import storage_tenant_quota as tenant
+
+            tenant.record_tenant_storage_usage(
+                blurt_author=str(blurt_author),
+                stone_address=addr,
+                delta_bytes=delta,
+                tenant_id=str(tenant_id or ""),
+            )
+        except Exception:
+            pass
     with _conn() as conn:
         row = conn.execute(
             "SELECT bytes_used FROM storage_usage WHERE stone_address = ?",
@@ -158,7 +176,25 @@ def quota_summary(stone_address: str) -> Dict[str, Any]:
     }
 
 
-def check_publish_allowed(stone_address: str, file_size: int) -> Dict[str, Any]:
+def check_publish_allowed(
+    stone_address: str,
+    file_size: int,
+    *,
+    blurt_author: str = "",
+    tenant_id: str = "",
+) -> Dict[str, Any]:
+    if (blurt_author or "").strip():
+        try:
+            from chain_mesh import storage_tenant_quota as tenant
+
+            return tenant.check_tenant_storage_allowed(
+                stone_address=stone_address,
+                byte_size=int(file_size),
+                blurt_author=str(blurt_author or ""),
+                tenant_id=str(tenant_id or ""),
+            )
+        except Exception:
+            pass
     q = quota_summary(stone_address)
     if not ENFORCE_QUOTA or not stone_address:
         return {"ok": True, "allowed": True, "quota": q, "reason": "quota enforcement off"}

@@ -823,7 +823,12 @@ def partner_publish_asset_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     asset_key = require_blurt_partner_asset_key(str(payload.get("asset_key") or ""))
     stone_address = str(payload.get("stone_address") or payload.get("payer_stone") or "").strip()
     file_size = int(payload.get("file_size") or 0)
-    quota_check = sc.check_publish_allowed(stone_address, file_size)
+    quota_check = sc.check_publish_allowed(
+        stone_address,
+        file_size,
+        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+        tenant_id=str(payload.get("tenant_id") or ""),
+    )
     if not quota_check.get("allowed"):
         raise PermissionError(quota_check.get("reason") or "storage quota exceeded")
 
@@ -843,7 +848,12 @@ def partner_publish_asset_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     )
     if result.get("ok"):
         if stone_address and file_size > 0:
-            sc.record_usage(stone_address, delta_bytes=file_size)
+            sc.record_usage(
+                stone_address,
+                delta_bytes=file_size,
+                blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+                tenant_id=str(payload.get("tenant_id") or ""),
+            )
             result["storage_quota"] = sc.quota_summary(stone_address)
         try:
             v2_pack = v2.after_partner_publish(
@@ -867,6 +877,38 @@ def convergence_storage_quota_payload(stone_address: str) -> Dict[str, Any]:
     from chain_mesh import storage_credits as sc
 
     return sc.quota_summary(stone_address)
+
+
+def convergence_storage_tenant_quota_payload(
+    *,
+    tenant_id: str = "",
+    blurt_author: str = "",
+    stone_address: str = "",
+) -> Dict[str, Any]:
+    from chain_mesh import storage_tenant_quota as tenant
+
+    return tenant.tenant_quota(
+        tenant_id=tenant_id,
+        blurt_author=blurt_author,
+        stone_address=stone_address,
+    )
+
+
+def convergence_storage_tenant_bind_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from chain_mesh import storage_tenant_quota as tenant
+
+    return tenant.bind_tenant_author(
+        tenant_id=str(payload.get("tenant_id") or ""),
+        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+        stone_address=str(payload.get("stone_address") or ""),
+        bytes_cap=int(payload.get("bytes_cap") or payload.get("cap") or 0),
+    )
+
+
+def convergence_storage_tenant_status_payload() -> Dict[str, Any]:
+    from chain_mesh import storage_tenant_quota as tenant
+
+    return tenant.status_payload()
 
 
 def convergence_storage_sync_payload() -> Dict[str, Any]:

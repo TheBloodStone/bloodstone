@@ -1450,6 +1450,43 @@ def build_gossip_snapshots() -> List[Dict[str, Any]]:
     return gsign.sign_snapshots(snaps)
 
 
+def ingest_route_assignments(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    init_ai_routing_db()
+    recorded = 0
+    skipped = 0
+    for row in rows or []:
+        if not isinstance(row, dict):
+            skipped += 1
+            continue
+        jid = str(row.get("job_id") or "").strip()
+        if not jid:
+            skipped += 1
+            continue
+        existing = get_current_route_assignment(job_id=jid)
+        ex_updated = int((existing or {}).get("updated_at") or 0)
+        row_updated = int(row.get("updated_at") or 0)
+        if existing and ex_updated >= row_updated:
+            skipped += 1
+            continue
+        route_json = row.get("route_json")
+        if isinstance(route_json, str):
+            try:
+                route_json = json.loads(route_json)
+            except Exception:
+                route_json = {}
+        sync_compute_job_route(
+            job_id=jid,
+            provider_id=str(row.get("provider_id") or ""),
+            route_status=str(row.get("route_status") or "pending"),
+            score=float(row.get("score") or 0),
+            reason=str(row.get("reason") or "dtn_import"),
+            offline_mode=bool(int(row.get("offline_mode") or 0)),
+            route_json=route_json if isinstance(route_json, dict) else {},
+        )
+        recorded += 1
+    return {"ok": True, "recorded": recorded, "skipped": skipped}
+
+
 def ingest_gossip_snapshots(snapshots: List[Dict[str, Any]]) -> Dict[str, Any]:
     from chain_mesh import ai_gossip_sign as gsign
 
@@ -1542,7 +1579,7 @@ def status_payload(*, include_uplink: bool = True) -> Dict[str, Any]:
         "uplink": uplink,
         "providers_count": providers_count,
         "last_upkeep": dict(_LAST_UPKEEP),
-        "wave": "Q",
+        "wave": "R",
         "coordinator_dispatch": AI_COORDINATOR_DISPATCH_ENABLE,
         "coordinator_node": _is_coordinator_node(),
         "gossip_sign": _gossip_sign_status(),

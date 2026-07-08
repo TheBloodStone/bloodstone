@@ -340,6 +340,34 @@ def _import_post_manifests(rows: List[Dict[str, Any]]) -> int:
     return coff.import_post_manifest_rows(rows)
 
 
+def _collect_ai_route_assignments(*, since: int) -> List[Dict[str, Any]]:
+    try:
+        from chain_mesh import ai_routing as ai
+
+        ai.init_ai_routing_db()
+        with _conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT job_id, stone_address, provider_id, route_status, score, reason,
+                       uplink_available, offline_mode, route_json, created_at, updated_at
+                FROM ai_route_assignments
+                WHERE is_current = 1 AND updated_at >= ?
+                ORDER BY updated_at ASC
+                """,
+                (since,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+def _import_ai_route_assignments(rows: List[Dict[str, Any]]) -> int:
+    from chain_mesh import ai_routing as ai
+
+    result = ai.ingest_route_assignments(rows)
+    return int(result.get("recorded") or 0)
+
+
 def _collect_ai_providers(*, since: int) -> List[Dict[str, Any]]:
     try:
         from chain_mesh import ai_provider as aip
@@ -482,6 +510,14 @@ def build_dtn_bundle(
     compute_rows = _collect_compute_jobs(since=watermark)
     post_rows = _collect_post_manifests(since=watermark)
     ai_provider_rows = _collect_ai_providers(since=watermark)
+    ai_route_rows: List[Dict[str, Any]] = []
+    try:
+        from chain_mesh import ai_routing as ai
+
+        if ai.AI_DTN_EXPORT_ROUTES:
+            ai_route_rows = _collect_ai_route_assignments(since=watermark)
+    except Exception:
+        ai_route_rows = []
     chunk_hashes = _chunk_hashes_from_anchors(blurt_anchors)
 
     meta = {
@@ -499,6 +535,7 @@ def build_dtn_bundle(
         "compute_job_count": len(compute_rows),
         "post_manifest_count": len(post_rows),
         "ai_provider_count": len(ai_provider_rows),
+        "ai_route_count": len(ai_route_rows),
         "chunk_count": len(chunk_hashes),
         "include_chunks": bool(include_chunks),
         "use_case": "off_grid_dtn_mesh",
@@ -517,6 +554,8 @@ def build_dtn_bundle(
         zf.writestr("compute-jobs.json", json.dumps(compute_rows, indent=2))
         zf.writestr("post-manifests.json", json.dumps(post_rows, indent=2))
         zf.writestr("ai-providers.json", json.dumps(ai_provider_rows, indent=2))
+        if ai_route_rows:
+            zf.writestr("ai-route-assignments.json", json.dumps(ai_route_rows, indent=2, default=str))
         zf.writestr(
             "README.txt",
             "Bloodstone DTN sync bundle (Wave C+)\n"
@@ -713,6 +752,9 @@ def import_dtn_bundle(raw: bytes, *, skip_dedup: bool = False) -> Dict[str, Any]
         ai_provider_rows: List[Dict[str, Any]] = []
         if "ai-providers.json" in zf.namelist():
             ai_provider_rows = json.loads(zf.read("ai-providers.json").decode("utf-8"))
+        ai_route_rows: List[Dict[str, Any]] = []
+        if "ai-route-assignments.json" in zf.namelist():
+            ai_route_rows = json.loads(zf.read("ai-route-assignments.json").decode("utf-8"))
         for name in zf.namelist():
             if not name.startswith("chunks/") or not name.endswith(".bin"):
                 continue
@@ -736,6 +778,7 @@ def import_dtn_bundle(raw: bytes, *, skip_dedup: bool = False) -> Dict[str, Any]
     compute_imported = _import_compute_jobs(compute_rows)
     post_imported = _import_post_manifests(post_rows)
     ai_providers_imported = _import_ai_providers(ai_provider_rows)
+    ai_routes_imported = _import_ai_route_assignments(ai_route_rows)
 
     node_id = str(meta.get("node_id") or "imported")
     bundle_id = str(meta.get("bundle_id") or "")
@@ -765,6 +808,7 @@ def import_dtn_bundle(raw: bytes, *, skip_dedup: bool = False) -> Dict[str, Any]
         "compute_jobs_imported": compute_imported,
         "post_manifests_imported": post_imported,
         "ai_providers_imported": ai_providers_imported,
+        "ai_routes_imported": ai_routes_imported,
         "chunks_stored": stored_chunks,
         "total_chunks_in_bundle": len(chunk_pairs),
     }
@@ -1720,7 +1764,7 @@ def status_payload() -> Dict[str, Any]:
     fw = flush_window_status()
     return {
         "ok": True,
-        "wave": "Q",
+        "wave": "R",
         "hardened": True,
         "use_case": "off_grid_dtn_mesh",
         "format": DTN_BUNDLE_FORMAT,

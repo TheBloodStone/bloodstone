@@ -12,6 +12,7 @@ from chain_mesh import ai_provider as aip
 from chain_mesh import ai_routing as ai
 from chain_mesh import bandwidth_tenant_quota as bwtenant
 from chain_mesh import compute_tenant_quota as tenant
+from chain_mesh import storage_tenant_quota as stenant
 from chain_mesh import bridge_swap as bridge
 from chain_mesh import condenser_offline as coff
 from chain_mesh import blurt_registry_v2 as br
@@ -55,6 +56,7 @@ def main() -> int:
     bridge_sync = bridge.sync_bridge_transfers()
     tenant_sync = tenant.sync_bindings_from_jobs()
     bwtenant_sync = bwtenant.sync_bindings_from_jobs()
+    stenant_sync = stenant.sync_bindings_from_jobs()
     ai_provider_sync = aip.sync_registry_providers()
     ai_upkeep = ai.upkeep_ai()
     dtn_upkeep = dtn.upkeep_dtn(
@@ -84,6 +86,7 @@ def main() -> int:
         "ai_routed=" + str(ai_upkeep.get("routed", 0)),
         "tenant_bound=" + str(tenant_sync.get("bound", 0)),
         "bwtenant_bound=" + str(bwtenant_sync.get("bound", 0)),
+        "stenant_bound=" + str(stenant_sync.get("bound", 0)),
         "ai_providers_synced=" + str(ai_provider_sync.get("indexed", 0)),
     )
     return 0

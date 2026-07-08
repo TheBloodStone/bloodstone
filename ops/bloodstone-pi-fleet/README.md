@@ -258,6 +258,24 @@ curl -fsS 'http://127.0.0.1:8887/api/convergence/dtn/export?stone_address=STONE.
 curl -fsS http://127.0.0.1:8887/api/convergence/ai/gossip/sign/status | jq '.fleet_key_configured,.enforcement_mode'
 ```
 
+### Wave R — storage tenant + AI DTN route export
+
+**Multi-tenant storage quota** — per-author byte caps on asset publish:
+
+```bash
+curl -X POST http://127.0.0.1:8887/api/convergence/storage/tenant/bind \
+  -H 'Content-Type: application/json' \
+  -d '{"tenant_id":"bloodstone","blurt_author":"megadrive","stone_address":"STONE...","bytes_cap":5368709120}'
+curl -fsS 'http://127.0.0.1:8887/api/convergence/storage/tenant/quota?blurt_author=megadrive' | jq .
+```
+
+**AI DTN route export** — when `AI_DTN_EXPORT_ROUTES=1`, DTN bundles include `ai-route-assignments.json` for stranded inference jobs:
+
+```bash
+curl -fsS http://127.0.0.1:8887/api/convergence/dtn/status | jq '.wave'
+curl -fsS 'http://127.0.0.1:8887/api/convergence/dtn/export?include_chunks=0' | jq '.meta.ai_route_count'
+```
+
 ### Coordinator AI dispatch (Wave N)
 
 When no local provider matches and uplink is stable, edge nodes HTTP-dispatch to the coordinator instead of queue-only fallback:

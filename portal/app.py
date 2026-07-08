@@ -1042,6 +1042,47 @@ def api_convergence_bandwidth_tenant_bind():
         return jsonify({"ok": False, "error": str(exc)}), 400
 
 
+@app.route("/api/convergence/storage/quota")
+def api_convergence_storage_quota():
+    import chain_mesh.api as cm
+
+    stone = (request.args.get("stone_address") or request.args.get("address") or "").strip()
+    if not stone:
+        return jsonify({"ok": False, "error": "stone_address required"}), 400
+    return jsonify(cm.convergence_storage_quota_payload(stone))
+
+
+@app.route("/api/convergence/storage/tenant/quota")
+def api_convergence_storage_tenant_quota():
+    import chain_mesh.api as cm
+
+    return jsonify(
+        cm.convergence_storage_tenant_quota_payload(
+            tenant_id=str(request.args.get("tenant_id") or ""),
+            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            stone_address=str(request.args.get("stone_address") or ""),
+        )
+    )
+
+
+@app.route("/api/convergence/storage/tenant/status")
+def api_convergence_storage_tenant_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_storage_tenant_status_payload())
+
+
+@app.route("/api/convergence/storage/tenant/bind", methods=["POST"])
+def api_convergence_storage_tenant_bind():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_storage_tenant_bind_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
 @app.route("/api/convergence/depin/quota")
 def api_convergence_depin_quota():
     import chain_mesh.api as cm
