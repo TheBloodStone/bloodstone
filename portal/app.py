@@ -1138,6 +1138,20 @@ def api_convergence_dtn_replication_check():
         return jsonify({"ok": False, "error": str(exc)}), 400
 
 
+@app.route("/api/convergence/dtn/alerts")
+def api_convergence_dtn_alerts():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_dtn_alerts_payload())
+
+
+@app.route("/api/convergence/dtn/tls/status")
+def api_convergence_dtn_tls_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_dtn_tls_status_payload())
+
+
 @app.route("/api/convergence/spatial/manifest", methods=["GET", "POST"])
 def api_convergence_spatial_manifest():
     import chain_mesh.api as cm

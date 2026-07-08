@@ -53,6 +53,7 @@ def main() -> int:
         "dtn_pending=" + str(dtn_upkeep.get("pending", 0)),
         "dtn_delivered=" + str((dtn_upkeep.get("flush") or {}).get("delivered", 0)),
         "dtn_peers=" + str((dtn_upkeep.get("peers") or {}).get("count", 0)),
+        "dtn_alerts=" + str(len((dtn_upkeep.get("alerts") or {}).get("active") or [])),
     )
     return 0
 
