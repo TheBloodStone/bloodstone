@@ -9,6 +9,7 @@ import os
 
 from chain_mesh import agent_identity as agent
 from chain_mesh import blurt_registry_v2 as br
+from chain_mesh import compute_job as cjobs
 from chain_mesh import depin_credits as depin
 from chain_mesh import dtn_sync as dtn
 from chain_mesh import provenance as prov
@@ -23,6 +24,7 @@ def main() -> int:
     agents = agent.sync_registry_agents()
     spatial_sync = spatial.sync_registry_spatial()
     depin_sync = depin.sync_depin_transfers()
+    compute_sync = cjobs.sync_registry_jobs()
     prov_indexed = sum(
         int(a.get("indexed") or 0)
         for a in (provenance.get("accounts") or [])
@@ -31,6 +33,11 @@ def main() -> int:
     agent_indexed = sum(
         int(a.get("indexed") or 0)
         for a in (agents.get("accounts") or [])
+        if a.get("ok")
+    )
+    compute_indexed = sum(
+        int(a.get("indexed") or 0)
+        for a in (compute_sync.get("accounts") or [])
         if a.get("ok")
     )
     spatial_indexed = sum(
@@ -47,6 +54,7 @@ def main() -> int:
         "credits=" + str(credits.get("credited", 0)),
         "provenance_indexed=" + str(prov_indexed),
         "agents_indexed=" + str(agent_indexed),
+        "compute_jobs_indexed=" + str(compute_indexed),
         "spatial_indexed=" + str(spatial_indexed),
         "compute_credited=" + str(depin_sync.get("compute_credited", 0)),
         "bandwidth_credited=" + str(depin_sync.get("bandwidth_credited", 0)),
@@ -54,6 +62,7 @@ def main() -> int:
         "dtn_delivered=" + str((dtn_upkeep.get("flush") or {}).get("delivered", 0)),
         "dtn_peers=" + str((dtn_upkeep.get("peers") or {}).get("count", 0)),
         "dtn_alerts=" + str(len((dtn_upkeep.get("alerts") or {}).get("active") or [])),
+        "dtn_heal=" + str((dtn_upkeep.get("heal") or {}).get("heal_queued", 0)),
     )
     return 0
 

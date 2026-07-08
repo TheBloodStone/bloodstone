@@ -108,6 +108,31 @@ def fork_rehearsal_payload(rpc: Callable, *, persist: bool = False) -> Dict[str,
     return bqf.rehearsal_payload(rpc)
 
 
+def confirmations_payload(rpc: Callable) -> Dict[str, Any]:
+    """QUASAR L6 — exchange witness policy with dynamic deposit confirmations."""
+    status = bq.build_status(rpc, use_cache=True)
+    conf = status.get("confirmations") or {}
+    tripwire = status.get("tripwire") or {}
+    witness = status.get("witness") or {}
+    return {
+        "ok": True,
+        "layer": 6,
+        "phase": int(status.get("phase") or bq.QUASAR_PHASE),
+        "confirmations_deposit": conf.get("base", bq.BASE_CONFIRMATIONS),
+        "confirmations_deposit_recommended": conf.get("recommended_deposit"),
+        "confirmations_withdrawal": conf.get("recommended_withdrawal"),
+        "confirmations_policy": conf.get("policy"),
+        "policy_reason": conf.get("reason"),
+        "witness_bonus": conf.get("witness_bonus"),
+        "witness_status": witness.get("status"),
+        "witness_quorum_depth": witness.get("quorum_depth"),
+        "braid_status": status.get("braid_status"),
+        "tripwire_active": bool(tripwire.get("active")),
+        "tripwire_bump": conf.get("policy") == "tripwire_bump",
+        "exchange_note": "Poll alongside /api/exchange — use confirmations_deposit_recommended for deposits.",
+    }
+
+
 def emit_coordinator_witness(rpc: Callable) -> Dict[str, Any]:
     import os
 

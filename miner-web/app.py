@@ -2175,6 +2175,62 @@ def api_convergence_compute_quota():
     return jsonify(cm.convergence_compute_quota_payload(stone))
 
 
+@app.route("/api/convergence/compute/job/status")
+@app.route("/mining/api/convergence/compute/job/status")
+def api_convergence_compute_job_status():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_compute_job_status_payload())
+
+
+@app.route("/api/convergence/compute/jobs")
+@app.route("/mining/api/convergence/compute/jobs")
+def api_convergence_compute_jobs():
+    import chain_mesh.api as cm
+
+    limit = int(request.args.get("limit") or 30)
+    return jsonify(
+        cm.convergence_compute_jobs_payload(
+            stone_address=(request.args.get("stone_address") or "").strip(),
+            status=(request.args.get("status") or "").strip(),
+            limit=limit,
+        )
+    )
+
+
+@app.route("/api/convergence/compute/job/submit", methods=["POST"])
+@app.route("/mining/api/convergence/compute/job/submit", methods=["POST"])
+def api_convergence_compute_job_submit():
+    import chain_mesh.api as cm
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(cm.convergence_compute_job_submit_payload(payload))
+    except (ValueError, TypeError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/api/convergence/compute/job/verify")
+@app.route("/mining/api/convergence/compute/job/verify")
+def api_convergence_compute_job_verify():
+    import chain_mesh.api as cm
+
+    return jsonify(
+        cm.convergence_compute_job_verify_payload(
+            job_id=(request.args.get("job_id") or "").strip(),
+            stone_address=(request.args.get("stone_address") or "").strip(),
+        )
+    )
+
+
+@app.route("/api/convergence/compute/job/sync", methods=["POST"])
+@app.route("/mining/api/convergence/compute/job/sync", methods=["POST"])
+def api_convergence_compute_job_sync():
+    import chain_mesh.api as cm
+
+    return jsonify(cm.convergence_compute_job_sync_payload())
+
+
 @app.route("/api/convergence/bandwidth/quota")
 @app.route("/mining/api/convergence/bandwidth/quota")
 def api_convergence_bandwidth_quota():
@@ -3810,6 +3866,18 @@ def api_quasar_fork_rehearsal():
     persist = (request.args.get("persist") or "").strip().lower() in ("1", "true", "yes")
     try:
         return jsonify(qapi.fork_rehearsal_payload(node_rpc.rpc, persist=persist))
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 503
+
+
+@app.route("/api/quasar/confirmations")
+@app.route("/mining/api/quasar/confirmations")
+def api_quasar_confirmations():
+    import bloodstone_quasar_api as qapi
+    import node_rpc
+
+    try:
+        return jsonify(qapi.confirmations_payload(node_rpc.rpc))
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 503
 
