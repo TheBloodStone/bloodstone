@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Blurt x Bloodstone Waves A-Z Capstone Summary</title>
+  <style>
+    body { font-family: Georgia, serif; max-width: 52rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.55; color: #1a1a1a; }
+    h1, h2, h3 { font-family: Arial, sans-serif; color: #0d2137; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+    th, td { border: 1px solid #ccc; padding: 0.45rem 0.6rem; text-align: left; vertical-align: top; }
+    th { background: #e8f0f8; }
+    code, pre.code { font-family: ui-monospace, monospace; font-size: 0.9em; background: #f4f4f4; }
+    pre.code { padding: 0.75rem; overflow-x: auto; }
+    a { color: #0b57d0; }
+    hr { border: none; border-top: 1px solid #ddd; margin: 1.5rem 0; }
+  </style>
+</head>
+<body>
+<h1>Blurt x Bloodstone Convergence Stack</h1>
+<h2>Complete Work Summary - Wave A through Capstone Z</h2>
+<p></p>
+<p><strong>Document version:</strong> 1.1</p>
+<p><strong>Date:</strong> July 8, 2026</p>
+<p><strong>Latest release:</strong> v0.36.0-beta (Wave Z - Capstone)</p>
+<p><strong>Live coordinator:</strong> <a href="https://bloodstonewallet.mytunnel.org">https://bloodstonewallet.mytunnel.org</a></p>
+<p><strong>Stack status API:</strong> <a href="https://bloodstonewallet.mytunnel.org/api/convergence/status">https://bloodstonewallet.mytunnel.org/api/convergence/status</a></p>
+<p><strong>Formatted Word edition:</strong> <a href="https://bloodstonewallet.mytunnel.org/downloads/Blurt-Bloodstone-Waves-A-to-Z-Capstone-Summary.docx">https://bloodstonewallet.mytunnel.org/downloads/Blurt-Bloodstone-Waves-A-to-Z-Capstone-Summary.docx</a></p>
+<p></p>
+<hr>
+<p></p>
+<h2>Executive summary</h2>
+<p></p>
+<p>Over the Blurt-Bloodstone convergence program, the team shipped <strong>26 named waves (A-Z)</strong> across <strong>28 beta releases</strong> (v0.9.0-beta through v0.36.0-beta), building a sovereign mesh stack that connects Blurt&#x27;s censorship-resistant social layer with Bloodstone&#x27;s memory fabric, edge DePIN economics, and on-device AI routing.</p>
+<p></p>
+<p><strong>Capstone Z</strong> completes the tenant sovereign mesh: cross-region fleet quorum rollup, unified reconcile cycles, coordinator dispatch with tenant route hints, and a single dashboard view of the entire tenant fleet.</p>
+<p></p>
+<p><strong>Vision:</strong> <em>Sovereign Mesh 2030 - Blurt trust anchor + Bloodstone memory fabric. Autonomous, self-healing nervous system - identity owns truth, hardware owns the network.</em></p>
+<p></p>
+<hr>
+<p></p>
+<h2>The six convergence layers</h2>
+<p></p>
+<table><thead><tr>
+<th>Layer</th>
+<th>Name</th>
+<th>Primary waves</th>
+<th>Status</th>
+</tr></thead><tbody>
+<tr>
+<td>0</td>
+<td>Sovereign Identity (human + AI agents)</td>
+<td>B</td>
+<td>Beta</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Trust Anchor (provenance + blogging)</td>
+<td>A</td>
+<td>Beta</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Memory Fabric + DTN sync</td>
+<td>C, C+, E, H, I, K</td>
+<td>Beta</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Edge DePIN (storage + compute + bandwidth + AI)</td>
+<td>F, G, M-Z</td>
+<td>Beta</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Circulatory Economy (STONE + BLURT memo rails)</td>
+<td>G, L</td>
+<td>Beta (enforced)</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Ambient UI (Condenser + Spatial WebXR)</td>
+<td>D, J</td>
+<td>Beta</td>
+</tr>
+</tbody></table>
+<p></p>
+<hr>
+<p></p>
+<h2>Wave-by-wave release history</h2>
+<p></p>
+<h3>Foundation - Trust, identity, and offline mesh (Waves A-G)</h3>
+<p></p>
+<table><thead><tr>
+<th>Release</th>
+<th>Wave</th>
+<th>Summary</th>
+</tr></thead><tbody>
+<tr>
+<td>v0.9.0-beta</td>
+<td><strong>A - Trust</strong></td>
+<td>Digital provenance anchor (<code>bloodstone_provenance/v1</code>). Verifiable link between Blurt posts and mesh assets; trust badges in Condenser embeds.</td>
+</tr>
+<tr>
+<td>v0.10.0-beta</td>
+<td><strong>B - Agents</strong></td>
+<td>Machine/AI agent identity manifests (<code>bloodstone_agent/v1</code>). Register autonomous creators with capability tags and STONE payout addresses.</td>
+</tr>
+<tr>
+<td>v0.11.0-beta</td>
+<td><strong>C - DTN</strong></td>
+<td>Delay-tolerant networking bundles (<code>bloodstone-dtn-bundle-v1</code>). Portable 72-hour sync capsules for offline Pi nodes.</td>
+</tr>
+<tr>
+<td>v0.12.0-beta</td>
+<td><strong>D - Spatial</strong></td>
+<td>Spatial WebXR manifests and AR overlays (<code>bloodstone_spatial_manifest/v1</code>). 3D scenes tied to Blurt posts; spatial data in DTN bundles.</td>
+</tr>
+<tr>
+<td>v0.13.0-beta</td>
+<td><strong>C+</strong></td>
+<td>DTN hardening: deduplication, retry on failed upload, scheduled flush windows, peer discovery, bundle cleanup.</td>
+</tr>
+<tr>
+<td>v0.14.0-beta</td>
+<td><strong>mDNS</strong></td>
+<td>LAN peer discovery via <code>_bloodstone-dtn._tcp</code> and <code>_bloodstone-ai._tcp</code> - nodes find neighbors without manual IP configuration.</td>
+</tr>
+<tr>
+<td>v0.15.0-beta</td>
+<td><strong>E - TLS &amp; alerts</strong></td>
+<td>Encrypted HTTPS peer sync (port 8443) and forward-queue alerts when bundles are stuck pending or failed.</td>
+</tr>
+<tr>
+<td>v0.16.0-beta</td>
+<td><strong>F - Scale</strong></td>
+<td>Compute job manifests (<code>bloodstone_compute_job/v1</code>), replication auto-heal, QUASAR-friendly confirmation policy.</td>
+</tr>
+<tr>
+<td>v0.17.0-beta</td>
+<td><strong>G - Pi fleet</strong></td>
+<td><strong>Memo rail enforcement</strong> for storage, compute, and bandwidth. Pi Fleet Playbook published; no credits, no service.</td>
+</tr>
+</tbody></table>
+<p></p>
+<h3>Scale, uplink, and planetary mesh (Waves H-L)</h3>
+<p></p>
+<table><thead><tr>
+<th>Release</th>
+<th>Wave</th>
+<th>Summary</th>
+</tr></thead><tbody>
+<tr>
+<td>v0.18.0-beta</td>
+<td><strong>H - Gossip</strong></td>
+<td>DTN gossip protocol (<code>bloodstone_dtn_gossip/v1</code>). Peer and bundle rumor exchange beyond mDNS.</td>
+</tr>
+<tr>
+<td>v0.19.0-beta</td>
+<td><strong>I - Starlink handoff</strong></td>
+<td>Satellite/LTE opportunistic uplink (<code>bloodstone_dtn_starlink/v1</code>). Auto-flush queued bundles when brief connectivity returns.</td>
+</tr>
+<tr>
+<td>v0.20.0-beta</td>
+<td><strong>J - Offline Condenser</strong></td>
+<td>Offline-first social reader (<code>bloodstone_condenser_offline/v1</code>). Local feed playback without public internet.</td>
+</tr>
+<tr>
+<td>v0.21.0-beta</td>
+<td><strong>K - Planetary quorum</strong></td>
+<td>Multi-region DTN quorum rollup (<code>bloodstone_dtn_planetary/v1</code>). Cross-region heal via gossip snapshots.</td>
+</tr>
+<tr>
+<td>v0.22.0-beta</td>
+<td><strong>L - Bridge swap</strong></td>
+<td>BLURT &lt;-&gt; STONE atomic swap intents (<code>bloodstone_bridge_swap/v1</code>). HTLC-style bridge with enforcement.</td>
+</tr>
+</tbody></table>
+<p></p>
+<h3>On-device AI routing (Waves M-N)</h3>
+<p></p>
+<table><thead><tr>
+<th>Release</th>
+<th>Wave</th>
+<th>Summary</th>
+</tr></thead><tbody>
+<tr>
+<td>v0.23.0-beta</td>
+<td><strong>M - AI routing</strong></td>
+<td>On-device AI routing scaffold (<code>bloodstone_ai_routing/v1</code>). Score local providers (Pi NPU, Android TFLite, llama.cpp); route inference jobs offline-first.</td>
+</tr>
+<tr>
+<td>v0.24.0-beta</td>
+<td><strong>N - Coordinator dispatch</strong></td>
+<td>HTTP coordinator AI dispatch + callback delivery. Edge nodes submit; coordinator executes; results return via <code>/api/convergence/ai/callback</code>.</td>
+</tr>
+</tbody></table>
+<p></p>
+<h3>Fleet hardening and multi-tenant quotas (Waves O-R)</h3>
+<p></p>
+<table><thead><tr>
+<th>Release</th>
+<th>Wave</th>
+<th>Summary</th>
+</tr></thead><tbody>
+<tr>
+<td>v0.25.0-beta</td>
+<td><strong>O - Signed gossip + NPU detect</strong></td>
+<td>HMAC-signed AI provider gossip snapshots (<code>bloodstone_ai_gossip_snapshot/v1</code>). Auto-detect Hailo/Coral NPU hardware on Pi edge nodes.</td>
+</tr>
+<tr>
+<td>v0.26.0-beta</td>
+<td><strong>P - Compute tenant</strong></td>
+<td>Multi-tenant compute quota (<code>bloodstone_compute_tenant/v1</code>). Per-author FLOPS caps on shared Pi/STONE pools.</td>
+</tr>
+<tr>
+<td>v0.27.0-beta</td>
+<td><strong>Q - Inference shim + bandwidth</strong></td>
+<td>llama.cpp inference shim on <code>:8081</code>, bandwidth tenant quota, fleet gossip signing enforcement.</td>
+</tr>
+<tr>
+<td>v0.28.0-beta</td>
+<td><strong>R - Storage tenant + DTN routes</strong></td>
+<td>Multi-tenant storage quota. AI route assignments exported in DTN bundles (<code>ai-route-assignments.json</code>).</td>
+</tr>
+</tbody></table>
+<p></p>
+<h3>Tenant dashboard and fleet sync (Waves S-T)</h3>
+<p></p>
+<table><thead><tr>
+<th>Release</th>
+<th>Wave</th>
+<th>Summary</th>
+</tr></thead><tbody>
+<tr>
+<td>v0.29.0-beta</td>
+<td><strong>S - Tenant dashboard</strong></td>
+<td>Unified multi-tenant dashboard (compute + bandwidth + storage). Blurt AI provider broadcast. ONNX/TFLite inference delegates in shim.</td>
+</tr>
+<tr>
+<td>v0.30.0-beta</td>
+<td><strong>T - Fleet sync</strong></td>
+<td>Tenant binding sync via DTN bundles (<code>tenant-bindings.json</code>) and gossip (<code>tenant_snapshots</code>). AI broadcast queue; auto-tenant on submit.</td>
+</tr>
+</tbody></table>
+<p></p>
+<h3>Signed fleet, quorum, and NPU execution (Waves U-W)</h3>
+<p></p>
+<table><thead><tr>
+<th>Release</th>
+<th>Wave</th>
+<th>Summary</th>
+</tr></thead><tbody>
+<tr>
+<td>v0.31.0-beta</td>
+<td><strong>U - Signed tenant fleet</strong></td>
+<td>HMAC-signed tenant fleet snapshots. Dashboard web UI at <code>/convergence/tenant</code>. NPU-aware inference shim. DTN auto-author resolution.</td>
+</tr>
+<tr>
+<td>v0.32.0-beta</td>
+<td><strong>V - Tenant quorum</strong></td>
+<td>Fleet-wide tenant snapshot quorum (<code>bloodstone_tenant_fleet_quorum/v1</code>). N-of-M peer agreement before bindings apply. Blurt tenant manifest broadcast (<code>bloodstone_tenant_manifest/v1</code>). Hailo/Coral NPU execution (not just detection).</td>
+</tr>
+<tr>
+<td>v0.33.0-beta</td>
+<td><strong>W - Submit gate + NPU models</strong></td>
+<td>Quorum-gated compute/AI submit (<code>TENANT_SUBMIT_QUORUM_REQUIRE</code>). Per-author NPU model bindings with probe validation. Dashboard quorum panel.</td>
+</tr>
+</tbody></table>
+<p></p>
+<h3>AI routing, gossip, and route ledger (Waves X-Y)</h3>
+<p></p>
+<table><thead><tr>
+<th>Release</th>
+<th>Wave</th>
+<th>Summary</th>
+</tr></thead><tbody>
+<tr>
+<td>v0.34.0-beta</td>
+<td><strong>X - Tenant AI routing</strong></td>
+<td>Tenant NPU-aware AI provider scoring (<code>tenant_ai_route.py</code>). Manifest gossip across fleet. NPU model probe-on-bind.</td>
+</tr>
+<tr>
+<td>v0.35.0-beta</td>
+<td><strong>Y - Route ledger + upkeep</strong></td>
+<td>Route assignment ledger (<code>bloodstone_tenant_route_ledger/v1</code>). Coordinator tenant dispatch with <code>tenant_route</code> payload. Unified tenant upkeep cycle (quorum, gossip, broadcast, registry). NPU probe-on-bind (<code>TENANT_NPU_PROBE_ON_BIND</code>).</td>
+</tr>
+</tbody></table>
+<p></p>
+<h3>Capstone - Sovereign tenant mesh (Wave Z)</h3>
+<p></p>
+<table><thead><tr>
+<th>Release</th>
+<th>Wave</th>
+<th>Summary</th>
+</tr></thead><tbody>
+<tr>
+<td>v0.36.0-beta</td>
+<td><strong>Z - Capstone</strong></td>
+<td><strong>Tenant planetary quorum</strong> (<code>bloodstone_tenant_planetary/v1</code>) - cross-region fleet quorum rollup via <code>tenant_planetary_snapshots</code>. <strong>Tenant sovereign mesh</strong> (<code>bloodstone_tenant_sovereign/v1</code>) - capstone status aggregating all tenant subsystems + <code>reconcile_sovereign_mesh()</code>. Coordinator dispatch uses inbound <code>tenant_route</code>, submit-gate check, route ledger on success. Dashboard Wave Z badge + sovereign summary panel.</td>
+</tr>
+</tbody></table>
+<p></p>
+<p><strong>Live roadmap string:</strong> <code>Wave A-Y complete | Wave Z: tenant planetary quorum + sovereign mesh reconcile complete</code></p>
+<p></p>
+<hr>
+<p></p>
+<h2>Capstone Z - technical detail</h2>
+<p></p>
+<h3>New modules</h3>
+<p></p>
+<table><thead><tr>
+<th>Module</th>
+<th>Format ID</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><code>tenant_planetary_quorum.py</code></td>
+<td><code>bloodstone_tenant_planetary/v1</code></td>
+<td>Cross-region tenant fleet quorum rollup; gossips <code>tenant_planetary_snapshots</code></td>
+</tr>
+<tr>
+<td><code>tenant_sovereign.py</code></td>
+<td><code>bloodstone_tenant_sovereign/v1</code></td>
+<td>Capstone unified status + <code>reconcile_sovereign_mesh()</code> / <code>reconcile_fleet()</code></td>
+</tr>
+</tbody></table>
+<p></p>
+<h3>Coordinator dispatch enhancements</h3>
+<p></p>
+<ul>
+<li>Extracts <code>tenant_route</code> from inbound dispatch payload (or resolves from job)</li>
+<li>Runs <code>check_submit_allowed()</code> before accepting inference jobs</li>
+<li>Records route ledger assignment on coordinator dispatch success</li>
+<li>Passes <code>tenant_spec</code> to <code>dispatch_inference_job()</code> for NPU-aware execution</li>
+</ul>
+<p></p>
+<h3>Unified upkeep (extended)</h3>
+<p></p>
+<p>Each <code>upkeep_tenant()</code> cycle now includes:</p>
+<p></p>
+<ol>
+<li>Fleet quorum update + satisfied binding apply</li>
+<li>Broadcast queue + registry sync</li>
+<li>Manifest gossip snapshots</li>
+<li>Route ledger gossip snapshots</li>
+<li>Planetary tenant quorum rollup</li>
+</ul>
+<p></p>
+<p>Background sync (<code>sync-blurt-convergence.py</code>) calls <code>reconcile_sovereign_mesh()</code> after tenant upkeep.</p>
+<p></p>
+<h3>New APIs (Wave Z)</h3>
+<p></p>
+<table><thead><tr>
+<th>Endpoint</th>
+<th>Method</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>/api/convergence/tenant/planetary/status</code></td>
+<td>GET</td>
+<td>Cross-region tenant quorum rollup status</td>
+</tr>
+<tr>
+<td><code>/api/convergence/tenant/planetary/snapshots</code></td>
+<td>GET</td>
+<td>Build planetary gossip snapshots</td>
+</tr>
+<tr>
+<td><code>/api/convergence/tenant/sovereign/status</code></td>
+<td>GET</td>
+<td>Capstone sovereign mesh summary + subsystems</td>
+</tr>
+<tr>
+<td><code>/api/convergence/tenant/sovereign/reconcile</code></td>
+<td>POST</td>
+<td>Run full sovereign reconcile cycle</td>
+</tr>
+</tbody></table>
+<p></p>
+<h3>Gossip extensions</h3>
+<p></p>
+<p><code>dtn_gossip.build_exchange_payload()</code> now includes <code>tenant_planetary_snapshots</code>. Ingest records <code>tenant_planetary_votes_recorded</code> and triggers rollup update.</p>
+<p></p>
+<hr>
+<p></p>
+<h2>Payment rails (Layer 4)</h2>
+<p></p>
+<p>Enforced since Wave G (v0.17.0-beta):</p>
+<p></p>
+<table><thead><tr>
+<th>Rail</th>
+<th>Memo format</th>
+<th>Outpost account</th>
+</tr></thead><tbody>
+<tr>
+<td>Storage</td>
+<td><code>storage:&lt;STONE_ADDRESS&gt;:&lt;bytes&gt;</code></td>
+<td>Blurt outpost</td>
+</tr>
+<tr>
+<td>Compute</td>
+<td><code>compute:&lt;STONE_ADDRESS&gt;:&lt;job_id&gt;</code></td>
+<td>DePIN outpost</td>
+</tr>
+<tr>
+<td>Bandwidth</td>
+<td><code>bandwidth:&lt;STONE_ADDRESS&gt;:&lt;bytes&gt;</code></td>
+<td>DePIN outpost</td>
+</tr>
+</tbody></table>
+<p></p>
+<p>Multi-tenant per-author caps (Waves P, Q, R) layer on top of wallet-level enforcement for Pi fleet operators sharing hardware.</p>
+<p></p>
+<hr>
+<p></p>
+<h2>End-to-end content flow</h2>
+<p></p>
+<ol>
+<li>Blurt post (truth)</li>
+<li>Provenance anchor (Wave A)</li>
+<li>Mesh chunks + manifest (Layer 2)</li>
+<li>Condenser embed / offline reader (Waves D, J)</li>
+<li>Memo payment (Wave G)</li>
+<li>DTN bundle queue (Waves C, E)</li>
+<li>Gossip peer discovery (Wave H)</li>
+<li>Planetary quorum heal (Wave K)</li>
+<li>Starlink/satellite handoff (Wave I)</li>
+<li>Inference job submit (Wave F)</li>
+<li>On-device AI routing (Wave M)</li>
+<li>Coordinator dispatch (Wave N)</li>
+<li>Tenant fleet sync + quorum (Waves T, V)</li>
+<li>Tenant AI route + ledger (Waves X, Y)</li>
+<li>Sovereign mesh reconcile (Wave Z)</li>
+</ul>
+<p></p>
+<hr>
+<p></p>
+<h2>Key manifest and format IDs</h2>
+<p></p>
+<table><thead><tr>
+<th>Format ID</th>
+<th>Wave</th>
+<th>Domain</th>
+</tr></thead><tbody>
+<tr>
+<td><code>bloodstone_provenance/v1</code></td>
+<td>A</td>
+<td>Trust anchor</td>
+</tr>
+<tr>
+<td><code>bloodstone_agent/v1</code></td>
+<td>B</td>
+<td>Agent identity</td>
+</tr>
+<tr>
+<td><code>bloodstone-dtn-bundle-v1</code></td>
+<td>C</td>
+<td>DTN sync</td>
+</tr>
+<tr>
+<td><code>bloodstone_spatial_manifest/v1</code></td>
+<td>D</td>
+<td>Spatial WebXR</td>
+</tr>
+<tr>
+<td><code>bloodstone_dtn_gossip/v1</code></td>
+<td>H</td>
+<td>Peer gossip</td>
+</tr>
+<tr>
+<td><code>bloodstone_dtn_starlink/v1</code></td>
+<td>I</td>
+<td>Satellite handoff</td>
+</tr>
+<tr>
+<td><code>bloodstone_condenser_offline/v1</code></td>
+<td>J</td>
+<td>Offline reader</td>
+</tr>
+<tr>
+<td><code>bloodstone_dtn_planetary/v1</code></td>
+<td>K</td>
+<td>Planetary DTN quorum</td>
+</tr>
+<tr>
+<td><code>bloodstone_bridge_swap/v1</code></td>
+<td>L</td>
+<td>Atomic swaps</td>
+</tr>
+<tr>
+<td><code>bloodstone_ai_routing/v1</code></td>
+<td>M</td>
+<td>AI routing</td>
+</tr>
+<tr>
+<td><code>bloodstone_ai_provider/v1</code></td>
+<td>M</td>
+<td>AI provider manifests</td>
+</tr>
+<tr>
+<td><code>bloodstone_ai_gossip_snapshot/v1</code></td>
+<td>O</td>
+<td>Signed gossip</td>
+</tr>
+<tr>
+<td><code>bloodstone_compute_job/v1</code></td>
+<td>F</td>
+<td>Compute jobs</td>
+</tr>
+<tr>
+<td><code>bloodstone_tenant_fleet_quorum/v1</code></td>
+<td>V</td>
+<td>Tenant quorum</td>
+</tr>
+<tr>
+<td><code>bloodstone_tenant_manifest/v1</code></td>
+<td>V</td>
+<td>Tenant broadcast</td>
+</tr>
+<tr>
+<td><code>bloodstone_tenant_submit_gate/v1</code></td>
+<td>W</td>
+<td>Submit gate</td>
+</tr>
+<tr>
+<td><code>bloodstone_tenant_route_ledger/v1</code></td>
+<td>Y</td>
+<td>Route ledger</td>
+</tr>
+<tr>
+<td><code>bloodstone_tenant_planetary/v1</code></td>
+<td>Z</td>
+<td>Tenant planetary quorum</td>
+</tr>
+<tr>
+<td><code>bloodstone_tenant_sovereign/v1</code></td>
+<td>Z</td>
+<td>Sovereign mesh</td>
+</tr>
+</tbody></table>
+<p></p>
+<hr>
+<p></p>
+<h2>Pi fleet operator checklist</h2>
+<p></p>
+<ol>
+<li>Install portal + mesh on Raspberry Pi (Wave G playbook)</li>
+<li>Enable mDNS LAN discovery (v0.14)</li>
+<li>Enable TLS peer sync on :8443 (Wave E)</li>
+<li>Turn on memo enforcement (Wave G)</li>
+<li>Run gossip + Starlink handoff in upkeep (Waves H, I)</li>
+<li>Register AI inference shim on :8081 (Wave Q)</li>
+<li>Bind per-author tenant quotas (Waves P, Q, R)</li>
+<li>Configure fleet quorum N-of-M (Wave V)</li>
+<li>Set <code>AI_GOSSIP_SIGNING_KEY</code> for signed snapshots (Waves O, U)</li>
+<li>Monitor sovereign mesh at <code>/api/convergence/tenant/sovereign/status</code> (Wave Z)</li>
+</ul>
+<p></p>
+<p><strong>Downloads:</strong> <a href="https://bloodstonewallet.mytunnel.org/downloads/">https://bloodstonewallet.mytunnel.org/downloads/</a></p>
+<p></p>
+<hr>
+<p></p>
+<h2>Test coverage</h2>
+<p></p>
+<p>Smoke tests exist for Waves O through Z:</p>
+<p></p>
+<table><thead><tr>
+<th>Test file</th>
+<th>Wave</th>
+<th>Tests</th>
+</tr></thead><tbody>
+<tr>
+<td><code>test_ai_wave_o.py</code></td>
+<td>O</td>
+<td>Signed gossip, NPU detect</td>
+</tr>
+<tr>
+<td><code>test_ai_wave_p.py</code></td>
+<td>P</td>
+<td>Compute tenant quota</td>
+</tr>
+<tr>
+<td><code>test_ai_wave_q.py</code></td>
+<td>Q</td>
+<td>Bandwidth tenant, inference shim</td>
+</tr>
+<tr>
+<td><code>test_ai_wave_r.py</code></td>
+<td>R</td>
+<td>Storage tenant, DTN route export</td>
+</tr>
+<tr>
+<td><code>test_ai_wave_s.py</code></td>
+<td>S</td>
+<td>Tenant dashboard, broadcast</td>
+</tr>
+<tr>
+<td><code>test_ai_wave_t.py</code></td>
+<td>T</td>
+<td>Fleet sync, broadcast queue</td>
+</tr>
+<tr>
+<td><code>test_ai_wave_u.py</code></td>
+<td>U</td>
+<td>Signed fleet, dashboard UI</td>
+</tr>
+<tr>
+<td><code>test_ai_wave_v.py</code></td>
+<td>V</td>
+<td>Fleet quorum, manifest broadcast</td>
+</tr>
+<tr>
+<td><code>test_ai_wave_w.py</code></td>
+<td>W</td>
+<td>Submit gate, NPU models</td>
+</tr>
+<tr>
+<td><code>test_ai_wave_x.py</code></td>
+<td>X</td>
+<td>Tenant AI routing, manifest gossip</td>
+</tr>
+<tr>
+<td><code>test_ai_wave_y.py</code></td>
+<td>Y</td>
+<td>Route ledger, unified upkeep</td>
+</tr>
+<tr>
+<td><code>test_ai_wave_z.py</code></td>
+<td>Z</td>
+<td>Planetary quorum, sovereign reconcile</td>
+</tr>
+</tbody></table>
+<p></p>
+<p>Run: <code>python3 -m unittest chain_mesh.tests.test_ai_wave_*</code></p>
+<p></p>
+<hr>
+<p></p>
+<h2>Architecture at Capstone Z</h2>
+<p></p>
+<p><strong>Blurt (trust anchor)</strong> - posts, memos, custom_json manifests</p>
+<p></p>
+<p><strong>Coordinator</strong> (<code>bloodstonewallet.mytunnel.org</code>) - convergence APIs, AI dispatch, tenant sovereign status</p>
+<p></p>
+<p><strong>Pi fleet edge nodes</strong> - portal :8887, inference shim :8081, mDNS + TLS gossip, tenant quorum, route ledger, NPU execution, sovereign reconcile (upkeep every ~5 min)</p>
+<p></p>
+<p>Data flows down the stack via DTN bundles, gossip, and Starlink/satellite handoff between coordinator and edge nodes.</p>
+<p></p>
+<hr>
+<p></p>
+<h2>Metrics at Capstone Z (July 8, 2026)</h2>
+<p></p>
+<table><thead><tr>
+<th>Metric</th>
+<th>Value</th>
+</tr></thead><tbody>
+<tr>
+<td>Beta releases shipped</td>
+<td>v0.9.0 through v0.36.0-beta (28 tags)</td>
+</tr>
+<tr>
+<td>Named waves complete</td>
+<td>A through Z (26 waves + C+ and mDNS)</td>
+</tr>
+<tr>
+<td>Memo enforcement</td>
+<td>On (storage, compute, bandwidth)</td>
+</tr>
+<tr>
+<td>AI routing wave label</td>
+<td>Z</td>
+</tr>
+<tr>
+<td>DTN sync wave label</td>
+<td>Z</td>
+</tr>
+<tr>
+<td>Tenant sovereign format</td>
+<td><code>bloodstone_tenant_sovereign/v1</code></td>
+</tr>
+<tr>
+<td>GitLab latest tag</td>
+<td><code>v0.36.0-beta</code> @ <code>d58a803</code></td>
+</tr>
+</tbody></table>
+<p></p>
+<hr>
+<p></p>
+<h2>Glossary</h2>
+<p></p>
+<table><thead><tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>Blurt</strong></td>
+<td>Censorship-resistant social layer; posts and accounts on a public chain</td>
+</tr>
+<tr>
+<td><strong>Bloodstone / STONE</strong></td>
+<td>Storage mesh cryptocurrency; pays node operators</td>
+</tr>
+<tr>
+<td><strong>Convergence</strong></td>
+<td>Combined Blurt + Bloodstone product stack</td>
+</tr>
+<tr>
+<td><strong>DTN</strong></td>
+<td>Delay-tolerant networking - sync when internet is spotty</td>
+</tr>
+<tr>
+<td><strong>DePIN</strong></td>
+<td>Decentralized physical infrastructure - edge nodes earn for storage/compute/bandwidth</td>
+</tr>
+<tr>
+<td><strong>Memo</strong></td>
+<td>Short payment note on a BLURT transfer</td>
+</tr>
+<tr>
+<td><strong>Gossip</strong></td>
+<td>Nodes sharing peer lists and snapshots with each other</td>
+</tr>
+<tr>
+<td><strong>Quorum</strong></td>
+<td>N-of-M agreement before state is accepted</td>
+</tr>
+<tr>
+<td><strong>Sovereign mesh</strong></td>
+<td>Capstone tenant fleet status + reconcile (Wave Z)</td>
+</tr>
+<tr>
+<td><strong>Tenant</strong></td>
+<td>Per-Blurt-author resource binding on shared Pi hardware</td>
+</tr>
+</tbody></table>
+<p></p>
+<hr>
+<p></p>
+<h2>Related documents</h2>
+<p></p>
+<ul>
+<li>Symbiotic Vision white paper: <a href="https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Symbiotic-Vision-White-Paper.md">https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Symbiotic-Vision-White-Paper.md</a></li>
+<li>Pi Fleet Playbook: <a href="https://bloodstonewallet.mytunnel.org/downloads/">https://bloodstonewallet.mytunnel.org/downloads/</a></li>
+<li>Wave M design: <a href="https://bloodstonewallet.mytunnel.org/downloads/Wave-M-On-Device-AI-Routing-Design.md">https://bloodstonewallet.mytunnel.org/downloads/Wave-M-On-Device-AI-Routing-Design.md</a></li>
+<li>Starlink handoff response: <a href="https://bloodstonewallet.mytunnel.org/downloads/Blurt-Starlink-Handoff-Response.md">https://bloodstonewallet.mytunnel.org/downloads/Blurt-Starlink-Handoff-Response.md</a></li>
+<li>July 7-8 work summary: <a href="https://bloodstonewallet.mytunnel.org/downloads/Blurt-Bloodstone-Work-Summary-Jul-7-8-2026.md">https://bloodstonewallet.mytunnel.org/downloads/Blurt-Bloodstone-Work-Summary-Jul-7-8-2026.md</a></li>
+</ul>
+<p></p>
+<hr>
+<p></p>
+<p><em>Prepared July 8, 2026 - Bloodstone LLC - Blurt x Bloodstone Convergence Stack - Waves A-Z Capstone Summary</em></p>
+</body>
+</html>

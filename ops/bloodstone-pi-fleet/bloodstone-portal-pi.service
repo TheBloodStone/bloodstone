@@ -10,7 +10,7 @@ WorkingDirectory=/root/bloodstone-portal
 Environment=PYTHONPATH=/root
 EnvironmentFile=-/etc/bloodstone/convergence.env
 Environment=BLOODSTONE_PUBLIC_ROOT=https://bloodstonewallet.mytunnel.org
-ExecStart=/root/bloodstone-portal/venv/bin/gunicorn --bind 127.0.0.1:8887 --workers 1 --threads 4 --timeout 120 app:app
+ExecStart=/root/bloodstone-portal/venv/bin/gunicorn --bind 0.0.0.0:8887 --workers 1 --threads 4 --timeout 120 app:app
 Restart=always
 RestartSec=5
 

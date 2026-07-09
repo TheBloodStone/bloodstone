@@ -26,6 +26,8 @@
     .badge-arm { background: #fef3c7; color: #92400e; }
     .badge-electron { background: #ffedd5; color: #9a3412; }
     .badge-exchange { background: #fce7f3; color: #9d174d; }
+    .badge-pi { background: #fee2e2; color: #b91c1c; }
+    .callout-pi { background: #fff7ed; border-color: #fdba74; }
     .callout { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem 1rem; margin: 0.75rem 0 1rem; }
     .callout-exchange { background: #fdf2f8; border-color: #f9a8d4; }
     .callout strong { color: #0f172a; }
@@ -35,7 +37,7 @@
 </head>
 <body>
   <h1>Bloodstone Downloads</h1>
-  <p class="lead muted">Core node v0.7.0 (Linux x86_64 + Raspberry Pi ARM64) · Core Qt v0.7.3 (Windows) · Electron wallet GUI v0.7.11 · Node GUI v0.6.9.2 · CPU miner v1.0.0 · Android node v1.3.84 · Desktop miner v1.3.124-desktop · live UI 1.3.55-web</p>
+  <p class="lead muted">Pi fleet convergence v0.36.0-beta · Core node v0.7.0 (Linux x86_64 + Raspberry Pi ARM64) · Core Qt v0.7.3 (Windows) · Electron wallet GUI v0.7.11 · Node GUI v0.6.9.2 · CPU miner v1.0.0 · Android node v1.3.85 · Desktop miner v1.3.124-desktop · live UI 1.3.55-web</p>
   <p><a href="https://bloodstonewallet.mytunnel.org/">← Back to portal</a></p>
   <p class="muted small">Release files are stored on the Bloodstone pool worker and served at <code>https://bloodstonewallet.mytunnel.org/downloads/</code> (links below use that URL).</p>
 
@@ -97,6 +99,70 @@
       <tr>
         <td><a href="https://bloodstonewallet.mytunnel.org/atomicdex/">GleecDEX listing path</a></td>
         <td>DEX / atomic-swap listing via Gleec (Komodo heritage) — separate from CEX node package above.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2 id="pi-fleet">Raspberry Pi fleet — Blurt convergence bundle</h2>
+  <div class="callout callout-pi">
+    <strong>Blurt / edge Pi test?</strong> Download the <strong>convergence software bundle</strong> — portal + chain mesh + DTN helpers + fleet setup scripts (Wave G through Capstone Z, v0.36.0-beta).
+    <ul class="compact">
+      <li><strong>One-line install (on the Pi):</strong>
+        <code>curl -fsSLO https://bloodstonewallet.mytunnel.org/downloads/bloodstone-pi-fleet-convergence-latest.tar.gz &amp;&amp; sudo tar -xzf bloodstone-pi-fleet-convergence-latest.tar.gz -C / &amp;&amp; export DTN_NODE_ID=blurt-pi-01 &amp;&amp; sudo -E /root/ops/bloodstone-pi-fleet/bloodstone-pi-fleet-setup.sh</code>
+      </li>
+      <li><strong>After setup:</strong> portal on LAN <code>http://&lt;pi-ip&gt;:8887</code> · verify <code>curl -fsS http://127.0.0.1:8887/api/convergence/status</code></li>
+      <li><strong>Full walkthrough:</strong> <a href="Blurt-Pi-Fleet-Install-Instructions.md">Blurt-Pi-Fleet-Install-Instructions.md</a></li>
+      <li><strong>Capstone context:</strong> <a href="Blurt-Bloodstone-Waves-A-to-Z-Capstone-Summary.md">Waves A–Z summary (.md)</a> · <a href="Blurt-Bloodstone-Waves-A-to-Z-Capstone-Summary.docx">.docx</a></li>
+    </ul>
+  </div>
+  <table>
+    <thead>
+      <tr><th>Download</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <a href="bloodstone-pi-fleet-convergence-latest.tar.gz">bloodstone-pi-fleet-convergence-latest.tar.gz</a><br>
+          <span class="muted">
+            <a href="bloodstone-pi-fleet-convergence-0.36.0-beta.tar.gz">0.36.0-beta</a> ·
+            <a href="bloodstone-pi-fleet-convergence-latest.tar.gz.sha256">.sha256</a>
+          </span>
+        </td>
+        <td>
+          <span class="badge badge-pi">Pi fleet</span>
+          <strong>Convergence software bundle (v0.36.0-beta, ~270&nbsp;KB)</strong> — extracts to <code>/root/</code>:
+          <code>bloodstone-portal/</code>, <code>chain_mesh/</code>, <code>ops/bloodstone-pi-fleet/</code>, DTN sync scripts.
+          Run <code>bloodstone-pi-fleet-setup.sh</code> after setting <code>DTN_NODE_ID</code>.
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <a href="Blurt-Pi-Fleet-Install-Instructions.md">Blurt-Pi-Fleet-Install-Instructions.md</a> ·
+          <a href="Blurt-Pi-Fleet-Install-Instructions.md.sha256">.sha256</a>
+        </td>
+        <td><strong>Blurt Pi test install guide</strong> — step-by-step for Liquid Goblin / Blurt ops: download, extract, setup, verify, memo-rail checks.</td>
+      </tr>
+      <tr>
+        <td>
+          <a href="Bloodstone-Pi-Fleet-Playbook-latest.md">Bloodstone-Pi-Fleet-Playbook-latest.md</a> ·
+          <a href="Bloodstone-Pi-Fleet-Playbook-latest.md.sha256">.sha256</a><br>
+          <span class="muted"><a href="Bloodstone-Pi-Fleet-Playbook-v0.36.0-beta.md">v0.36.0-beta</a></span>
+        </td>
+        <td><strong>Pi fleet playbook (Wave G+)</strong> — DTN mesh, mDNS peers, TLS sync, upkeep cron, Starlink handoff, troubleshooting.</td>
+      </tr>
+      <tr>
+        <td>
+          <a href="bloodstone-node-linux-aarch64-latest.tar.gz">bloodstone-node-linux-aarch64-latest.tar.gz</a><br>
+          <span class="muted"><a href="bloodstone-node-0.7.0-linux-aarch64.tar.gz">0.7.0</a></span>
+        </td>
+        <td>
+          <span class="badge badge-arm">ARM64 node only</span>
+          <strong>Optional:</strong> headless <code>bloodstoned</code> + <code>bloodstone-cli</code> for chain sync on Pi 4/5 — separate from the fleet convergence bundle above.
+        </td>
+      </tr>
+      <tr>
+        <td><a href="install-lan-miner-forwarder.sh">install-lan-miner-forwarder.sh</a> · <a href="lan-miner-hashrate-forward.py">lan-miner-hashrate-forward.py</a></td>
+        <td><strong>LAN hashrate forwarder</strong> — run on a Pi or PC on the same LAN as ASIC miners to push real hashrate to the pool.</td>
       </tr>
     </tbody>
   </table>
@@ -243,6 +309,17 @@
     </tbody>
   </table>
 
+  <div class="callout" style="background:#ecfdf5;border-color:#6ee7b7">
+    <strong>Qt wallet stuck at 0.01% or “N weeks behind”?</strong>
+    One-click fix (Windows): download <a href="bloodstone-qt-auto-fix-win64.exe">bloodstone-qt-auto-fix-win64.exe</a>
+    — stops the wallet, repairs <code>bloodstone.conf</code>, clears stale chain data (keeps wallets), and installs the latest chain snapshot.
+    Then install <a href="bloodstone-qt-0.7.3-win64.exe">bloodstone-qt v0.7.3</a> if you are not already on v0.7.1+.
+    <ul class="compact">
+      <li><strong>Manual scripts:</strong> <a href="fix-qt-wallet-sync.bat">fix-qt-wallet-sync.bat</a> · <a href="fix-qt-wallet-bootstrap.bat">fix-qt-wallet-bootstrap.bat</a></li>
+      <li><strong>Chain snapshot only:</strong> <a href="bloodstone-chain-bootstrap-latest.tar.gz">bloodstone-chain-bootstrap-latest.tar.gz</a></li>
+    </ul>
+  </div>
+
   <div class="callout">
     <strong>Qt crash: “fatal internal error” / <code>hashMerkleRoot mismatch</code> on first run?</strong>
     Bloodstone Core Qt <strong>v0.7.0</strong> shipped a broken genesis block — fresh installs fail immediately. Fixed in <strong>v0.7.1</strong>.
@@ -329,7 +406,8 @@
   <h2 id="cli-node">CLI node only (no wallet GUI)</h2>
   <div class="callout">
     <strong>Raspberry Pi 4 / 5 (64-bit OS)?</strong>
-    Use the ARM64 build — <code>bloodstoned</code> + <code>bloodstone-cli</code> + <code>start-node.sh</code>.
+    For <strong>Blurt mesh + portal + DTN</strong>, use the <a href="#pi-fleet">Pi fleet convergence bundle</a> above.
+    For <strong>chain sync only</strong>, use the ARM64 node build — <code>bloodstoned</code> + <code>bloodstone-cli</code> + <code>start-node.sh</code>.
     <ul class="compact">
       <li><code>curl -fsSL https://bloodstonewallet.mytunnel.org/downloads/bloodstone-node-linux-aarch64-latest.tar.gz -o pi-node.tar.gz</code></li>
       <li><code>tar -xzf pi-node.tar.gz &amp;&amp; cd bloodstone-node-0.7.0-linux-aarch64 &amp;&amp; ./start-node.sh</code></li>
@@ -442,8 +520,12 @@
         <td>Desktop miner source (Electron) — build on Windows or Linux with Node.js 18+</td>
       </tr>
       <tr>
-        <td><a href="bloodstone-miner-android-1.3.84.apk">bloodstone-miner-android-1.3.84.apk</a> · <a href="bloodstone-miner-android-latest.apk">latest</a></td>
-        <td><strong>Android node + miner APK (latest)</strong> — APK 1.3.84: chain bootstrap on first full sync; bridge warmup; node diagnostics; pull-to-refresh</td>
+        <td><a href="bloodstone-miner-android-1.3.85.apk">bloodstone-miner-android-1.3.85.apk</a> · <a href="bloodstone-miner-android-latest.apk">latest</a></td>
+        <td><strong>Android node + miner APK (latest)</strong> — APK 1.3.85: auto-refresh chain bootstrap when 20+ blocks behind; faster background sync; connect= seed peers</td>
+      </tr>
+      <tr>
+        <td><a href="bloodstone-miner-android-1.3.84.apk">bloodstone-miner-android-1.3.84.apk</a></td>
+        <td>Android node + miner APK (1.3.84) — previous release</td>
       </tr>
       <tr>
         <td><a href="bloodstone-miner-android-1.3.82.apk">bloodstone-miner-android-1.3.82.apk</a></td>

@@ -3,13 +3,15 @@ package org.bloodstone.plugins.localnode;
 import android.content.Context;
 import android.util.Log;
 
+import java.io.File;
+
 import org.json.JSONArray;
 
 final class NodeSyncEngine {
     private static final String TAG = "BloodstoneNodeSync";
     static final int BLOCKS_BEHIND_THRESHOLD = 8;
     static final int CAUGHT_UP_BLOCKS = 3;
-    static final long MAX_SYNC_MS = 30L * 60L * 1000L;
+    static final long MAX_SYNC_MS = 45L * 60L * 1000L;
     static final long POLL_MS = 5000L;
     static final long NODE_BOOT_MS = 2500L;
 
@@ -110,6 +112,20 @@ final class NodeSyncEngine {
                 networkHeight,
                 "within " + (BLOCKS_BEHIND_THRESHOLD - 1) + " blocks"
             );
+        }
+
+        if (behind >= ChainBootstrapInstaller.BOOTSTRAP_STALE_BLOCKS
+            && ChainBootstrapInstaller.supportsMode(nodeMode)) {
+            File dataDir = NodeModeUtil.datadir(context, nodeMode);
+            ChainBootstrapInstaller.prepareForNetworkTip(context, dataDir, networkHeight);
+            try {
+                if (ChainBootstrapInstaller.ensureBootstrap(context, dataDir, nodeMode)) {
+                    localHeight = 0;
+                    Log.i(TAG, "refreshed chain bootstrap before background sync");
+                }
+            } catch (Exception exc) {
+                Log.w(TAG, "bootstrap refresh during sync check failed: " + exc.getMessage());
+            }
         }
 
         return runShortSync(

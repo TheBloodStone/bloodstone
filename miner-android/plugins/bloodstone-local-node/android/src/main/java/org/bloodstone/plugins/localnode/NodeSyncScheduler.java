@@ -11,7 +11,7 @@ import androidx.work.WorkManager;
 import java.util.concurrent.TimeUnit;
 
 final class NodeSyncScheduler {
-    static final long INTERVAL_MINUTES = 15L;
+    static final long INTERVAL_MINUTES = 10L;
 
     private NodeSyncScheduler() {
     }

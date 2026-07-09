@@ -1688,6 +1688,7 @@ def api_convergence_dtn_gossip_round():
     return jsonify(cm.convergence_dtn_gossip_round_payload(limit=limit))
 
 
+@app.route("/api/convergence/dtn/uplink/status")
 @app.route("/api/convergence/dtn/starlink/status")
 def api_convergence_dtn_starlink_status():
     import chain_mesh.api as cm
@@ -1695,6 +1696,7 @@ def api_convergence_dtn_starlink_status():
     return jsonify(cm.convergence_dtn_starlink_status_payload())
 
 
+@app.route("/api/convergence/dtn/uplink/probe", methods=["GET", "POST"])
 @app.route("/api/convergence/dtn/starlink/probe", methods=["GET", "POST"])
 def api_convergence_dtn_starlink_probe():
     import chain_mesh.api as cm
@@ -1704,6 +1706,7 @@ def api_convergence_dtn_starlink_probe():
     return jsonify(cm.convergence_dtn_starlink_probe_payload(url=url))
 
 
+@app.route("/api/convergence/dtn/uplink/handoff", methods=["POST"])
 @app.route("/api/convergence/dtn/starlink/handoff", methods=["POST"])
 def api_convergence_dtn_starlink_handoff():
     import chain_mesh.api as cm

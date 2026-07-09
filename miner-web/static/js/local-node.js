@@ -1819,7 +1819,7 @@ export function updateLocalNodePanel(status) {
     }
     if (detailEl) {
       detailEl.textContent =
-        "WorkManager wakes the node when 8+ blocks behind, syncs up to 30 minutes, then sleeps.";
+        "WorkManager wakes the node when 8+ blocks behind, refreshes bootstrap if 20+ behind, syncs up to 45 minutes, then sleeps.";
     }
     return;
   }

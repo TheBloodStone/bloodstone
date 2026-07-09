@@ -133,17 +133,19 @@ curl -X POST http://127.0.0.1:8887/api/convergence/dtn/gossip/round
 
 Gossip runs automatically during DTN upkeep when `DTN_GOSSIP_ENABLE=1` (default).
 
-### Starlink handoff bridge (Wave I)
+### WAN uplink handoff bridge (Wave I)
 
-When a brief satellite uplink appears (Starlink, LTE failover, etc.), the bridge probes the coordinator and flushes queued DTN bundles **outside** scheduled UTC flush windows:
+When a brief WAN uplink appears (Starlink, 4G/5G failover, satellite backhaul, tethered phone, etc.), the bridge probes the coordinator and flushes queued DTN bundles **outside** scheduled UTC flush windows:
 
 ```bash
-curl -fsS http://127.0.0.1:8887/api/convergence/dtn/starlink/status | jq .
-curl -fsS http://127.0.0.1:8887/api/convergence/dtn/starlink/probe | jq .connected,.latency_ms
-curl -X POST http://127.0.0.1:8887/api/convergence/dtn/starlink/handoff
+curl -fsS http://127.0.0.1:8887/api/convergence/dtn/uplink/status | jq .
+curl -fsS http://127.0.0.1:8887/api/convergence/dtn/uplink/probe | jq .connected,.latency_ms
+curl -X POST http://127.0.0.1:8887/api/convergence/dtn/uplink/handoff
 ```
 
-Set `DTN_STARLINK_INTERFACE=eth1` on Pi nodes wired through a Starlink dish router. Handoff runs automatically in DTN upkeep when `DTN_STARLINK_ENABLE=1`.
+**No special Starlink config is required.** This is a generic global handoff bridge for all intermittent traffic types. Works with any network interface — set `DTN_UPLINK_INTERFACE=eth1` (or `wwan0`, `wlan0`, etc.) when you want handoff only while a specific NIC is up. `DTN_STARLINK_INTERFACE` remains a **legacy alias** for `DTN_UPLINK_INTERFACE`. Handoff runs automatically in DTN upkeep when `DTN_STARLINK_ENABLE=1`.
+
+Legacy API paths (`/api/convergence/dtn/starlink/*`) still work unchanged.
 
 ### Offline Condenser reader (Wave J)
 

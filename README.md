@@ -24,6 +24,18 @@ This monorepo reflects the project layout as deployed in July 2026. Component tr
 | `ops/` | VPS scripts — stratum workers, watchdogs, APK/web publish, downloads metadata |
 | `downloads/` | Downloads page template |
 
+## Raspberry Pi fleet — Blurt convergence bundle
+
+Edge Pi nodes for Blurt mesh + DTN convergence (v0.36.0-beta). See **[docs/Blurt-Pi-Fleet-Convergence-Bundle.md](docs/Blurt-Pi-Fleet-Convergence-Bundle.md)** (`#pi-fleet`) and **[ops/bloodstone-pi-fleet/README.md](ops/bloodstone-pi-fleet/README.md)**.
+
+```bash
+curl -fsSLO https://bloodstonewallet.mytunnel.org/downloads/bloodstone-pi-fleet-convergence-latest.tar.gz
+sudo tar -xzf bloodstone-pi-fleet-convergence-latest.tar.gz -C /
+export DTN_NODE_ID=blurt-pi-01
+sudo -E /root/ops/bloodstone-pi-fleet/bloodstone-pi-fleet-setup.sh
+```
+
+
 ## Quick start
 
 ### Chain node (Linux)

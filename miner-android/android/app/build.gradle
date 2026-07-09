@@ -13,8 +13,8 @@ android {
         applicationId "org.bloodstone.miner"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 84
-        versionName "1.3.84"
+        versionCode 85
+        versionName "1.3.85"
         ndk {
             abiFilters "armeabi-v7a", "arm64-v8a"
         }

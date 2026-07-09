@@ -13,6 +13,8 @@ import java.io.RandomAccessFile;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 
+import org.json.JSONArray;
+
 final class PrunedNodeRunner {
     private static final String TAG = "BloodstoneNodeRunner";
     private static final String JNI_BLOODSTONED = "libbloodstoned_node.so";
@@ -87,6 +89,8 @@ final class PrunedNodeRunner {
                 return false;
             }
             if (ChainBootstrapInstaller.supportsMode(effectiveMode)) {
+                int networkHeight = fetchNetworkBlockHeight();
+                ChainBootstrapInstaller.prepareForNetworkTip(context, dataDir, networkHeight);
                 try {
                     ChainBootstrapInstaller.ensureBootstrap(context, dataDir, effectiveMode);
                 } catch (Exception bootstrapExc) {
@@ -397,8 +401,7 @@ final class PrunedNodeRunner {
             sb.append("maxconnections=8\n");
             sb.append("blocksonly=0\n");
             sb.append("maxsigcachesize=8\n");
-            sb.append("addnode=").append(SEED_NODE).append("\n");
-            sb.append("addnode=").append(SEED_NODE_ALT).append("\n");
+            appendSeedPeers(sb);
         } else if (NodeModeUtil.CONSENSUS.equals(effectiveMode)) {
             int pruneTarget = Math.max(550, pruneMiB);
             sb.append("listen=1\n");
@@ -408,8 +411,7 @@ final class PrunedNodeRunner {
             sb.append("dbcache=32\n");
             sb.append("maxconnections=10\n");
             sb.append("blocksonly=1\n");
-            sb.append("addnode=").append(SEED_NODE).append("\n");
-            sb.append("addnode=").append(SEED_NODE_ALT).append("\n");
+            appendSeedPeers(sb);
         } else if (NodeModeUtil.CONSENSUS_WITNESS.equals(effectiveMode)) {
             int pruneTarget = Math.max(550, pruneMiB);
             sb.append("listen=0\n");
@@ -418,8 +420,7 @@ final class PrunedNodeRunner {
             sb.append("dbcache=24\n");
             sb.append("maxconnections=6\n");
             sb.append("blocksonly=1\n");
-            sb.append("addnode=").append(SEED_NODE).append("\n");
-            sb.append("addnode=").append(SEED_NODE_ALT).append("\n");
+            appendSeedPeers(sb);
         } else {
             int pruneTarget = Math.max(550, pruneMiB);
             sb.append("listen=0\n");
@@ -427,13 +428,32 @@ final class PrunedNodeRunner {
             sb.append("txindex=0\n");
             sb.append("dbcache=48\n");
             sb.append("maxconnections=8\n");
-            sb.append("addnode=").append(SEED_NODE).append("\n");
-            sb.append("addnode=").append(SEED_NODE_ALT).append("\n");
+            appendSeedPeers(sb);
         }
 
         try (OutputStreamWriter writer = new OutputStreamWriter(
             new FileOutputStream(conf), StandardCharsets.UTF_8)) {
             writer.write(sb.toString());
+        }
+    }
+
+    private static void appendSeedPeers(StringBuilder sb) {
+        sb.append("connect=").append(SEED_NODE).append("\n");
+        sb.append("connect=").append(SEED_NODE_ALT).append("\n");
+        sb.append("addnode=").append(SEED_NODE).append("\n");
+        sb.append("addnode=").append(SEED_NODE_ALT).append("\n");
+    }
+
+    private int fetchNetworkBlockHeight() {
+        try {
+            NodeSyncPreferences prefs = new NodeSyncPreferences(context);
+            UpstreamRpcClient client = new UpstreamRpcClient(prefs.upstreamUrl());
+            org.json.JSONObject response =
+                client.call("getblockcount", new JSONArray(), "bootstrap");
+            return response.optInt("result", 0);
+        } catch (Exception exc) {
+            Log.i(TAG, "network height unavailable for bootstrap refresh: " + exc.getMessage());
+            return 0;
         }
     }
 

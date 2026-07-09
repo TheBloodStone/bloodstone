@@ -1,4 +1,8 @@
-"""Wave I — Starlink / satellite uplink handoff bridge for DTN store-and-forward."""
+"""Wave I — WAN / uplink handoff bridge for DTN store-and-forward.
+
+Treats any brief, flaky uplink (Starlink, LTE failover, satellite backhaul, café WiFi)
+as a trigger to flush queued mesh bundles. No vendor-specific WAN integration.
+"""
 
 from __future__ import annotations
 
@@ -12,6 +16,16 @@ import requests
 from chain_mesh import db as mesh_db
 
 HANDOFF_FORMAT = "bloodstone_dtn_starlink/v1"
+LEGACY_ENV_ALIASES = {
+    "DTN_UPLINK_INTERFACE": "DTN_STARLINK_INTERFACE",
+}
+
+
+def _env_uplink_interface() -> str:
+    """Preferred: DTN_UPLINK_INTERFACE. Legacy alias: DTN_STARLINK_INTERFACE."""
+    return (os.environ.get("DTN_UPLINK_INTERFACE") or os.environ.get("DTN_STARLINK_INTERFACE") or "").strip()
+
+
 STARLINK_ENABLE = os.environ.get("DTN_STARLINK_ENABLE", "1").strip() not in ("0", "false", "no")
 PROBE_URL = (
     os.environ.get("DTN_STARLINK_PROBE_URL", "").strip()
@@ -26,7 +40,9 @@ PROBE_MAX_LATENCY_MS = max(500, int(os.environ.get("DTN_STARLINK_MAX_LATENCY_MS"
 PROBE_STREAK_REQUIRED = max(1, int(os.environ.get("DTN_STARLINK_PROBE_STREAK", "2")))
 HANDOFF_COOLDOWN_SEC = max(60, int(os.environ.get("DTN_STARLINK_HANDOFF_COOLDOWN_SEC", "300")))
 HANDOFF_FLUSH_LIMIT = max(1, int(os.environ.get("DTN_STARLINK_FLUSH_LIMIT", "5")))
-STARLINK_INTERFACE = (os.environ.get("DTN_STARLINK_INTERFACE") or "").strip()
+UPLINK_INTERFACE = _env_uplink_interface()
+# Legacy name kept for internal imports (dtn_sync, ai_routing).
+STARLINK_INTERFACE = UPLINK_INTERFACE
 BYPASS_FLUSH_WINDOW = os.environ.get("DTN_STARLINK_BYPASS_FLUSH_WINDOW", "1").strip() not in (
     "0",
     "false",
@@ -130,17 +146,17 @@ def _interface_status(name: str) -> Dict[str, Any]:
 
 
 def probe_uplink(*, url: str = "", timeout_sec: Optional[int] = None) -> Dict[str, Any]:
-    """Probe coordinator reachability — models brief Starlink / satellite windows."""
+    """Probe coordinator reachability — models brief WAN / satellite windows."""
     init_starlink_db()
     target = (url or PROBE_URL).strip()
     timeout = max(1, int(timeout_sec if timeout_sec is not None else PROBE_TIMEOUT_SEC))
-    iface = _interface_status(STARLINK_INTERFACE)
-    if STARLINK_INTERFACE and not iface.get("up"):
+    iface = _interface_status(UPLINK_INTERFACE)
+    if UPLINK_INTERFACE and not iface.get("up"):
         result = {
             "ok": True,
             "format": HANDOFF_FORMAT,
             "connected": False,
-            "reason": f"interface {STARLINK_INTERFACE} not up",
+            "reason": f"interface {UPLINK_INTERFACE} not up",
             "probe_url": target,
             "interface": iface,
             "latency_ms": None,
@@ -210,7 +226,7 @@ def _handoff_allowed(probe: Dict[str, Any], *, force: bool = False) -> tuple:
 
 
 def starlink_handoff(*, force: bool = False, limit: int = 0) -> Dict[str, Any]:
-    """Flush DTN forward queue upstream when satellite uplink is detected."""
+    """Flush DTN forward queue upstream when a brief WAN uplink is detected."""
     from chain_mesh import dtn_sync as dtn
 
     if not STARLINK_ENABLE and not force:
@@ -267,6 +283,7 @@ def status_payload() -> Dict[str, Any]:
     last_latency = _state_get("last_latency_ms")
     return {
         "ok": True,
+        "name": "uplink handoff bridge (Wave I)",
         "format": HANDOFF_FORMAT,
         "enabled": STARLINK_ENABLE,
         "probe_url": PROBE_URL,
@@ -277,7 +294,13 @@ def status_payload() -> Dict[str, Any]:
         "handoff_cooldown_sec": HANDOFF_COOLDOWN_SEC,
         "flush_limit": HANDOFF_FLUSH_LIMIT,
         "bypass_flush_window": BYPASS_FLUSH_WINDOW,
-        "interface": _interface_status(STARLINK_INTERFACE),
+        "uplink_interface_env": "DTN_UPLINK_INTERFACE",
+        "legacy_env_aliases": LEGACY_ENV_ALIASES,
+        "interface": _interface_status(UPLINK_INTERFACE),
+        "note": (
+            "Works with any network interface — set DTN_UPLINK_INTERFACE=eth1 "
+            "(or wwan0, wlan0, etc.). DTN_STARLINK_INTERFACE is a legacy alias."
+        ),
         "last_probe_at": _state_get("last_probe_at")["int_value"] or None,
         "last_connected": bool(_state_get("last_connected")["int_value"]),
         "last_latency_ms": last_latency["int_value"] or None,
@@ -285,8 +308,11 @@ def status_payload() -> Dict[str, Any]:
         "last_handoff_delivered": last_delivered["int_value"],
         "last_handoff": dict(_LAST_HANDOFF),
         "apis": {
-            "status": f"{public}/api/convergence/dtn/starlink/status",
-            "probe": f"{public}/api/convergence/dtn/starlink/probe",
-            "handoff": f"{public}/api/convergence/dtn/starlink/handoff",
+            "status": f"{public}/api/convergence/dtn/uplink/status",
+            "probe": f"{public}/api/convergence/dtn/uplink/probe",
+            "handoff": f"{public}/api/convergence/dtn/uplink/handoff",
+            "status_legacy": f"{public}/api/convergence/dtn/starlink/status",
+            "probe_legacy": f"{public}/api/convergence/dtn/starlink/probe",
+            "handoff_legacy": f"{public}/api/convergence/dtn/starlink/handoff",
         },
     }

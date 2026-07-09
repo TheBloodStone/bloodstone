@@ -25,8 +25,11 @@ final class ChainBootstrapInstaller {
         "https://bloodstonewallet.mytunnel.org/downloads/bloodstone-chain-bootstrap-latest.tar.gz";
     private static final String SHA256_URL = DEFAULT_URL + ".sha256";
     private static final long EXPECTED_BLK_BYTES = 16L * 1024L * 1024L;
+    /** Fallback when .sha256 sidecar fetch fails — keep in sync with published bootstrap. */
     private static final String DEFAULT_SHA256 =
-        "7b4b686b6ae54b714c056a2b8cad399481f9b04a79fc4ea74ea21dbf470c18fd";
+        "23fa8e78e45aee9c92861ede187595a266ce3716fc5ad2de806f9aa53510b6fd";
+    /** Re-download snapshot when local install is more than this many blocks behind tip. */
+    static final int BOOTSTRAP_STALE_BLOCKS = 20;
     private static final long DOWNLOAD_TIMEOUT_MS = 300_000L;
     private static final long EXTRACT_TIMEOUT_MS = 240_000L;
     private static final long MIN_BLOCK_BYTES = 1024L * 1024L;
@@ -89,7 +92,7 @@ final class ChainBootstrapInstaller {
             return false;
         }
         int installed = installedBootstrapHeight(context);
-        return installed > 0 && networkBlockHeight > installed + 40;
+        return installed > 0 && networkBlockHeight > installed + BOOTSTRAP_STALE_BLOCKS;
     }
 
     static void refreshIfIndexBundleRequired(Context context, File dataDir) {
@@ -102,6 +105,11 @@ final class ChainBootstrapInstaller {
         }
         Log.i(TAG, "installed bootstrap lacks blocks/index — refreshing snapshot");
         invalidateInstalledChain(context, dataDir);
+    }
+
+    static void prepareForNetworkTip(Context context, File dataDir, int networkBlockHeight) {
+        refreshIfIndexBundleRequired(context, dataDir);
+        refreshStaleBootstrap(context, dataDir, networkBlockHeight);
     }
 
     static void refreshStaleBootstrap(Context context, File dataDir, int networkBlockHeight) {
