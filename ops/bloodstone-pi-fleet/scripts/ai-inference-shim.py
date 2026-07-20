@@ -158,14 +158,14 @@ def _tflite_interpreter(model_path: str):
 
 
 def _tenant_inference_hint(body: Dict[str, Any]) -> Dict[str, Any]:
-    author = str(body.get("blurt_author") or body.get("author") or "").strip()
+    author = str(body.get("blurt_account") or body.get("blurt_author") or body.get("author") or "").strip()
     if not author:
         return {}
     try:
         from chain_mesh import tenant_npu_models as tnpu
 
         return tnpu.resolve_inference_spec(
-            blurt_author=author,
+            blurt_account=author,
             tenant_id=str(body.get("tenant_id") or ""),
             runtime_hint=str(body.get("runtime") or ""),
         )
@@ -387,10 +387,14 @@ class InferenceHandler(BaseHTTPRequestHandler):
 
 
 def main() -> int:
+    try:
+        from chain_mesh import __version__ as _ver
+    except ImportError:
+        _ver = "0.36.0-beta"
     delegates = _probe_delegates()
     httpd = ThreadingHTTPServer((HOST, PORT), InferenceHandler)
     sys.stderr.write(
-        f"[ai-inference] listening on {HOST}:{PORT} delegates={delegates}\n"
+        f"[ai-inference] v{_ver} listening on {HOST}:{PORT} delegates={delegates}\n"
     )
     try:
         httpd.serve_forever()
@@ -400,4 +404,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 2 and sys.argv[1] in ("--version", "-V"):
+        try:
+            from chain_mesh import __version__
+        except ImportError:
+            __version__ = "0.36.0-beta"
+        print(f"bloodstone-ai-inference-shim {__version__}")
+        raise SystemExit(0)
     raise SystemExit(main())

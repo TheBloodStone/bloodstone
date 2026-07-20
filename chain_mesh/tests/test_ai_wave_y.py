@@ -17,7 +17,7 @@ class TestAiWaveY(unittest.TestCase):
             job={
                 "job_id": "job-y-001",
                 "tenant_id": "ledger-y",
-                "blurt_author": "ledgeruser",
+                "blurt_account": "ledgeruser",
             },
             provider={"provider_id": "pi-edge-ai"},
             tenant_spec={"runtime": "onnx", "hardware_kind": "hailo"},
@@ -25,7 +25,7 @@ class TestAiWaveY(unittest.TestCase):
         )
         result = tledger.list_assignments(
             tenant_id="ledger-y",
-            blurt_author="ledgeruser",
+            blurt_account="ledgeruser",
         )
         self.assertGreaterEqual(result.get("count", 0), 1)
         self.assertEqual(result["assignments"][0].get("provider_id"), "pi-edge-ai")
@@ -34,7 +34,7 @@ class TestAiWaveY(unittest.TestCase):
         from chain_mesh import tenant_route_ledger as tledger
 
         tledger.record_assignment(
-            job={"job_id": "job-y-002", "blurt_author": "gossiproute"},
+            job={"job_id": "job-y-002", "blurt_account": "gossiproute"},
             provider={"provider_id": "node-b-ai"},
             tenant_spec={"runtime": "tflite"},
         )
@@ -72,7 +72,7 @@ class TestAiWaveY(unittest.TestCase):
         os.environ["TENANT_NPU_PROBE_ON_BIND"] = "1"
         with self.assertRaises(ValueError):
             tnpu.bind_npu_model(
-                blurt_author="probeuser",
+                blurt_account="probeuser",
                 runtime="onnx",
                 model_path="/no/such/model-y.onnx",
             )
@@ -83,11 +83,11 @@ class TestAiWaveY(unittest.TestCase):
         from chain_mesh import tenant_route_ledger as tledger
 
         tledger.record_assignment(
-            job={"job_id": "job-y-dash", "blurt_author": "dashy", "tenant_id": "dash-y"},
+            job={"job_id": "job-y-dash", "blurt_account": "dashy", "tenant_id": "dash-y"},
             provider={"provider_id": "dash-ai"},
             tenant_spec={"runtime": "onnx"},
         )
-        dash = tdash.dashboard_payload(tenant_id="dash-y", blurt_author="dashy")
+        dash = tdash.dashboard_payload(tenant_id="dash-y", blurt_account="dashy")
         self.assertIn("route_history", dash)
         self.assertGreaterEqual((dash.get("route_history") or {}).get("count", 0), 1)
         html = tdash.dashboard_page_html()

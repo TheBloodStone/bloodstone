@@ -84,6 +84,21 @@ def _migrate_dtn_schema(conn) -> None:
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_dtn_forward_sha ON dtn_forward_queue(bundle_sha256, status)"
     )
+    # L-02: per-target delivery ledger (idempotent re-flush)
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dtn_forward_deliveries (
+            bundle_id TEXT NOT NULL,
+            target_url TEXT NOT NULL,
+            delivered_at INTEGER NOT NULL,
+            PRIMARY KEY (bundle_id, target_url)
+        )
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_dtn_fwd_del_target "
+        "ON dtn_forward_deliveries(target_url, delivered_at)"
+    )
 
 
 def init_dtn_db() -> None:
@@ -311,7 +326,7 @@ def _collect_compute_jobs(*, since: int) -> List[Dict[str, Any]]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT job_id, stone_address, blurt_author, agent_id, job_type, status,
+            SELECT job_id, stone_address, blurt_account, agent_id, job_type, status,
                    flops_budget, input_asset_keys, output_asset_key, region, provider_id,
                    job_json, trx_id, block_num, created_at, updated_at
             FROM bloodstone_compute_jobs
@@ -415,7 +430,7 @@ def _collect_agent_identities(*, since: int) -> List[Dict[str, Any]]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT agent_id, blurt_author, stone_address, capabilities,
+            SELECT agent_id, blurt_account, stone_address, capabilities,
                    display_name, agent_json, trx_id, block_num, created_at
             FROM bloodstone_agent_identities
             WHERE created_at >= ? AND is_current = 1
@@ -708,7 +723,7 @@ def _import_agents(rows: List[Dict[str, Any]]) -> int:
             continue
         agents.index_agent_identity(
             body=body,
-            author=str(row.get("blurt_author") or body.get("blurt_author") or ""),
+            author=str(row.get("blurt_account") or body.get("blurt_account") or ""),
             trx_id=str(row.get("trx_id") or ""),
             block_num=int(row.get("block_num") or 0),
         )
@@ -1034,6 +1049,7 @@ def register_dtn_peer(
     tls_port: Optional[int] = None,
 ) -> Dict[str, Any]:
     from chain_mesh import dtn_tls as tls
+    from chain_mesh.security import validate_register_source, validate_url_ssrf
 
     init_dtn_db()
     url = tls.normalize_peer_base_url(
@@ -1043,6 +1059,9 @@ def register_dtn_peer(
     )
     if not url.startswith("http"):
         raise ValueError("base_url must be http(s)")
+    # C-01 defense-in-depth: only private LAN targets (no cloud metadata / public SSRF).
+    url = validate_url_ssrf(url, mode="lan_only")
+    src = validate_register_source(source)
     nid = (node_id or url).strip()[:64]
     reg = (region or DTN_DEFAULT_REGION).strip()[:32]
     peer_id = hashlib.sha256(f"{url}|{nid}".encode()).hexdigest()[:16]
@@ -1059,7 +1078,7 @@ def register_dtn_peer(
                 source = excluded.source,
                 last_seen = excluded.last_seen
             """,
-            (peer_id, nid, url, reg, source[:16], now, now),
+            (peer_id, nid, url, reg, src[:16], now, now),
         )
     return {"ok": True, "peer_id": peer_id, "base_url": url, "node_id": nid, "region": reg}
 
@@ -1233,6 +1252,32 @@ def compact_forward_queue() -> Dict[str, Any]:
     }
 
 
+def _normalize_forward_target(url: str) -> str:
+    return (url or "").strip().rstrip("/")
+
+
+def _targets_already_delivered(conn, bundle_id: str) -> set:
+    rows = conn.execute(
+        "SELECT target_url FROM dtn_forward_deliveries WHERE bundle_id = ?",
+        (bundle_id,),
+    ).fetchall()
+    return {_normalize_forward_target(str(r["target_url"])) for r in rows}
+
+
+def _record_forward_delivery(conn, *, bundle_id: str, target_url: str, when: int) -> None:
+    target = _normalize_forward_target(target_url)
+    if not target:
+        return
+    conn.execute(
+        """
+        INSERT INTO dtn_forward_deliveries (bundle_id, target_url, delivered_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(bundle_id, target_url) DO UPDATE SET delivered_at = excluded.delivered_at
+        """,
+        (bundle_id, target, when),
+    )
+
+
 def flush_forward_queue(
     *,
     upstream_url: str = "",
@@ -1240,7 +1285,11 @@ def flush_forward_queue(
     force: bool = False,
     try_peers_first: bool = True,
 ) -> Dict[str, Any]:
-    """Push pending bundles upstream (respects flush windows unless force=True)."""
+    """Push pending bundles upstream (respects flush windows unless force=True).
+
+    L-02: per-target delivery ledger prevents re-pushing the same bundle to a
+    peer that already accepted it (idempotent flush across retries/workers).
+    """
     init_dtn_db()
     if not force and not is_flush_window_open():
         return {
@@ -1251,15 +1300,18 @@ def flush_forward_queue(
             "delivered": 0,
         }
 
-    upstream = (upstream_url or DTN_UPSTREAM_URL).rstrip("/")
+    upstream = _normalize_forward_target(upstream_url or DTN_UPSTREAM_URL)
     targets: List[str] = []
     if try_peers_first:
         for peer in (list_dtn_peers(limit=10).get("peers") or []):
-            targets.append(str(peer.get("base_url") or ""))
-    if upstream not in targets:
+            t = _normalize_forward_target(str(peer.get("base_url") or ""))
+            if t and t not in targets:
+                targets.append(t)
+    if upstream and upstream not in targets:
         targets.append(upstream)
 
     delivered = 0
+    skipped_idempotent = 0
     errors: List[Dict[str, Any]] = []
     now = _now()
     with _conn() as conn:
@@ -1295,35 +1347,78 @@ def flush_forward_queue(
             errors.append({"bundle_id": bundle_id, "error": "file missing"})
             continue
 
+        # Claim row to reduce double-flush races between workers.
+        with _conn() as conn:
+            claim = conn.execute(
+                """
+                UPDATE dtn_forward_queue
+                SET status = 'delivering', last_attempt_at = ?
+                WHERE bundle_id = ? AND status = 'pending'
+                """,
+                (now, bundle_id),
+            )
+            if int(claim.rowcount or 0) == 0:
+                skipped_idempotent += 1
+                continue
+            already = _targets_already_delivered(conn, bundle_id)
+
         with open(path, "rb") as fh:
             raw = fh.read()
 
         success = False
         last_err = ""
+        pushed_targets: List[str] = []
         for target in targets:
             if not target:
+                continue
+            if target in already:
+                # Already accepted by this peer — do not re-process.
+                skipped_idempotent += 1
+                success = True
                 continue
             try:
                 _push_bundle_to_url(raw, base_url=target, bundle_id=bundle_id)
                 with _conn() as conn:
-                    conn.execute(
-                        """
-                        UPDATE dtn_forward_queue
-                        SET status = 'delivered', delivered_at = ?, hop_count = hop_count + 1,
-                            last_attempt_at = ?
-                        WHERE bundle_id = ?
-                        """,
-                        (now, now, bundle_id),
+                    _record_forward_delivery(
+                        conn, bundle_id=bundle_id, target_url=target, when=now
                     )
-                delivered += 1
+                pushed_targets.append(target)
+                already.add(target)
                 success = True
+                # One successful new peer is enough to advance the queue row.
                 break
             except Exception as exc:
-                last_err = str(exc)
+                last_err = str(exc)[:200]
 
-        if not success:
-            errors.append({"bundle_id": bundle_id, "error": last_err or "all targets failed"})
+        if success:
             with _conn() as conn:
+                conn.execute(
+                    """
+                    UPDATE dtn_forward_queue
+                    SET status = 'delivered', delivered_at = ?, hop_count = hop_count + 1,
+                        last_attempt_at = ?
+                    WHERE bundle_id = ?
+                    """,
+                    (now, now, bundle_id),
+                )
+            if pushed_targets:
+                delivered += 1
+        else:
+            errors.append(
+                {
+                    "bundle_id": bundle_id,
+                    "error": last_err or "all targets failed",
+                }
+            )
+            with _conn() as conn:
+                conn.execute(
+                    """
+                    UPDATE dtn_forward_queue
+                    SET status = 'pending', last_attempt_at = ?
+                    WHERE bundle_id = ? AND status = 'delivering'
+                    """,
+                    (now, bundle_id),
+                )
                 _schedule_retry(conn, bundle_id=bundle_id, retry_count=retries + 1)
 
     return {
@@ -1331,6 +1426,7 @@ def flush_forward_queue(
         "upstream": upstream,
         "targets_tried": targets,
         "delivered": delivered,
+        "skipped_idempotent": skipped_idempotent,
         "errors": errors,
         "flush_window_open": is_flush_window_open(),
         "remaining": list_pending_forwards(limit=1).get("pending_count", 0),
@@ -1852,13 +1948,13 @@ def export_payload(
     region: str = "",
     queue_forward: bool = False,
     stone_address: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     tenant_id: str = "",
 ) -> Dict[str, Any]:
     from chain_mesh import depin_credits as depin
 
     addr = (stone_address or "").strip()
-    author = (blurt_author or "").strip()
+    author = (blurt_account or "").strip()
     if not author and addr:
         try:
             from chain_mesh import tenant_fleet_sync as tfleet
@@ -1871,7 +1967,7 @@ def export_payload(
         quota_check = depin.check_bandwidth_allowed(
             addr,
             est,
-            blurt_author=author,
+            blurt_account=author,
             tenant_id=tenant_id,
         )
         if not quota_check.get("allowed"):
@@ -1889,7 +1985,7 @@ def export_payload(
         depin.record_bandwidth_usage(
             addr,
             delta_bytes=len(blob),
-            blurt_author=author,
+            blurt_account=author,
             tenant_id=tenant_id,
         )
 

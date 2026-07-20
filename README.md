@@ -106,3 +106,14 @@ On the maintainer VPS:
 ./prepare-bloodstone-oss-repo.sh
 cd bloodstone-repo && git add -A && git commit -m "Sync snapshot"
 ```
+
+## Latest release: v0.7.6 H1 (flag day H=17000)
+
+Prebuilt packages (Qt, CLI/node, Raspberry Pi ARM64, Android miner, Pi miner):
+
+- **This repo:** [`releases/v0.7.6-h1/`](releases/v0.7.6-h1/)
+- **Portal:** https://bloodstonewallet.mytunnel.org/downloads/
+- **Tag:** `v0.7.6-h1`
+
+Upgrade full nodes **before** chain height **17000**. See `docs/h1/` or `releases/v0.7.6-h1/Phase-H1-Who-Must-Upgrade.md`.
+

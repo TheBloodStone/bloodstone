@@ -146,10 +146,16 @@ def _pending_egress_packets(*, limit: int = EGRESS_BATCH) -> List[Dict[str, Any]
 
 
 def _icmp_ping(dst: str, *, timeout_sec: float = 2.5) -> Tuple[bool, str]:
-    """Best-effort real ICMP via system ping."""
+    """Best-effort real ICMP via system ping (IP-literal only — M-01)."""
+    try:
+        from chain_mesh.security import validate_ip_literal
+
+        safe_dst = validate_ip_literal(dst, private_only=False)
+    except ValueError as exc:
+        return False, str(exc)
     try:
         proc = subprocess.run(
-            ["ping", "-c", "1", "-W", str(max(1, int(timeout_sec))), dst],
+            ["ping", "-c", "1", "-W", str(max(1, int(timeout_sec))), safe_dst],
             capture_output=True,
             text=True,
             timeout=timeout_sec + 1,
@@ -241,15 +247,31 @@ def _web_fetch(
     use_tls: bool,
 ) -> Tuple[bytes, str]:
     """Fetch HTTP or HTTPS upstream; return (body, content_type)."""
+    # H-02: SSRF guard — block metadata/loopback; restrict ports; validate Host.
+    try:
+        from chain_mesh.security import validate_ip_literal, validate_url_ssrf
+
+        safe_ip = validate_ip_literal(dst_ip, private_only=False)
+        allowed = set(GATEWAY_HTTP_PORTS) | set(GATEWAY_HTTPS_PORTS) | {80, 443, 8080, 8443}
+        if int(dst_port) not in allowed:
+            raise ValueError(f"port {dst_port} not allowed for gateway fetch")
+        # Build URL on IP, validate (blocks 169.254.169.254 etc.)
+        scheme = "https" if use_tls else "http"
+        probe = f"{scheme}://{safe_ip}:{int(dst_port)}{(path or '/')}"
+        validate_url_ssrf(probe, mode="block_internal", allowed_ports=allowed)
+        # Host header: hostname only, no credentials/path
+        safe_host = (host or safe_ip).split("/")[0].split("@")[-1][:253]
+    except ValueError as exc:
+        raise urllib.error.URLError(str(exc)) from exc
     scheme = "https" if use_tls else "http"
-    authority = _web_authority(host=host, dst_ip=dst_ip, dst_port=dst_port, use_tls=use_tls)
+    authority = _web_authority(host=safe_host, dst_ip=safe_ip, dst_port=dst_port, use_tls=use_tls)
     url = f"{scheme}://{authority}{path}"
     req = urllib.request.Request(
         url,
         method=method if method in ("GET", "HEAD") else "GET",
         headers={
             "User-Agent": "Bloodstone-BSM4-Gateway/1.0",
-            "Host": host or dst_ip,
+            "Host": safe_host or safe_ip,
             "Accept": "*/*",
         },
     )

@@ -34,7 +34,11 @@ def evaluate_spend(
         return {
             "allowed": False,
             "action": "halt",
-            "reason": "Witness capsule split — spends halted pending manual review.",
+            "reason": (
+                "Witness capsule split or tip-height disagreement — spends halted "
+                "pending AI review + operator confirmation "
+                "(/api/quasar/witness/tip-review)."
+            ),
             "mode": mode,
         }
 

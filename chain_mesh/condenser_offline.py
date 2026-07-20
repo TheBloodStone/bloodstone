@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from chain_mesh.security import public_error
 import json
 import os
 import re
@@ -321,7 +322,7 @@ def index_offline_feed(*, sync_blurt: bool = True) -> Dict[str, Any]:
                 blurt_results.append(r)
                 blurt_n += int(r.get("indexed") or 0)
             except Exception as exc:
-                blurt_results.append({"ok": False, "account": acct, "error": str(exc)})
+                blurt_results.append({"ok": False, "account": acct, "error": public_error(exc)})
     with _conn() as conn:
         total = conn.execute("SELECT COUNT(*) AS c FROM condenser_offline_posts").fetchone()["c"]
         playable = conn.execute(

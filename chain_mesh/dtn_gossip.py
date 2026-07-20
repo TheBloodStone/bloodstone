@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from chain_mesh.security import public_error
 import hashlib
 import os
 import random
@@ -461,7 +462,7 @@ def gossip_round(*, limit: int = 0) -> Dict[str, Any]:
             registered += int(ingest.get("peers_registered") or 0)
             bundle_hints += int(ingest.get("bundle_hints_recorded") or 0)
         except Exception as exc:
-            errors.append({"peer": base, "error": str(exc)})
+            errors.append({"peer": base, "error": public_error(exc)})
 
     result = {
         "ok": True,

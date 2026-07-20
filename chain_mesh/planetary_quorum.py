@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from chain_mesh.security import public_error
 import hashlib
 import os
 import random
@@ -435,7 +436,7 @@ def planetary_heal(*, limit: int = 0, regions: Optional[List[str]] = None) -> Di
             heal = dtn.replication_heal(region=reg, limit=per_region)
             heals.append({"region": reg, **heal})
         except Exception as exc:
-            heals.append({"region": reg, "ok": False, "error": str(exc)})
+            heals.append({"region": reg, "ok": False, "error": public_error(exc)})
 
     queued = sum(1 for h in heals if int(h.get("heal_queued") or 0) > 0)
     result = {
@@ -500,7 +501,7 @@ def planetary_exchange_round(*, limit: int = 0) -> Dict[str, Any]:
             exchanged += 1
             votes_recorded += int(ingest.get("votes_recorded") or 0)
         except Exception as exc:
-            errors.append({"peer": base, "error": str(exc)})
+            errors.append({"peer": base, "error": public_error(exc)})
 
     return {
         "ok": True,

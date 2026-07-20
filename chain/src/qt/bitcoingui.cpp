@@ -17,6 +17,7 @@
 #include <qt/optionsdialog.h>
 #include <qt/optionsmodel.h>
 #include <qt/platformstyle.h>
+#include <qt/quasarwitness.h>
 #include <qt/rpcconsole.h>
 #include <qt/utilitydialog.h>
 
@@ -638,6 +639,15 @@ void BitcoinGUI::setClientModel(ClientModel *_clientModel, interfaces::BlockAndH
             // initialize the disable state of the tray icon with the current value in the model.
             trayIcon->setVisible(optionsModel->getShowTrayIcon());
         }
+
+        // QUASAR peer witness: while the pure Qt wallet is open/idle with a
+        // synced node, submit mesh witness capsules (same role as phone peers).
+        if (!m_quasar_witness) {
+            m_quasar_witness = new QuasarWitnessService(_clientModel, this);
+            // Catch UI activity app-wide so same-tip re-emit waits for idle.
+            qApp->installEventFilter(this);
+            m_quasar_witness->start();
+        }
     } else {
         // Disable possibility to show main window via action
         toggleHideAction->setEnabled(false);
@@ -655,6 +665,12 @@ void BitcoinGUI::setClientModel(ClientModel *_clientModel, interfaces::BlockAndH
         }
 #endif // ENABLE_WALLET
         unitDisplayControl->setOptionsModel(nullptr);
+        if (m_quasar_witness) {
+            qApp->removeEventFilter(this);
+            m_quasar_witness->stop();
+            m_quasar_witness->deleteLater();
+            m_quasar_witness = nullptr;
+        }
     }
 }
 
@@ -1303,6 +1319,21 @@ bool BitcoinGUI::eventFilter(QObject *object, QEvent *event)
         // Prevent adding text from setStatusTip(), if we currently use the status bar for displaying other stuff
         if (progressBarLabel->isVisible() || progressBar->isVisible())
             return true;
+    }
+    // Track input/focus so same-tip QUASAR re-witness waits for idle windows.
+    switch (event->type()) {
+    case QEvent::KeyPress:
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseMove:
+    case QEvent::Wheel:
+    case QEvent::TouchBegin:
+    case QEvent::WindowActivate:
+        if (m_quasar_witness) {
+            m_quasar_witness->noteUserActivity();
+        }
+        break;
+    default:
+        break;
     }
     return QMainWindow::eventFilter(object, event);
 }

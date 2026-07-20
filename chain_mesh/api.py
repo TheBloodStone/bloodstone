@@ -382,11 +382,9 @@ def mesh_lookup_query_payload(
 
 
 def update_asset_metadata_payload(payload: Dict[str, Any], *, asset_key: str) -> Dict[str, Any]:
-    from chain_mesh.config import PUBLISH_TOKEN
+    from chain_mesh.security import require_publish_token, public_error
 
-    token = str(payload.get("publish_token") or "").strip()
-    if not PUBLISH_TOKEN or token != PUBLISH_TOKEN:
-        raise PermissionError("invalid publish token")
+    require_publish_token(payload)
     return mesh_assets.update_asset_metadata_payload(
         asset_key,
         display_name=payload.get("display_name"),
@@ -826,7 +824,7 @@ def partner_publish_asset_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     quota_check = sc.check_publish_allowed(
         stone_address,
         file_size,
-        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+        blurt_account=str(payload.get("blurt_account") or payload.get("blurt_author") or payload.get("author") or ""),
         tenant_id=str(payload.get("tenant_id") or ""),
     )
     if not quota_check.get("allowed"):
@@ -851,7 +849,7 @@ def partner_publish_asset_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
             sc.record_usage(
                 stone_address,
                 delta_bytes=file_size,
-                blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+                blurt_account=str(payload.get("blurt_account") or payload.get("blurt_author") or payload.get("author") or ""),
                 tenant_id=str(payload.get("tenant_id") or ""),
             )
             result["storage_quota"] = sc.quota_summary(stone_address)
@@ -863,14 +861,20 @@ def partner_publish_asset_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
             )
             result["v2_lite"] = v2_pack
         except Exception as exc:
-            result["v2_lite"] = {"ok": False, "error": str(exc)}
+            result["v2_lite"] = {"ok": False, "error": public_error(exc)}
     return result
 
 
 def convergence_status_payload() -> Dict[str, Any]:
+    from chain_mesh import __version__
     from chain_mesh import convergence as conv
 
-    return conv.status_payload()
+    payload = conv.status_payload()
+    if isinstance(payload, dict):
+        payload.setdefault("ok", True)
+        payload["version"] = __version__
+        payload["package"] = f"bloodstone-pi-fleet-convergence-{__version__}"
+    return payload
 
 
 def convergence_storage_quota_payload(stone_address: str) -> Dict[str, Any]:
@@ -882,14 +886,14 @@ def convergence_storage_quota_payload(stone_address: str) -> Dict[str, Any]:
 def convergence_storage_tenant_quota_payload(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     stone_address: str = "",
 ) -> Dict[str, Any]:
     from chain_mesh import storage_tenant_quota as tenant
 
     return tenant.tenant_quota(
         tenant_id=tenant_id,
-        blurt_author=blurt_author,
+        blurt_account=blurt_account,
         stone_address=stone_address,
     )
 
@@ -899,7 +903,7 @@ def convergence_storage_tenant_bind_payload(payload: Dict[str, Any]) -> Dict[str
 
     return tenant.bind_tenant_author(
         tenant_id=str(payload.get("tenant_id") or ""),
-        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+        blurt_account=str(payload.get("blurt_account") or payload.get("blurt_author") or payload.get("author") or ""),
         stone_address=str(payload.get("stone_address") or ""),
         bytes_cap=int(payload.get("bytes_cap") or payload.get("cap") or 0),
     )
@@ -1047,18 +1051,38 @@ def convergence_provenance_sync_payload() -> Dict[str, Any]:
 
 def convergence_agent_register_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import agent_identity as agent
+    from chain_mesh.security import (
+        normalize_blurt_account,
+        rate_limit,
+        require_write_token,
+        verify_stone_ownership_proof,
+    )
 
+    rate_limit("agent-register", max_calls=30, window_sec=60)
+    require_write_token(payload)
+    # Preferred key blurt_account; accept deprecated blurt_author.
+    if not payload.get("blurt_account") and (
+        payload.get("blurt_author") or payload.get("author")
+    ):
+        payload = dict(payload)
+        payload["blurt_account"] = normalize_blurt_account(payload=payload)
+    verify_stone_ownership_proof(
+        payload, stone_address=str(payload.get("stone_address") or "")
+    )
     return agent.register_payload(payload)
 
 
 def convergence_agent_verify_payload(
     *,
     agent_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
+    blurt_author: str = "",  # deprecated alias
 ) -> Dict[str, Any]:
     from chain_mesh import agent_identity as agent
+    from chain_mesh.security import normalize_blurt_account
 
-    return agent.verify_agent(agent_id=agent_id, blurt_author=blurt_author)
+    author = normalize_blurt_account(blurt_account, blurt_author)
+    return agent.verify_agent(agent_id=agent_id, blurt_account=author)
 
 
 def convergence_agent_sync_payload() -> Dict[str, Any]:
@@ -1082,25 +1106,28 @@ def convergence_compute_quota_payload(stone_address: str) -> Dict[str, Any]:
 def convergence_compute_tenant_quota_payload(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     stone_address: str = "",
 ) -> Dict[str, Any]:
     from chain_mesh import compute_tenant_quota as tenant
 
     return tenant.tenant_quota(
         tenant_id=tenant_id,
-        blurt_author=blurt_author,
+        blurt_account=blurt_account,
         stone_address=stone_address,
     )
 
 
 def convergence_compute_tenant_bind_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import compute_tenant_quota as tenant
+    from chain_mesh.security import normalize_blurt_account, verify_stone_ownership_proof
 
+    stone = str(payload.get("stone_address") or "")
+    verify_stone_ownership_proof(payload, stone_address=stone)
     return tenant.bind_tenant_author(
         tenant_id=str(payload.get("tenant_id") or ""),
-        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
-        stone_address=str(payload.get("stone_address") or ""),
+        blurt_account=normalize_blurt_account(payload=payload),
+        stone_address=stone,
         flops_cap=int(payload.get("flops_cap") or 0),
     )
 
@@ -1126,25 +1153,35 @@ def convergence_ai_provider_broadcast_payload(payload: Dict[str, Any]) -> Dict[s
 def convergence_tenant_dashboard_payload(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     stone_address: str = "",
 ) -> Dict[str, Any]:
     from chain_mesh import tenant_dashboard as tdash
 
     return tdash.dashboard_payload(
         tenant_id=tenant_id,
-        blurt_author=blurt_author,
+        blurt_account=blurt_account,
         stone_address=stone_address,
     )
 
 
 def convergence_tenant_bind_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import tenant_dashboard as tdash
+    from chain_mesh.security import (
+        normalize_blurt_account,
+        rate_limit,
+        require_write_token,
+        verify_stone_ownership_proof,
+    )
 
+    rate_limit("tenant-bind", max_calls=20, window_sec=60)
+    require_write_token(payload)
+    stone = str(payload.get("stone_address") or "")
+    verify_stone_ownership_proof(payload, stone_address=stone)
     return tdash.bind_all_rails(
         tenant_id=str(payload.get("tenant_id") or ""),
-        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
-        stone_address=str(payload.get("stone_address") or ""),
+        blurt_account=normalize_blurt_account(payload=payload),
+        stone_address=stone,
         flops_cap=int(payload.get("flops_cap") or 0),
         bandwidth_bytes_cap=int(
             payload.get("bandwidth_bytes_cap") or payload.get("bytes_cap_bandwidth") or 0
@@ -1199,7 +1236,10 @@ def convergence_tenant_fleet_quorum_snapshots_payload() -> Dict[str, Any]:
 
 def convergence_tenant_broadcast_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import tenant_broadcast as tb
+    from chain_mesh.security import rate_limit, require_write_token
 
+    rate_limit("tenant-broadcast", max_calls=15, window_sec=60)
+    require_write_token(payload)
     return tb.broadcast_tenant_payload(payload)
 
 
@@ -1230,14 +1270,14 @@ def convergence_tenant_submit_status_payload() -> Dict[str, Any]:
 def convergence_tenant_submit_check_payload(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     stone_address: str = "",
 ) -> Dict[str, Any]:
     from chain_mesh import tenant_submit_gate as tgate
 
     return tgate.check_submit_allowed(
         tenant_id=tenant_id,
-        blurt_author=blurt_author,
+        blurt_account=blurt_account,
         stone_address=stone_address,
     )
 
@@ -1245,11 +1285,11 @@ def convergence_tenant_submit_check_payload(
 def convergence_tenant_quorum_author_payload(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
 ) -> Dict[str, Any]:
     from chain_mesh import tenant_submit_gate as tgate
 
-    return tgate.quorum_for_author(tenant_id=tenant_id, blurt_author=blurt_author)
+    return tgate.quorum_for_author(tenant_id=tenant_id, blurt_account=blurt_account)
 
 
 def convergence_tenant_npu_bind_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -1257,7 +1297,7 @@ def convergence_tenant_npu_bind_payload(payload: Dict[str, Any]) -> Dict[str, An
 
     return tnpu.bind_npu_model(
         tenant_id=str(payload.get("tenant_id") or ""),
-        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+        blurt_account=str(payload.get("blurt_account") or payload.get("blurt_author") or payload.get("author") or ""),
         runtime=str(payload.get("runtime") or ""),
         model_path=str(payload.get("model_path") or ""),
         hardware_kind=str(payload.get("hardware_kind") or ""),
@@ -1274,14 +1314,14 @@ def convergence_tenant_npu_status_payload() -> Dict[str, Any]:
 def convergence_tenant_npu_resolve_payload(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     runtime: str = "",
 ) -> Dict[str, Any]:
     from chain_mesh import tenant_npu_models as tnpu
 
     return tnpu.resolve_inference_spec(
         tenant_id=tenant_id,
-        blurt_author=blurt_author,
+        blurt_account=blurt_account,
         runtime_hint=runtime,
     )
 
@@ -1304,7 +1344,7 @@ def convergence_tenant_ai_route_status_payload() -> Dict[str, Any]:
 def convergence_tenant_ai_route_resolve_payload(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     runtime: str = "",
 ) -> Dict[str, Any]:
     from chain_mesh import tenant_ai_route as troute
@@ -1312,7 +1352,7 @@ def convergence_tenant_ai_route_resolve_payload(
     return troute.resolve_job_inference_spec(
         {
             "tenant_id": tenant_id,
-            "blurt_author": blurt_author,
+            "blurt_account": blurt_account,
             "ai_spec": {"runtime": runtime} if runtime else {},
         }
     )
@@ -1345,14 +1385,14 @@ def convergence_tenant_route_ledger_status_payload() -> Dict[str, Any]:
 def convergence_tenant_route_ledger_assignments_payload(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     limit: int = 20,
 ) -> Dict[str, Any]:
     from chain_mesh import tenant_route_ledger as tledger
 
     return tledger.list_assignments(
         tenant_id=tenant_id,
-        blurt_author=blurt_author,
+        blurt_account=blurt_account,
         limit=limit,
     )
 
@@ -1415,7 +1455,10 @@ def convergence_ai_provider_broadcast_queue_payload() -> Dict[str, Any]:
 
 def convergence_compute_job_submit_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import compute_job as cjobs
+    from chain_mesh.security import rate_limit, require_write_token
 
+    rate_limit("compute-job-submit", max_calls=30, window_sec=60)
+    require_write_token(payload)
     return cjobs.submit_payload(payload)
 
 
@@ -1461,14 +1504,14 @@ def convergence_bandwidth_quota_payload(stone_address: str) -> Dict[str, Any]:
 def convergence_bandwidth_tenant_quota_payload(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     stone_address: str = "",
 ) -> Dict[str, Any]:
     from chain_mesh import bandwidth_tenant_quota as tenant
 
     return tenant.tenant_quota(
         tenant_id=tenant_id,
-        blurt_author=blurt_author,
+        blurt_account=blurt_account,
         stone_address=stone_address,
     )
 
@@ -1478,7 +1521,7 @@ def convergence_bandwidth_tenant_bind_payload(payload: Dict[str, Any]) -> Dict[s
 
     return tenant.bind_tenant_author(
         tenant_id=str(payload.get("tenant_id") or ""),
-        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+        blurt_account=str(payload.get("blurt_account") or payload.get("blurt_author") or payload.get("author") or ""),
         stone_address=str(payload.get("stone_address") or ""),
         bytes_cap=int(payload.get("bytes_cap") or payload.get("cap") or 0),
     )
@@ -1516,11 +1559,13 @@ def convergence_dtn_export_payload(
     region: str = "",
     queue_forward: bool = False,
     stone_address: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     tenant_id: str = "",
 ) -> Dict[str, Any]:
     from chain_mesh import dtn_sync as dtn
+    from chain_mesh.security import rate_limit
 
+    rate_limit(f"dtn-export:{node_id or 'anon'}", max_calls=10, window_sec=60)
     return dtn.export_payload(
         node_id=node_id,
         since=since,
@@ -1528,7 +1573,7 @@ def convergence_dtn_export_payload(
         region=region,
         queue_forward=queue_forward,
         stone_address=stone_address,
-        blurt_author=blurt_author,
+        blurt_account=blurt_account,
         tenant_id=tenant_id,
     )
 
@@ -1540,14 +1585,14 @@ def convergence_dtn_build_zip(
     include_chunks: bool = True,
     region: str = "",
     stone_address: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     tenant_id: str = "",
 ) -> tuple:
     from chain_mesh import depin_credits as depin
     from chain_mesh import dtn_sync as dtn
 
     addr = (stone_address or "").strip()
-    author = (blurt_author or "").strip()
+    author = (blurt_account or "").strip()
     if not author and addr:
         try:
             from chain_mesh import tenant_fleet_sync as tfleet
@@ -1560,7 +1605,7 @@ def convergence_dtn_build_zip(
         quota_check = depin.check_bandwidth_allowed(
             addr,
             est,
-            blurt_author=author,
+            blurt_account=author,
             tenant_id=tenant_id,
         )
         if not quota_check.get("allowed"):
@@ -1576,7 +1621,7 @@ def convergence_dtn_build_zip(
         depin.record_bandwidth_usage(
             addr,
             delta_bytes=len(blob),
-            blurt_author=author,
+            blurt_account=author,
             tenant_id=tenant_id,
         )
     return blob, filename, meta
@@ -1663,12 +1708,23 @@ def convergence_dtn_peers_discover_payload() -> Dict[str, Any]:
 
 def convergence_dtn_peer_register_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import dtn_sync as dtn
+    from chain_mesh.security import (
+        rate_limit,
+        require_write_token,
+        validate_register_source,
+        validate_url_ssrf,
+    )
 
+    # C-01: auth + SSRF — LAN private URLs only; token required unless LAN open.
+    rate_limit("dtn-peer-register", max_calls=20, window_sec=60)
+    source = validate_register_source(str(payload.get("source") or "manual"))
+    require_write_token(payload, allow_lan_open=(source in ("local", "mdns", "lan", "heartbeat")))
+    base_url = validate_url_ssrf(str(payload.get("base_url") or ""), mode="lan_only")
     return dtn.register_dtn_peer(
-        base_url=str(payload.get("base_url") or ""),
+        base_url=base_url,
         node_id=str(payload.get("node_id") or ""),
         region=str(payload.get("region") or ""),
-        source=str(payload.get("source") or "manual"),
+        source=source,
     )
 
 
@@ -1829,7 +1885,21 @@ def convergence_ai_providers_payload(
 
 def convergence_ai_register_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import ai_routing as ai
+    from chain_mesh.security import (
+        rate_limit,
+        require_write_token,
+        validate_register_source,
+        validate_url_ssrf,
+    )
 
+    # C-02: auth + SSRF on inference/health URLs
+    rate_limit("ai-register", max_calls=20, window_sec=60)
+    source = validate_register_source(str(payload.get("source") or "manual"))
+    require_write_token(payload, allow_lan_open=(source in ("local", "mdns", "lan", "coordinator")))
+    endpoints = dict(payload.get("endpoints") or {})
+    for key in ("inference_url", "health_url", "callback_url"):
+        if endpoints.get(key):
+            endpoints[key] = validate_url_ssrf(str(endpoints[key]), mode="lan_only")
     return ai.register_local_provider(
         provider_id=str(payload.get("provider_id") or ""),
         node_id=str(payload.get("node_id") or ""),
@@ -1837,11 +1907,11 @@ def convergence_ai_register_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         runtimes=payload.get("runtimes"),
         region=str(payload.get("region") or ""),
         offline_capable=payload.get("offline_capable", True) not in (False, "0", 0),
-        endpoints=payload.get("endpoints"),
+        endpoints=endpoints or None,
         models=payload.get("models"),
         flops_per_sec=int(payload.get("flops_per_sec") or 0),
         max_concurrent=int(payload.get("max_concurrent") or 2),
-        source=str(payload.get("source") or "manual"),
+        source=source,
     )
 
 

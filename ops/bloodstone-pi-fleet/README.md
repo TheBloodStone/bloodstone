@@ -1,5 +1,7 @@
 # Bloodstone Pi Fleet Playbook
 
+> **API naming (0.36.1-beta):** use `blurt_account` for Blurt account names (e.g. `megadrive`). The old parameter `blurt_author` is still accepted as a deprecated alias.
+
 Operations guide for **Raspberry Pi edge nodes** in the Blurt–Bloodstone convergence mesh (Layer 2 DTN + Layer 3 DePIN).
 
 ## Fleet role
@@ -214,8 +216,8 @@ Pi fleets can cap FLOPS per Blurt author on shared edge hardware. Bind authors t
 ```bash
 curl -X POST http://127.0.0.1:8887/api/convergence/compute/tenant/bind \
   -H 'Content-Type: application/json' \
-  -d '{"tenant_id":"bloodstone","blurt_author":"megadrive","stone_address":"STONE...","flops_cap":5000000000}'
-curl -fsS 'http://127.0.0.1:8887/api/convergence/compute/tenant/quota?blurt_author=megadrive' | jq .
+  -d '{"tenant_id":"bloodstone","blurt_account":"megadrive","stone_address":"STONE...","flops_cap":5000000000}'
+curl -fsS 'http://127.0.0.1:8887/api/convergence/compute/tenant/quota?blurt_account=megadrive' | jq .
 curl -X POST http://127.0.0.1:8887/api/convergence/ai/provider/sync
 ```
 
@@ -249,9 +251,9 @@ Set `LLAMA_SERVER_URL=http://127.0.0.1:8080` to proxy to a local `llama-server` 
 ```bash
 curl -X POST http://127.0.0.1:8887/api/convergence/bandwidth/tenant/bind \
   -H 'Content-Type: application/json' \
-  -d '{"tenant_id":"bloodstone","blurt_author":"megadrive","stone_address":"STONE...","bytes_cap":104857600}'
-curl -fsS 'http://127.0.0.1:8887/api/convergence/bandwidth/tenant/quota?blurt_author=megadrive' | jq .
-curl -fsS 'http://127.0.0.1:8887/api/convergence/dtn/export?stone_address=STONE...&blurt_author=megadrive' | jq .
+  -d '{"tenant_id":"bloodstone","blurt_account":"megadrive","stone_address":"STONE...","bytes_cap":104857600}'
+curl -fsS 'http://127.0.0.1:8887/api/convergence/bandwidth/tenant/quota?blurt_account=megadrive' | jq .
+curl -fsS 'http://127.0.0.1:8887/api/convergence/dtn/export?stone_address=STONE...&blurt_account=megadrive' | jq .
 ```
 
 **Fleet gossip enforcement** — when `AI_GOSSIP_SIGNING_KEY` is set, unsigned snapshots are rejected by default:
@@ -267,8 +269,8 @@ curl -fsS http://127.0.0.1:8887/api/convergence/ai/gossip/sign/status | jq '.fle
 ```bash
 curl -X POST http://127.0.0.1:8887/api/convergence/storage/tenant/bind \
   -H 'Content-Type: application/json' \
-  -d '{"tenant_id":"bloodstone","blurt_author":"megadrive","stone_address":"STONE...","bytes_cap":5368709120}'
-curl -fsS 'http://127.0.0.1:8887/api/convergence/storage/tenant/quota?blurt_author=megadrive' | jq .
+  -d '{"tenant_id":"bloodstone","blurt_account":"megadrive","stone_address":"STONE...","bytes_cap":5368709120}'
+curl -fsS 'http://127.0.0.1:8887/api/convergence/storage/tenant/quota?blurt_account=megadrive' | jq .
 ```
 
 **AI DTN route export** — when `AI_DTN_EXPORT_ROUTES=1`, DTN bundles include `ai-route-assignments.json` for stranded inference jobs:
@@ -284,10 +286,10 @@ curl -fsS 'http://127.0.0.1:8887/api/convergence/dtn/export?include_chunks=0' | 
 
 ```bash
 curl -fsS http://127.0.0.1:8887/api/convergence/tenant/status | jq .
-curl -fsS 'http://127.0.0.1:8887/api/convergence/tenant/dashboard?blurt_author=megadrive' | jq .
+curl -fsS 'http://127.0.0.1:8887/api/convergence/tenant/dashboard?blurt_account=megadrive' | jq .
 curl -X POST http://127.0.0.1:8887/api/convergence/tenant/bind \
   -H 'Content-Type: application/json' \
-  -d '{"blurt_author":"megadrive","stone_address":"STONE...","flops_cap":5e9,"bandwidth_bytes_cap":1e8,"storage_bytes_cap":5e9}'
+  -d '{"blurt_account":"megadrive","stone_address":"STONE...","flops_cap":5e9,"bandwidth_bytes_cap":1e8,"storage_bytes_cap":5e9}'
 ```
 
 **Blurt broadcast of AI providers** — publish `bloodstone_ai_provider/v1` to Layer 1:
@@ -295,7 +297,7 @@ curl -X POST http://127.0.0.1:8887/api/convergence/tenant/bind \
 ```bash
 curl -X POST http://127.0.0.1:8887/api/convergence/ai/provider/broadcast \
   -H 'Content-Type: application/json' \
-  -d '{"provider_id":"pi-shed-01-ai","blurt_author":"megadrive"}'
+  -d '{"provider_id":"pi-shed-01-ai","blurt_account":"megadrive"}'
 # Response includes blurt_custom_json — sign and broadcast on Blurt
 curl -X POST http://127.0.0.1:8887/api/convergence/ai/provider/sync
 ```
@@ -345,7 +347,7 @@ curl -fsS http://127.0.0.1:8081/health | jq '.wave,.npu_runtimes,.delegates'
 curl -fsS http://127.0.0.1:8081/v1/runtimes | jq .
 ```
 
-**DTN export** auto-resolves `blurt_author` from tenant bindings when only `stone_address` is set.
+**DTN export** auto-resolves `blurt_account` from tenant bindings when only `stone_address` is set.
 
 ### Wave V — tenant quorum + Blurt manifest broadcast + NPU execution
 
@@ -362,7 +364,7 @@ curl -fsS http://127.0.0.1:8887/api/convergence/tenant/fleet/quorum/snapshots | 
 curl -fsS http://127.0.0.1:8887/api/convergence/tenant/broadcast/queue | jq .
 curl -X POST http://127.0.0.1:8887/api/convergence/tenant/broadcast \
   -H 'Content-Type: application/json' \
-  -d '{"blurt_author":"meshops","flops_cap":5000000,"bandwidth_bytes_cap":100000000}'
+  -d '{"blurt_account":"meshops","flops_cap":5000000,"bandwidth_bytes_cap":100000000}'
 curl -X POST http://127.0.0.1:8887/api/convergence/tenant/sync
 ```
 
@@ -377,8 +379,8 @@ curl -fsS http://127.0.0.1:8081/health | jq '.wave,.delegates,.npu_hardware'
 **Compute/AI submit** checks fleet quorum when `TENANT_SUBMIT_QUORUM_REQUIRE=1`:
 
 ```bash
-curl -fsS 'http://127.0.0.1:8887/api/convergence/tenant/submit/check?blurt_author=meshops' | jq .
-curl -fsS http://127.0.0.1:8887/api/convergence/tenant/quorum/author?blurt_author=meshops | jq .
+curl -fsS 'http://127.0.0.1:8887/api/convergence/tenant/submit/check?blurt_account=meshops' | jq .
+curl -fsS http://127.0.0.1:8887/api/convergence/tenant/quorum/author?blurt_account=meshops | jq .
 ```
 
 **Per-author NPU model bindings** propagate via tenant manifests and inference shim:
@@ -386,11 +388,11 @@ curl -fsS http://127.0.0.1:8887/api/convergence/tenant/quorum/author?blurt_autho
 ```bash
 curl -X POST http://127.0.0.1:8887/api/convergence/tenant/npu/bind \
   -H 'Content-Type: application/json' \
-  -d '{"blurt_author":"meshops","runtime":"onnx","model_path":"/var/lib/bloodstone/models/edge.onnx","hardware_kind":"hailo"}'
-curl -fsS 'http://127.0.0.1:8887/api/convergence/tenant/npu/resolve?blurt_author=meshops' | jq .
+  -d '{"blurt_account":"meshops","runtime":"onnx","model_path":"/var/lib/bloodstone/models/edge.onnx","hardware_kind":"hailo"}'
+curl -fsS 'http://127.0.0.1:8887/api/convergence/tenant/npu/resolve?blurt_account=meshops' | jq .
 curl -X POST http://127.0.0.1:8081/v1/completions \
   -H 'Content-Type: application/json' \
-  -d '{"blurt_author":"meshops","prompt":"tenant npu","max_tokens":32}'
+  -d '{"blurt_account":"meshops","prompt":"tenant npu","max_tokens":32}'
 ```
 
 Dashboard at `/convergence/tenant` shows quorum votes and NPU model rows per author.
@@ -401,7 +403,7 @@ Dashboard at `/convergence/tenant` shows quorum votes and NPU model rows per aut
 
 ```bash
 curl -fsS http://127.0.0.1:8887/api/convergence/tenant/ai/route/status | jq .
-curl -fsS 'http://127.0.0.1:8887/api/convergence/tenant/ai/route/resolve?blurt_author=meshops' | jq .
+curl -fsS 'http://127.0.0.1:8887/api/convergence/tenant/ai/route/resolve?blurt_account=meshops' | jq .
 ```
 
 **Tenant manifest gossip** propagates Blurt manifests across Pi fleet:
@@ -425,7 +427,7 @@ curl -X POST http://127.0.0.1:8887/api/convergence/tenant/npu/probe \
 
 ```bash
 curl -fsS http://127.0.0.1:8887/api/convergence/tenant/route/ledger/status | jq .
-curl -fsS 'http://127.0.0.1:8887/api/convergence/tenant/route/ledger/assignments?blurt_author=meshops' | jq .
+curl -fsS 'http://127.0.0.1:8887/api/convergence/tenant/route/ledger/assignments?blurt_account=meshops' | jq .
 ```
 
 **Unified tenant upkeep** — quorum, gossip, broadcast queue in one cycle:
@@ -437,7 +439,7 @@ curl -X POST http://127.0.0.1:8887/api/convergence/tenant/upkeep/run
 
 **NPU probe-on-bind** rejects invalid model paths (`TENANT_NPU_PROBE_ON_BIND=1`).
 
-Coordinator dispatch now includes `tenant_route` + `blurt_author` for cross-node inference.
+Coordinator dispatch now includes `tenant_route` + `blurt_account` for cross-node inference.
 
 ### Coordinator AI dispatch (Wave N)
 

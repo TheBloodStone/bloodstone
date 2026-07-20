@@ -185,7 +185,7 @@ int64_t GetBlockProofEquivalentTime(const CBlockIndex& to, const CBlockIndex& fr
        chainparams.cpp.  */
     arith_uint256 numer = 1;
     arith_uint256 denom;
-    for (const PowAlgo algo : {PowAlgo::SHA256D, PowAlgo::NEOSCRYPT})
+    for (const PowAlgo algo : {PowAlgo::SHA256D, PowAlgo::NEOSCRYPT, PowAlgo::YESPOWER})
       {
         const arith_uint256 spacing
             = params.rules->GetTargetSpacing (algo, tip.nHeight);

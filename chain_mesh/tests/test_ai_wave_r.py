@@ -15,13 +15,13 @@ class TestAiWaveR(unittest.TestCase):
 
         tenant.bind_tenant_author(
             tenant_id="stor-test",
-            blurt_author="publisher1",
+            blurt_account="publisher1",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             bytes_cap=5_000_000,
         )
         q = tenant.tenant_quota(
             tenant_id="stor-test",
-            blurt_author="publisher1",
+            blurt_account="publisher1",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
         )
         self.assertEqual(q.get("bytes_cap"), 5_000_000)
@@ -35,20 +35,20 @@ class TestAiWaveR(unittest.TestCase):
         os.environ["STORAGE_CREDIT_ENFORCE"] = "0"
         tenant.bind_tenant_author(
             tenant_id="stor-cap",
-            blurt_author="heavypub",
+            blurt_account="heavypub",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             bytes_cap=1000,
         )
         tenant.record_tenant_storage_usage(
             tenant_id="stor-cap",
-            blurt_author="heavypub",
+            blurt_account="heavypub",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             delta_bytes=900,
         )
         result = sc.check_publish_allowed(
             "STONE1abcdefghijklmnopqrstuvwxyz12",
             200,
-            blurt_author="heavypub",
+            blurt_account="heavypub",
             tenant_id="stor-cap",
         )
         self.assertFalse(result.get("allowed"))
@@ -64,7 +64,7 @@ class TestAiWaveR(unittest.TestCase):
         job = cjobs.submit_payload(
             {
                 "stone_address": "STONE1abcdefghijklmnopqrstuvwxyz12",
-                "blurt_author": "routeuser",
+                "blurt_account": "routeuser",
                 "job_type": "inference",
                 "flops_budget": 1000,
                 "ai_spec": {"runtime": "llama.cpp", "model_id": "test"},
@@ -99,7 +99,7 @@ class TestAiWaveR(unittest.TestCase):
             job = cjobs.submit_payload(
                 {
                     "stone_address": "STONE1abcdefghijklmnopqrstuvwxyz12",
-                    "blurt_author": "dtnuser",
+                    "blurt_account": "dtnuser",
                     "job_type": "inference",
                     "flops_budget": 500,
                     "ai_spec": {"runtime": "cpu-inference"},

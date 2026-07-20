@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from chain_mesh.security import public_error
 import json
 import os
 import re
@@ -49,7 +50,7 @@ def init_agent_db() -> None:
             CREATE TABLE IF NOT EXISTS bloodstone_agent_identities (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 agent_id TEXT NOT NULL,
-                blurt_author TEXT NOT NULL,
+                blurt_account TEXT NOT NULL,
                 stone_address TEXT NOT NULL DEFAULT '',
                 capabilities TEXT NOT NULL DEFAULT '[]',
                 display_name TEXT NOT NULL DEFAULT '',
@@ -61,7 +62,7 @@ def init_agent_db() -> None:
                 is_current INTEGER NOT NULL DEFAULT 1
             );
             CREATE INDEX IF NOT EXISTS idx_agent_blurt
-                ON bloodstone_agent_identities(blurt_author, is_current DESC);
+                ON bloodstone_agent_identities(blurt_account, is_current DESC);
             CREATE INDEX IF NOT EXISTS idx_agent_id
                 ON bloodstone_agent_identities(agent_id, is_current DESC);
             """
@@ -90,7 +91,7 @@ def _normalize_agent_id(value: str, *, author: str = "") -> str:
 
 def build_agent_manifest(
     *,
-    blurt_author: str,
+    blurt_account: str,
     stone_address: str,
     agent_id: str = "",
     capabilities: Optional[List[str]] = None,
@@ -98,9 +99,9 @@ def build_agent_manifest(
     pubkey_hint: str = "",
 ) -> Dict[str, Any]:
     """Layer 0 — Blurt custom_json machine identity manifest."""
-    auth = (blurt_author or "").lstrip("@").lower()
+    auth = (blurt_account or "").lstrip("@").lower()
     if not auth:
-        raise ValueError("blurt_author required")
+        raise ValueError("blurt_account required")
     stone = (stone_address or "").strip()
     if len(stone) < 25:
         raise ValueError("stone_address required")
@@ -112,7 +113,7 @@ def build_agent_manifest(
     body = {
         "v": "1",
         "agent_id": aid,
-        "blurt_author": auth,
+        "blurt_account": auth,
         "stone_address": stone,
         "capabilities": caps,
         "display_name": (display_name or aid)[:120],
@@ -138,7 +139,7 @@ def index_agent_identity(
 ) -> Dict[str, Any]:
     init_agent_db()
     aid = str(body.get("agent_id") or "").strip().lower()
-    auth = str(author or body.get("blurt_author") or "").lstrip("@").lower()
+    auth = str(author or body.get("blurt_account") or "").lstrip("@").lower()
     now = _now()
     with _conn() as conn:
         conn.execute(
@@ -148,7 +149,7 @@ def index_agent_identity(
         cur = conn.execute(
             """
             INSERT INTO bloodstone_agent_identities (
-                agent_id, blurt_author, stone_address, capabilities,
+                agent_id, blurt_account, stone_address, capabilities,
                 display_name, pubkey_hint, agent_json,
                 trx_id, block_num, created_at, is_current
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
@@ -166,13 +167,13 @@ def index_agent_identity(
                 now,
             ),
         )
-        return {"ok": True, "id": int(cur.lastrowid), "agent_id": aid, "blurt_author": auth}
+        return {"ok": True, "id": int(cur.lastrowid), "agent_id": aid, "blurt_account": auth}
 
 
 def get_agent_identity(
     *,
     agent_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
 ) -> Optional[Dict[str, Any]]:
     init_agent_db()
     with _conn() as conn:
@@ -185,14 +186,14 @@ def get_agent_identity(
                 """,
                 (agent_id.strip().lower(),),
             ).fetchone()
-        elif blurt_author:
+        elif blurt_account:
             row = conn.execute(
                 """
                 SELECT * FROM bloodstone_agent_identities
-                WHERE blurt_author = ? AND is_current = 1
+                WHERE blurt_account = ? AND is_current = 1
                 ORDER BY created_at DESC LIMIT 1
                 """,
-                (blurt_author.lstrip("@").lower(),),
+                (blurt_account.lstrip("@").lower(),),
             ).fetchone()
         else:
             return None
@@ -207,16 +208,16 @@ def get_agent_identity(
 def verify_agent(
     *,
     agent_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
 ) -> Dict[str, Any]:
     """Check indexed agent identity + capability tags."""
     aid = (agent_id or "").strip().lower()
-    auth = (blurt_author or "").lstrip("@").lower()
-    agent = get_agent_identity(agent_id=aid, blurt_author=auth if not aid else "")
+    auth = (blurt_account or "").lstrip("@").lower()
+    agent = get_agent_identity(agent_id=aid, blurt_account=auth if not aid else "")
     if agent and not aid:
         aid = str(agent.get("agent_id") or "")
     if not aid and not auth:
-        return {"ok": False, "verified": False, "error": "agent_id or blurt_author required"}
+        return {"ok": False, "verified": False, "error": "agent_id or blurt_account required"}
 
     checks: Dict[str, Any] = {"anchor_indexed": agent is not None}
     verified = agent is not None
@@ -226,14 +227,14 @@ def verify_agent(
         verified = False
 
     public = os.environ.get("BLOODSTONE_PUBLIC_ROOT", "https://bloodstonewallet.mytunnel.org").rstrip("/")
-    query = f"agent_id={aid}" if aid else f"blurt_author={auth}"
+    query = f"agent_id={aid}" if aid else f"blurt_account={auth}"
     return {
         "ok": True,
         "verified": bool(verified),
         "layer": 0,
         "use_case": "autonomous_ai_creator_economy",
         "agent_id": aid or (agent or {}).get("agent_id"),
-        "blurt_author": auth or (agent or {}).get("blurt_author"),
+        "blurt_account": auth or (agent or {}).get("blurt_account"),
         "stone_address": (agent or {}).get("stone_address"),
         "capabilities": (agent or {}).get("capabilities") or [],
         "checks": checks,
@@ -245,7 +246,7 @@ def verify_agent(
 
 def register_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     custom = build_agent_manifest(
-        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+        blurt_account=str(payload.get("blurt_account") or payload.get("blurt_author") or payload.get("author") or ""),
         stone_address=str(payload.get("stone_address") or ""),
         agent_id=str(payload.get("agent_id") or ""),
         capabilities=payload.get("capabilities"),
@@ -253,7 +254,7 @@ def register_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         pubkey_hint=str(payload.get("pubkey_hint") or ""),
     )
     body = custom["body"]
-    index_agent_identity(body=body, author=body.get("blurt_author", ""))
+    index_agent_identity(body=body, author=body.get("blurt_account", ""))
     verify = verify_agent(agent_id=body["agent_id"])
     public = os.environ.get("BLOODSTONE_PUBLIC_ROOT", "https://bloodstonewallet.mytunnel.org").rstrip("/")
     return {
@@ -279,13 +280,13 @@ def publish_flow_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Scaffold: agent identity + blog manifest + optional provenance pointer."""
     from chain_mesh import blog_manifest as blog
 
-    auth = str(payload.get("blurt_author") or payload.get("author") or "")
+    auth = str(payload.get("blurt_account") or payload.get("blurt_author") or payload.get("author") or "")
     post_id = str(payload.get("post_id") or payload.get("permlink") or "")
     if not post_id:
         raise ValueError("post_id required")
     agent = register_payload(
         {
-            "blurt_author": auth,
+            "blurt_account": auth,
             "stone_address": str(payload.get("stone_address") or ""),
             "agent_id": str(payload.get("agent_id") or ""),
             "capabilities": payload.get("capabilities") or ["publish", "provenance"],
@@ -333,7 +334,7 @@ def _parse_agent_op(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if str(data.get("v") or "") != "1":
         return None
     aid = str(data.get("agent_id") or "").strip().lower()
-    auth = str(data.get("blurt_author") or "").lstrip("@").lower()
+    auth = str(data.get("blurt_account") or "").lstrip("@").lower()
     stone = str(data.get("stone_address") or "").strip()
     if not aid or not auth or len(stone) < 25:
         return None
@@ -395,5 +396,5 @@ def sync_registry_agents() -> Dict[str, Any]:
         try:
             results.append(sync_account_agents(acct))
         except Exception as exc:
-            results.append({"ok": False, "account": acct, "error": str(exc)})
+            results.append({"ok": False, "account": acct, "error": public_error(exc)})
     return {"ok": True, "accounts": results}

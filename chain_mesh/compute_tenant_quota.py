@@ -45,23 +45,23 @@ def init_tenant_quota_db() -> None:
             """
             CREATE TABLE IF NOT EXISTS compute_tenant_bindings (
                 tenant_id TEXT NOT NULL,
-                blurt_author TEXT NOT NULL,
+                blurt_account TEXT NOT NULL,
                 stone_address TEXT NOT NULL DEFAULT '',
                 flops_cap INTEGER NOT NULL DEFAULT 0,
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL,
-                PRIMARY KEY (tenant_id, blurt_author)
+                PRIMARY KEY (tenant_id, blurt_account)
             );
             CREATE INDEX IF NOT EXISTS idx_compute_tenant_author
-                ON compute_tenant_bindings(blurt_author);
+                ON compute_tenant_bindings(blurt_account);
 
             CREATE TABLE IF NOT EXISTS compute_tenant_usage (
                 tenant_id TEXT NOT NULL,
-                blurt_author TEXT NOT NULL,
+                blurt_account TEXT NOT NULL,
                 stone_address TEXT NOT NULL DEFAULT '',
                 flops_used INTEGER NOT NULL DEFAULT 0,
                 updated_at INTEGER NOT NULL,
-                PRIMARY KEY (tenant_id, blurt_author, stone_address)
+                PRIMARY KEY (tenant_id, blurt_account, stone_address)
             );
             """
         )
@@ -79,15 +79,15 @@ def normalize_author(value: str = "") -> str:
 def bind_tenant_author(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     stone_address: str = "",
     flops_cap: int = 0,
 ) -> Dict[str, Any]:
     init_tenant_quota_db()
     tid = normalize_tenant_id(tenant_id)
-    author = normalize_author(blurt_author)
+    author = normalize_author(blurt_account)
     if not author:
-        raise ValueError("blurt_author required")
+        raise ValueError("blurt_account required")
     addr = (stone_address or "").strip()
     cap = max(0, int(flops_cap or _default_author_cap()))
     now = _now()
@@ -95,9 +95,9 @@ def bind_tenant_author(
         conn.execute(
             """
             INSERT INTO compute_tenant_bindings (
-                tenant_id, blurt_author, stone_address, flops_cap, created_at, updated_at
+                tenant_id, blurt_account, stone_address, flops_cap, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(tenant_id, blurt_author) DO UPDATE SET
+            ON CONFLICT(tenant_id, blurt_account) DO UPDATE SET
                 stone_address = CASE WHEN excluded.stone_address != ''
                     THEN excluded.stone_address ELSE stone_address END,
                 flops_cap = CASE WHEN excluded.flops_cap > 0
@@ -109,7 +109,7 @@ def bind_tenant_author(
     return {
         "ok": True,
         "tenant_id": tid,
-        "blurt_author": author,
+        "blurt_account": author,
         "stone_address": addr,
         "flops_cap": cap,
     }
@@ -118,12 +118,12 @@ def bind_tenant_author(
 def tenant_quota(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     stone_address: str = "",
 ) -> Dict[str, Any]:
     init_tenant_quota_db()
     tid = normalize_tenant_id(tenant_id)
-    author = normalize_author(blurt_author)
+    author = normalize_author(blurt_account)
     addr = (stone_address or "").strip()
     binding = None
     with _conn() as conn:
@@ -131,7 +131,7 @@ def tenant_quota(
             row = conn.execute(
                 """
                 SELECT * FROM compute_tenant_bindings
-                WHERE tenant_id = ? AND blurt_author = ?
+                WHERE tenant_id = ? AND blurt_account = ?
                 """,
                 (tid, author),
             ).fetchone()
@@ -139,7 +139,7 @@ def tenant_quota(
             usage_row = conn.execute(
                 """
                 SELECT flops_used FROM compute_tenant_usage
-                WHERE tenant_id = ? AND blurt_author = ? AND stone_address = ?
+                WHERE tenant_id = ? AND blurt_account = ? AND stone_address = ?
                 """,
                 (tid, author, addr or str((binding or {}).get("stone_address") or "")),
             ).fetchone()
@@ -150,7 +150,7 @@ def tenant_quota(
                 FROM compute_tenant_bindings b
                 LEFT JOIN compute_tenant_usage u
                   ON u.tenant_id = b.tenant_id
-                 AND u.blurt_author = b.blurt_author
+                 AND u.blurt_account = b.blurt_account
                  AND u.stone_address = b.stone_address
                 WHERE b.tenant_id = ?
                 ORDER BY b.updated_at DESC
@@ -175,7 +175,7 @@ def tenant_quota(
         "ok": True,
         "format": TENANT_FORMAT,
         "tenant_id": tid,
-        "blurt_author": author,
+        "blurt_account": author,
         "stone_address": bound_stone,
         "flops_cap": cap,
         "flops_used": used,
@@ -190,7 +190,7 @@ def check_tenant_compute_allowed(
     stone_address: str,
     flops_budget: int = 0,
     job_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     tenant_id: str = "",
 ) -> Dict[str, Any]:
     stone_q = depin.check_compute_allowed(
@@ -202,14 +202,14 @@ def check_tenant_compute_allowed(
         stone_q["tenant"] = {"skipped": True, "reason": "stone quota denied"}
         return stone_q
 
-    if not _tenant_enable() or not normalize_author(blurt_author):
+    if not _tenant_enable() or not normalize_author(blurt_account):
         stone_q["tenant"] = {"skipped": True, "reason": "tenant enforcement off or no author"}
         return stone_q
 
     init_tenant_quota_db()
     tid = normalize_tenant_id(tenant_id)
-    author = normalize_author(blurt_author)
-    tq = tenant_quota(tenant_id=tid, blurt_author=author, stone_address=stone_address)
+    author = normalize_author(blurt_account)
+    tq = tenant_quota(tenant_id=tid, blurt_account=author, stone_address=stone_address)
     cap = int(tq.get("flops_cap") or 0)
     need = max(0, int(flops_budget))
     remaining = int(tq.get("flops_remaining") or 0)
@@ -233,15 +233,15 @@ def check_tenant_compute_allowed(
 
 def record_tenant_compute_usage(
     *,
-    blurt_author: str,
+    blurt_account: str,
     stone_address: str,
     delta_flops: int,
     tenant_id: str = "",
 ) -> Dict[str, Any]:
     init_tenant_quota_db()
-    author = normalize_author(blurt_author)
+    author = normalize_author(blurt_account)
     if not author:
-        return {"ok": True, "skipped": True, "reason": "no blurt_author"}
+        return {"ok": True, "skipped": True, "reason": "no blurt_account"}
     tid = normalize_tenant_id(tenant_id)
     addr = (stone_address or "").strip()
     delta = max(0, int(delta_flops))
@@ -250,7 +250,7 @@ def record_tenant_compute_usage(
         row = conn.execute(
             """
             SELECT flops_used FROM compute_tenant_usage
-            WHERE tenant_id = ? AND blurt_author = ? AND stone_address = ?
+            WHERE tenant_id = ? AND blurt_account = ? AND stone_address = ?
             """,
             (tid, author, addr),
         ).fetchone()
@@ -258,9 +258,9 @@ def record_tenant_compute_usage(
         conn.execute(
             """
             INSERT INTO compute_tenant_usage (
-                tenant_id, blurt_author, stone_address, flops_used, updated_at
+                tenant_id, blurt_account, stone_address, flops_used, updated_at
             ) VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(tenant_id, blurt_author, stone_address) DO UPDATE SET
+            ON CONFLICT(tenant_id, blurt_account, stone_address) DO UPDATE SET
                 flops_used = excluded.flops_used,
                 updated_at = excluded.updated_at
             """,
@@ -269,7 +269,7 @@ def record_tenant_compute_usage(
     return {
         "ok": True,
         "tenant_id": tid,
-        "blurt_author": author,
+        "blurt_account": author,
         "stone_address": addr,
         "flops_used": used,
     }
@@ -284,22 +284,22 @@ def sync_bindings_from_jobs(*, limit: int = 100) -> Dict[str, Any]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT DISTINCT blurt_author, stone_address
+            SELECT DISTINCT blurt_account, stone_address
             FROM bloodstone_compute_jobs
-            WHERE is_current = 1 AND blurt_author != '' AND stone_address != ''
+            WHERE is_current = 1 AND blurt_account != '' AND stone_address != ''
             ORDER BY updated_at DESC
             LIMIT ?
             """,
             (max(1, int(limit)),),
         ).fetchall()
     for row in rows:
-        author = normalize_author(str(row["blurt_author"]))
+        author = normalize_author(str(row["blurt_account"]))
         addr = str(row["stone_address"])
         if not author or not addr:
             continue
         bind_tenant_author(
             tenant_id=_default_tenant(),
-            blurt_author=author,
+            blurt_account=author,
             stone_address=addr,
             flops_cap=_default_author_cap(),
         )

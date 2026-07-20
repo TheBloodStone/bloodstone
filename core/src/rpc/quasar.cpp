@@ -13,7 +13,8 @@
 static UniValue ReadBraidExport()
 {
     const fs::path path = fsbridge::AbsPathJoin(gArgs.GetDataDirNet(), "indexes/braid/rpc-export.json");
-    std::ifstream file{path};
+    // fsbridge::ifstream accepts fs::path on all platforms (std::ifstream does not on NDK libc++).
+    fsbridge::ifstream file{path};
     if (!file.good()) {
         UniValue empty(UniValue::VOBJ);
         empty.pushKV("ok", false);

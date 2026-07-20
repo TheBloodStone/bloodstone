@@ -32,6 +32,7 @@ enum class PowAlgo : uint8_t
 
   SHA256D = 1,
   NEOSCRYPT = 2,
+  YESPOWER = 3,
 
   FLAG_MERGE_MINED = 0x80,
 };

@@ -45,7 +45,10 @@ We agree: centralized bootstrap (Phase 1). We disagree: “nothing independent e
 4. Mesh chunk from `http://<lan-ip>:18341/`
 5. Phone gateway for LAN miner BSM4 egress
 
-Full point-by-point doc (DOCX):
+Full point-by-point doc (MD default):
+https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Infrastructure-Audit-Point-by-Point-Rebuttal.md
+
+DOCX:
 https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Infrastructure-Audit-Point-by-Point-Rebuttal.docx
 
 Related: Infrastructure Independence + Decentralized Network white papers (same downloads page).

@@ -12,11 +12,13 @@ import requests
 
 DTN_TLS_PEER = os.environ.get("DTN_TLS_PEER", "1").strip() not in ("0", "false", "no")
 DTN_TLS_UPSTREAM = os.environ.get("DTN_TLS_UPSTREAM", "1").strip() not in ("0", "false", "no")
-DTN_TLS_VERIFY = os.environ.get("DTN_TLS_VERIFY", "0").strip() in ("1", "true", "yes")
+# H-01: default verify ON in production; set DTN_TLS_VERIFY=0 only for lab self-signed without CA.
+DTN_TLS_VERIFY = os.environ.get("DTN_TLS_VERIFY", "1").strip() in ("1", "true", "yes")
 DTN_TLS_CA_FILE = (os.environ.get("DTN_TLS_CA_FILE") or "").strip()
 DTN_LAN_TLS_PORT = int(os.environ.get("DTN_LAN_TLS_PORT", "8443"))
 DTN_LAN_WEB_PORT = int(os.environ.get("DTN_LAN_WEB_PORT", "8887"))
-DTN_TLS_FALLBACK_HTTP = os.environ.get("DTN_TLS_FALLBACK_HTTP", "1").strip() not in (
+# Prefer TLS-only; HTTP fallback off by default (set DTN_TLS_FALLBACK_HTTP=1 for lab).
+DTN_TLS_FALLBACK_HTTP = os.environ.get("DTN_TLS_FALLBACK_HTTP", "0").strip() not in (
     "0",
     "false",
     "no",

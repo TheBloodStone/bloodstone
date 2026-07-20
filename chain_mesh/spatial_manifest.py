@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from chain_mesh.security import public_error
 import json
 import math
 import os
@@ -472,5 +473,5 @@ def sync_registry_spatial() -> Dict[str, Any]:
         try:
             results.append(sync_account_spatial(acct))
         except Exception as exc:
-            results.append({"ok": False, "account": acct, "error": str(exc)})
+            results.append({"ok": False, "account": acct, "error": public_error(exc)})
     return {"ok": True, "accounts": results}

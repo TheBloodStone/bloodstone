@@ -1,0 +1,6 @@
+48c1c394d9c4bc239a535079a40bbde8fdfea98fadb9d72511be421c334e746f  bloodstone-node-0.7.6-h1-timewarp-linux-x86_64.tar.gz
+15f243b6ec7f51d6609428fa165ebc5671f5267bfe2fc56bed3bf85c62be73f2  bloodstone-node-0.7.6-linux-aarch64.tar.gz
+f14113bef9919c001199ed6ff36de2c3362e80f9996c829fedb136841ab72759  bloodstone-qt-0.7.6-win64.exe
+c1d5b3207aa8e5e47f2113e74709b3d787848853e0a6b7622165dc8ef3a70ce9  bloodstone-wallet-0.7.6-win64.zip
+530ebbb761fda9fdac073fc8d03f7d2f7e90a354f4cc7d5a72781859052914c5  bloodstone-miner-android-1.3.94.apk
+931169cfacc429014fcbfed696e06f3b20f7bddb090f2b2ee0bea6f916f15a5b  bloodstone-pi-stone-miner-1.2.0.tar.gz

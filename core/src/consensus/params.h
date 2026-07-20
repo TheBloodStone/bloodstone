@@ -122,7 +122,9 @@ public:
         switch (type)
         {
             case Fork::POST_ICO:
-                return height >= 55560;   /* Set to end at 12:00 01.07.22 */
+                /* Bloodstone relaunch: activate full PoW subsidy schedule now,
+                   not legacy SpaceXpanse block 55560. */
+                return height >= 9910;
             case Fork::YESPOWER:
                 return height >= 1;
             case Fork::MULTI_ALGO:
@@ -144,6 +146,9 @@ public:
         {
             case Fork::POST_ICO:
                 return height >= 2880;  /* Set to 1 day */
+            case Fork::MULTI_ALGO:
+            case Fork::YESPOWER:
+                return height >= 2880;
             default:
                 assert (false);
         }
@@ -161,6 +166,9 @@ public:
         {
             case Fork::POST_ICO:
                 return height >= 0;  /* Set to 0 days */
+            case Fork::MULTI_ALGO:
+            case Fork::YESPOWER:
+                return height >= 0;  /* multi-algo from genesis on regtest */
             default:
                 assert (false);
         }
@@ -228,6 +236,13 @@ struct BIP9Deployment {
 struct Params {
     uint256 hashGenesisBlock;
     int nSubsidyHalvingInterval;
+    /**
+     * Stepped subsidy schedule unit (blocks per "year"). 0 = use legacy
+     * nSubsidyHalvingInterval only. Used by QUASAR/QSE subsidy math where present.
+     */
+    int nBlocksPerYear;
+    /** QUASAR Security Emission tail base subsidy (Y8+); 0 if unused. */
+    CAmount qseBaseSubsidy;
     /** Initial block reward.  */
     CAmount initialSubsidy;
     /**
@@ -298,6 +313,16 @@ struct Params {
 
     /** Auxpow parameters */
     int32_t nAuxpowChainId;
+
+    /**
+     * Phase H1 timewarp flag-day activation height.
+     * For block height nHeight >= nH1TimewarpActivationHeight:
+     *   - CheckDgwTimewarpWindow (same-algo DGW window-min header reject)
+     *   - MAX_FUTURE_BLOCK_TIME = 1800 (vs legacy 7200 below H)
+     * Heights below H are grandfathered (IBD / reindex of early short windows).
+     * 0 = always active (regtest / test chains that want rules from genesis).
+     */
+    int nH1TimewarpActivationHeight;
 
     /** Consensus rule interface.  */
     std::unique_ptr<ConsensusRules> rules;

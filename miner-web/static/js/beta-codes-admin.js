@@ -1,4 +1,4 @@
-/** Master Creator: generate one-time beta tester invite codes. */
+/** Master Creator: generate beta tester invite codes (single-use or lifetime). */
 
 function apiUrl(path) {
   const prefix = document.body?.dataset?.urlPrefix || "";
@@ -35,11 +35,15 @@ async function refreshCodeInventory() {
   tbody.innerHTML = "";
   for (const row of data.codes || []) {
     const tr = document.createElement("tr");
+    const codeType = row.code_type === "lifetime" ? "lifetime" : "single";
     const redeemed = row.redeemed_at
       ? new Date(row.redeemed_at * 1000).toISOString().slice(0, 16).replace("T", " ")
-      : "pending";
+      : codeType === "lifetime"
+        ? "active"
+        : "pending";
     tr.innerHTML = `
       <td>${row.id}</td>
+      <td>${codeType}</td>
       <td>${row.label || "—"}</td>
       <td>${redeemed}</td>
       <td class="mono small">${row.redeemed_device_id || "—"}</td>
@@ -57,6 +61,7 @@ export function initBetaCodesAdmin() {
 
   btn.addEventListener("click", async () => {
     const label = document.getElementById("beta-codes-label")?.value?.trim() || "";
+    const codeType = document.getElementById("beta-codes-type")?.value || "single";
     const count = Number(document.getElementById("beta-codes-count")?.value || 1) || 1;
     btn.disabled = true;
     setStatus("Generating…");
@@ -64,7 +69,7 @@ export function initBetaCodesAdmin() {
       const res = await fetch(apiUrl("/admin/api/beta-codes/generate"), {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ label, count }),
+        body: JSON.stringify({ label, count, code_type: codeType }),
       });
       const data = await res.json();
       if (!data?.ok) {
@@ -72,8 +77,10 @@ export function initBetaCodesAdmin() {
         return;
       }
       renderCodes(data.codes || []);
+      const kindLabel =
+        data.code_type === "lifetime" ? "lifetime beta unlock" : "single-use";
       setStatus(
-        `Generated ${data.count} one-time code(s) — copy now; they are not shown again.`,
+        `Generated ${data.count} ${kindLabel} code(s) — copy now; they are not shown again.`,
         "success",
       );
       await refreshCodeInventory();

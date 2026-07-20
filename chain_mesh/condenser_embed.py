@@ -27,7 +27,9 @@ def _media_blocks(media_items: List[Dict[str, Any]]) -> str:
                 f' — {html.escape(str(item.get("error") or "not on mesh"))}</p>'
             )
             continue
-        embed = item.get("embed_html") or blog.condenser_embed_html(
+        # Only allow prebuilt embed HTML from our condenser_embed_html helper
+        # (escapes URLs). Never trust raw embed_html from untrusted callers.
+        embed = blog.condenser_embed_html(
             str(item.get("asset_key") or ""),
             mime_type=str(item.get("mime_type") or ""),
         )
@@ -51,7 +53,11 @@ def _provenance_badge_html(
         from chain_mesh import provenance as prov
 
         result = prov.verify_provenance(asset_key=keys[0])
-        return str(result.get("badge_html") or "")
+        # C-04: never inject unsanitized HTML from provenance into embed pages.
+        badge = str(result.get("badge_text") or result.get("status") or "").strip()
+        if not badge:
+            return ""
+        return f'<span class="prov-badge">{html.escape(badge)}</span>'
     except Exception:
         return ""
 

@@ -27,6 +27,30 @@ final class StratumPoolRelay {
         String firstLine,
         String secondLine
     ) {
+        // Batch path: subscribe+authorize already buffered from client.
+        relayPrefetched(client, upstreamHost, upstreamPort, firstLine, secondLine);
+    }
+
+    /**
+     * Sequential clients (phone miner) send subscribe, wait for the reply, then authorize.
+     * Prefetch only the subscribe line and pipe the rest so mining.notify is not dropped.
+     */
+    static void relayWithPrefetchedLine(
+        Socket client,
+        String upstreamHost,
+        int upstreamPort,
+        String firstLine
+    ) {
+        relayPrefetched(client, upstreamHost, upstreamPort, firstLine, null);
+    }
+
+    private static void relayPrefetched(
+        Socket client,
+        String upstreamHost,
+        int upstreamPort,
+        String firstLine,
+        String secondLine
+    ) {
         Socket upstream = null;
         try (
             Socket clientSock = client;
@@ -50,10 +74,15 @@ final class StratumPoolRelay {
                     new OutputStreamWriter(upstream.getOutputStream(), StandardCharsets.UTF_8)
                 )
             ) {
-                writeLine(upstreamWriter, firstLine);
-                writeLine(upstreamWriter, secondLine);
-                forwardInitialResponses(upstreamReader, clientWriter, 2);
+                if (firstLine != null && !firstLine.isEmpty()) {
+                    writeLine(upstreamWriter, firstLine);
+                }
+                if (secondLine != null && !secondLine.isEmpty()) {
+                    writeLine(upstreamWriter, secondLine);
+                }
 
+                // Do not drain a fixed number of upstream replies — pool sends
+                // authorize result + set_difficulty + notify (+ extras). Pipe all.
                 Thread clientToUpstream = new Thread(
                     () -> pipeLines(clientReader, upstreamWriter, "client→pool"),
                     "bloodstone-pool-relay-up"

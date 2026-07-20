@@ -143,7 +143,7 @@ def filter_verified_snapshots(
         if ok:
             accepted.append(snap)
         else:
-            rejected.append({"blurt_author": snap.get("blurt_author"), "reason": reason})
+            rejected.append({"blurt_account": snap.get("blurt_account"), "reason": reason})
     return accepted, rejected
 
 

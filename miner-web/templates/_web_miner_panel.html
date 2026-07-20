@@ -249,6 +249,26 @@
           <p class="muted small" id="android-app-version-line">Installed version: —</p>
           <p class="muted small android-update-status" id="android-update-status" hidden></p>
           <button type="button" class="btn btn-small btn-ghost" id="android-check-update-btn">Check for updates now</button>
+          <div class="android-beta-panel info-box" id="android-beta-panel">
+            <strong>Beta unlock</strong>
+            <p class="muted small android-beta-status" id="android-beta-status"></p>
+            <div id="android-beta-form">
+              <label class="field">
+                <span class="muted small">Beta invite code</span>
+                <input type="text" id="android-beta-code" autocomplete="off" spellcheck="false" placeholder="BS-BETA-… or BS-BETA-LIFE-…" inputmode="text" autocapitalize="characters">
+              </label>
+              <div class="btn-row">
+                <button type="button" class="btn btn-small" id="android-beta-redeem-btn">Unlock beta updates</button>
+              </div>
+            </div>
+            <div id="android-beta-active" hidden>
+              <p class="muted small">Pull down to check for the newest pre-release build. Approve on this LAN when ready for everyone on your Wi‑Fi.</p>
+              <div class="btn-row">
+                <button type="button" class="btn btn-small" id="android-beta-approve-btn">Approve for this LAN</button>
+                <button type="button" class="btn btn-small btn-ghost" id="android-beta-leave-btn">Leave beta channel</button>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </div>

@@ -32,8 +32,8 @@ QString MigrateLegacySettingsPath(const QString& current_default);
 QString ResolveUsableDataDirectory(const QString& preferred, const QString& current_default);
 
 /**
- * If pre-relaunch chain folders exist without a relaunch marker, wipe
- * blocks/chainstate automatically (wallets are kept). Returns false on I/O error.
+ * If pre-relaunch chain folders exist without a relaunch marker, offer to wipe
+ * blocks/chainstate (wallets are kept). Returns false if the user cancels.
  */
 bool EnsureRelaunchChainOrAbort(const fs::path& datadir, QWidget* parent);
 

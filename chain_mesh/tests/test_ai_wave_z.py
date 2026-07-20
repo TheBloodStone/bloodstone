@@ -60,7 +60,7 @@ class TestAiWaveZ(unittest.TestCase):
     def test_dashboard_sovereign_panel(self):
         from chain_mesh import tenant_dashboard as tdash
 
-        dash = tdash.dashboard_payload(blurt_author="sovuser")
+        dash = tdash.dashboard_payload(blurt_account="sovuser")
         self.assertIn("sovereign", dash)
         html = tdash.dashboard_page_html()
         self.assertIn("Wave Z", html)

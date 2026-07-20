@@ -27,22 +27,22 @@ def _normalize_author(value: str = "") -> str:
 def quorum_for_author(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
 ) -> Dict[str, Any]:
     from chain_mesh import tenant_fleet_quorum as tquorum
 
     tid = (tenant_id or _default_tenant()).strip()[:64] or _default_tenant()
-    author = _normalize_author(blurt_author)
+    author = _normalize_author(blurt_account)
     if not author:
-        return {"ok": False, "reason": "blurt_author required"}
+        return {"ok": False, "reason": "blurt_account required"}
     tquorum.init_tenant_quorum_db()
     with tquorum._conn() as conn:
         row = conn.execute(
             """
-            SELECT tenant_id, blurt_author, votes_found, quorum_n, quorum_m,
+            SELECT tenant_id, blurt_account, votes_found, quorum_n, quorum_m,
                    satisfied, rails_hash, updated_at
             FROM tenant_fleet_quorum
-            WHERE tenant_id = ? AND blurt_author = ?
+            WHERE tenant_id = ? AND blurt_account = ?
             """,
             (tid, author),
         ).fetchone()
@@ -50,7 +50,7 @@ def quorum_for_author(
         return {
             "ok": True,
             "tenant_id": tid,
-            "blurt_author": author,
+            "blurt_account": author,
             "satisfied": False,
             "votes_found": 0,
             "quorum": f"{tquorum.QUORUM_N}-of-{tquorum.QUORUM_M}",
@@ -59,7 +59,7 @@ def quorum_for_author(
     return {
         "ok": True,
         "tenant_id": tid,
-        "blurt_author": author,
+        "blurt_account": author,
         "satisfied": bool(int(row["satisfied"] or 0)),
         "votes_found": int(row["votes_found"] or 0),
         "quorum_n": int(row["quorum_n"] or tquorum.QUORUM_N),
@@ -73,11 +73,11 @@ def quorum_for_author(
 def check_submit_allowed(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     stone_address: str = "",
 ) -> Dict[str, Any]:
     tid = (tenant_id or _default_tenant()).strip()[:64] or _default_tenant()
-    author = _normalize_author(blurt_author)
+    author = _normalize_author(blurt_account)
     if not _submit_quorum_require():
         return {
             "ok": True,
@@ -85,7 +85,7 @@ def check_submit_allowed(
             "format": GATE_FORMAT,
             "require_quorum": False,
             "tenant_id": tid,
-            "blurt_author": author,
+            "blurt_account": author,
             "stone_address": (stone_address or "").strip(),
             "reason": "submit quorum not required",
         }
@@ -94,9 +94,9 @@ def check_submit_allowed(
             "ok": True,
             "allowed": False,
             "require_quorum": True,
-            "reason": "blurt_author required when TENANT_SUBMIT_QUORUM_REQUIRE=1",
+            "reason": "blurt_account required when TENANT_SUBMIT_QUORUM_REQUIRE=1",
         }
-    q = quorum_for_author(tenant_id=tid, blurt_author=author)
+    q = quorum_for_author(tenant_id=tid, blurt_account=author)
     allowed = bool(q.get("satisfied"))
     return {
         "ok": True,
@@ -104,7 +104,7 @@ def check_submit_allowed(
         "format": GATE_FORMAT,
         "require_quorum": True,
         "tenant_id": tid,
-        "blurt_author": author,
+        "blurt_account": author,
         "stone_address": (stone_address or "").strip(),
         "quorum": q,
         "reason": "ok" if allowed else "tenant fleet quorum not satisfied",

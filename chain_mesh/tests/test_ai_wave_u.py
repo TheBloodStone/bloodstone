@@ -17,7 +17,7 @@ class TestAiWaveU(unittest.TestCase):
 
         tdash.bind_all_rails(
             tenant_id="sign-test",
-            blurt_author="signuser",
+            blurt_account="signuser",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             flops_cap=400_000,
             bandwidth_bytes_cap=500_000,
@@ -42,7 +42,7 @@ class TestAiWaveU(unittest.TestCase):
 
         tdash.bind_all_rails(
             tenant_id="reject-test",
-            blurt_author="rejectuser",
+            blurt_account="rejectuser",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             flops_cap=1000,
             bandwidth_bytes_cap=2000,
@@ -77,7 +77,7 @@ class TestAiWaveU(unittest.TestCase):
         stone = "STONE1abcdefghijklmnopqrstuvwxyz12"
         tdash.bind_all_rails(
             tenant_id="auto-author",
-            blurt_author="autoauthor",
+            blurt_account="autoauthor",
             stone_address=stone,
             flops_cap=2000,
             bandwidth_bytes_cap=3000,
@@ -86,7 +86,7 @@ class TestAiWaveU(unittest.TestCase):
         os.environ["BANDWIDTH_TENANT_ENFORCE"] = "0"
         result = cmap.convergence_dtn_export_payload(
             stone_address=stone,
-            blurt_author="",
+            blurt_account="",
             include_chunks=False,
         )
         self.assertTrue(result.get("ok"))
@@ -98,7 +98,7 @@ class TestAiWaveU(unittest.TestCase):
         stone = "STONE1abcdefghijklmnopqrstuvwxyz12"
         tdash.bind_all_rails(
             tenant_id="zip-author",
-            blurt_author="zipauthor",
+            blurt_account="zipauthor",
             stone_address=stone,
             flops_cap=2000,
             bandwidth_bytes_cap=3000,
@@ -107,7 +107,7 @@ class TestAiWaveU(unittest.TestCase):
         os.environ["BANDWIDTH_TENANT_ENFORCE"] = "0"
         blob, filename, meta = cmap.convergence_dtn_build_zip(
             stone_address=stone,
-            blurt_author="",
+            blurt_account="",
             include_chunks=False,
         )
         self.assertGreater(len(blob), 0)

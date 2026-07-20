@@ -46,12 +46,19 @@
   <div class="panel-body">
     <h3>Beta tester codes</h3>
     <p class="muted small">
-      One-time invite codes unlock <strong>beta OTA</strong> on a tester&apos;s LAN.
-      After they tap <strong>Approve for this LAN</strong>, everyone on that Wi‑Fi gets the build as stable OTA.
-      Other LANs are unaffected until their own beta testers validate.
+      <strong>Single-use</strong> codes invite one tester; their saved token keeps beta OTA until you revoke it.
+      <strong>Lifetime</strong> codes (<span class="mono">BS-BETA-LIFE-…</span>) unlock every future beta — pull down to update for the newest build.
+      After <strong>Approve for this LAN</strong>, everyone on that Wi‑Fi gets the build as stable OTA.
       <span class="mono">promote-beta-to-stable.sh</span> is only the global downloads-page baseline for brand-new LANs.
     </p>
     <div class="admin-grid" style="max-width:28rem">
+      <label class="field">
+        <span>Code type</span>
+        <select id="beta-codes-type">
+          <option value="single">Single-use (one tester)</option>
+          <option value="lifetime">Lifetime beta unlock</option>
+        </select>
+      </label>
       <label class="field">
         <span>Label (optional)</span>
         <input type="text" id="beta-codes-label" placeholder="e.g. Alice Pixel 8">
@@ -66,7 +73,7 @@
     <ul id="beta-codes-admin-list" class="mono small" style="margin:0.5rem 0 0;padding-left:1.1rem"></ul>
     <table class="admin-table" style="margin-top:1rem">
       <thead>
-        <tr><th>ID</th><th>Label</th><th>Status</th><th>Device</th></tr>
+        <tr><th>ID</th><th>Type</th><th>Label</th><th>Status</th><th>Device</th></tr>
       </thead>
       <tbody id="beta-codes-admin-table"></tbody>
     </table>
@@ -922,7 +929,7 @@
   {% if master_creator %}
   import { initNodePatchAdmin } from "{{ url_for('static', filename='js/node-patch-admin.js') }}?v=20260704-node-patch";
   initNodePatchAdmin();
-  import { initBetaCodesAdmin } from "{{ url_for('static', filename='js/beta-codes-admin.js') }}?v=20260708-beta";
+  import { initBetaCodesAdmin } from "{{ url_for('static', filename='js/beta-codes-admin.js') }}?v=20260709-lifetime";
   initBetaCodesAdmin();
   import { initTimeCapsuleAdmin } from "{{ url_for('static', filename='js/time-capsule-admin.js') }}?v=20260704-time-capsule";
   initTimeCapsuleAdmin();

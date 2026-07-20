@@ -33,7 +33,7 @@ def build_manifest_snapshots(*, limit: int = 0) -> List[Dict[str, Any]]:
     snaps: List[Dict[str, Any]] = []
     for manifest in result.get("manifests") or []:
         body = manifest.get("body") or {}
-        if not body.get("blurt_author"):
+        if not body.get("blurt_account"):
             continue
         snaps.append(
             {
@@ -66,7 +66,7 @@ def ingest_manifest_snapshots(snapshots: List[Dict[str, Any]]) -> Dict[str, Any]
             skipped += 1
             continue
         body = snap.get("body") if isinstance(snap.get("body"), dict) else {}
-        if not body.get("blurt_author"):
+        if not body.get("blurt_account"):
             skipped += 1
             continue
         try:

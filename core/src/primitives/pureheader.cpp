@@ -6,6 +6,7 @@
 #include <primitives/pureheader.h>
 
 #include <crypto/neoscrypt.h>
+#include <crypto/yespowerr16.h>
 #include <hash.h>
 #include <powdata.h>
 #include <streams.h>
@@ -51,6 +52,14 @@ uint256 CPureBlockHeader::GetPowHash (const PowAlgo algo) const
       return GetHash ();
     case PowAlgo::NEOSCRYPT:
       return GetNeoscryptHash (*this);
+    case PowAlgo::YESPOWER:
+      {
+        std::vector<unsigned char> data;
+        CVectorWriter writer(SER_GETHASH, PROTOCOL_VERSION, data, 0);
+        writer << *this;
+        SwapGetWorkEndianness (data);
+        return YespowerR16Hash (data);
+      }
     default:
       assert (false);
     }

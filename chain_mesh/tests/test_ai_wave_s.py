@@ -13,7 +13,7 @@ class TestAiWaveS(unittest.TestCase):
 
         tdash.bind_all_rails(
             tenant_id="dash-test",
-            blurt_author="creatorx",
+            blurt_account="creatorx",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             flops_cap=1_000_000,
             bandwidth_bytes_cap=2_000_000,
@@ -21,7 +21,7 @@ class TestAiWaveS(unittest.TestCase):
         )
         dash = tdash.dashboard_payload(
             tenant_id="dash-test",
-            blurt_author="creatorx",
+            blurt_account="creatorx",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
         )
         self.assertEqual(dash.get("format"), "bloodstone_tenant_dashboard/v1")
@@ -45,7 +45,7 @@ class TestAiWaveS(unittest.TestCase):
             {
                 "provider_id": "wave-s-pi-ai",
                 "node_id": "wave-s-pi",
-                "blurt_author": "meshops",
+                "blurt_account": "meshops",
                 "runtimes": ["onnx", "tflite", "llama.cpp"],
                 "region": "lan",
             }

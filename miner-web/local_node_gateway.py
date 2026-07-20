@@ -26,6 +26,11 @@ _ALLOWED_METHODS = frozenset(
         "submitheader",
         "validateaddress",
         "estimatesmartfee",
+        # Mobile on-device wallets (keys stay on phone; only UTXO scan + broadcast here)
+        "scantxoutset",
+        "sendrawtransaction",
+        "decoderawtransaction",
+        "createrawtransaction",
     }
 )
 

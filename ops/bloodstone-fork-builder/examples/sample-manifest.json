@@ -1,0 +1,23 @@
+{
+  "schema": "bloodstone/fork-coin-manifest/v1",
+  "fork_id": "example000000000000000001",
+  "name": "Example Fork Coin",
+  "ticker": "EXFC",
+  "status": "live",
+  "parent": {
+    "chain": "Bloodstone",
+    "ticker": "STONE",
+    "github": "https://github.com/TheBloodStone/bloodstone",
+    "source_core": "https://bloodstonewallet.mytunnel.org/downloads/bloodstone-core-source-latest.tar.gz"
+  },
+  "consensus": {
+    "pow_algorithms": ["neoscrypt", "yespower", "sha256d"],
+    "block_time_seconds": 90,
+    "block_reward": 100,
+    "premine": 0,
+    "network_salt": "0123456789abcdef0123456789abcdef",
+    "message_start_hint": "a1b2c3d4",
+    "p2p_port_hint": 27333,
+    "rpc_port_hint": 28332
+  }
+}

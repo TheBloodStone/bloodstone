@@ -149,3 +149,73 @@ def emit_coordinator_witness(rpc: Callable) -> Dict[str, Any]:
         peer_count=peer_count,
     )
     return bw.ingest_capsule(capsule)
+
+
+def witness_tip_review_payload(
+    rpc: Callable,
+    *,
+    force: bool = False,
+) -> Dict[str, Any]:
+    """AI-reviewed tip-height disagreement status (SpaceXAI / heuristic fallback)."""
+    info = rpc("getblockchaininfo")
+    tip_hash = str(info.get("bestblockhash") or "")
+    tip_height = int(info.get("blocks") or 0)
+    result = bw.ensure_tip_height_ai_review(
+        tip_hash,
+        tip_height,
+        force=force,
+    )
+    result["tip_hash"] = tip_hash
+    result["tip_height"] = tip_height
+    result["api"] = "quasar/witness/tip-review"
+    try:
+        import quasar_ai_settings as qas
+
+        ai_settings = qas.load_quasar_ai_settings()
+        result["full_ai_review_enabled"] = bool(ai_settings.get("full_ai_review_enabled"))
+        result["ai_settings"] = {
+            "full_ai_review_enabled": bool(ai_settings.get("full_ai_review_enabled")),
+            "spacexai_key_configured": bool(ai_settings.get("spacexai_key_configured")),
+            "model": ai_settings.get("model"),
+            "config_path": ai_settings.get("config_path"),
+            "updated_at": ai_settings.get("updated_at"),
+            "updated_by": ai_settings.get("updated_by"),
+        }
+    except Exception:
+        result["full_ai_review_enabled"] = True
+    return result
+
+
+def quasar_ai_settings_payload() -> Dict[str, Any]:
+    import quasar_ai_settings as qas
+
+    return {"ok": True, **qas.load_quasar_ai_settings()}
+
+
+def quasar_ai_settings_save(payload: Dict[str, Any]) -> Dict[str, Any]:
+    import quasar_ai_settings as qas
+
+    if "full_ai_review_enabled" not in payload and "enabled" not in payload:
+        raise ValueError("full_ai_review_enabled required")
+    enabled = payload.get("full_ai_review_enabled", payload.get("enabled"))
+    if isinstance(enabled, str):
+        enabled = enabled.strip().lower() in ("1", "true", "yes", "on")
+    else:
+        enabled = bool(enabled)
+    saved = qas.save_quasar_ai_settings(
+        full_ai_review_enabled=enabled,
+        updated_by=str(payload.get("updated_by") or "api")[:64],
+    )
+    return {"ok": True, **saved}
+
+
+def witness_tip_review_decide(
+    payload: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Record operator decision after AI tip-height review."""
+    review_id = str(payload.get("review_id") or "").strip()
+    decision = str(payload.get("decision") or "").strip()
+    note = str(payload.get("note") or payload.get("operator_note") or "")
+    if not review_id or not decision:
+        raise ValueError("review_id and decision required")
+    return bw.record_operator_decision(review_id, decision, note=note)

@@ -1,5 +1,6 @@
 /**
- * Pull-down to reload for Android app WebView (fallback when APK lacks native SwipeRefreshLayout).
+ * Pull-down to check for updates on Android (beta or stable OTA).
+ * Falls back to page reload when the module update path is unavailable.
  */
 (function () {
   if (document.body?.dataset?.androidApp !== "1") {
@@ -14,6 +15,7 @@
   var MAX_PULL = 120;
   var startY = 0;
   var pulling = false;
+  var updateInFlight = false;
   var indicator = null;
 
   function scrollTop() {
@@ -35,7 +37,7 @@
       + "background:linear-gradient(180deg,#1e2a3d 0%,transparent 100%);"
       + "color:#6eb5ff;font-size:0.82rem;font-weight:600;"
       + "pointer-events:none;transition:height 0.12s ease-out;";
-    indicator.textContent = "Release to reload";
+    indicator.textContent = "Pull to check for updates";
     document.body.appendChild(indicator);
     return indicator;
   }
@@ -44,7 +46,7 @@
     var el = ensureIndicator();
     var h = Math.min(MAX_PULL, Math.max(0, px));
     el.style.height = h + "px";
-    el.textContent = h >= THRESHOLD ? "Release to reload" : "Pull to reload";
+    el.textContent = h >= THRESHOLD ? "Release to update" : "Pull to check for updates";
     el.style.opacity = String(Math.min(1, h / THRESHOLD));
   }
 
@@ -58,6 +60,37 @@
     setPull(MAX_PULL);
     if (indicator) indicator.textContent = "Reloading…";
     window.location.reload();
+  }
+
+  function runPullUpdate() {
+    if (updateInFlight) return;
+    updateInFlight = true;
+    setPull(MAX_PULL);
+    if (indicator) indicator.textContent = "Checking for updates…";
+
+    var done = function () {
+      updateInFlight = false;
+      window.setTimeout(resetPull, 500);
+    };
+
+    import("./app-update.js")
+      .then(function (mod) {
+        if (!mod?.runAndroidUpdateCheck) {
+          throw new Error("update module unavailable");
+        }
+        return mod.runAndroidUpdateCheck({ manual: true, force: true });
+      })
+      .then(function (result) {
+        if (result && result.webBundleUpdated) return;
+        if (result && result.error) return;
+        if (!result || result.upToDate) {
+          if (indicator) indicator.textContent = "Up to date";
+        }
+      })
+      .catch(function () {
+        reloadPage();
+      })
+      .finally(done);
   }
 
   function onTouchStart(event) {
@@ -88,7 +121,7 @@
     pulling = false;
     var h = indicator ? parseInt(indicator.style.height, 10) || 0 : 0;
     if (h >= THRESHOLD) {
-      reloadPage();
+      runPullUpdate();
       return;
     }
     resetPull();

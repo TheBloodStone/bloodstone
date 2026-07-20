@@ -37,7 +37,7 @@ def resolve_author_for_stone(
     *,
     tenant_id: str = "",
 ) -> str:
-    """Resolve blurt_author from tenant bindings when only stone_address is known."""
+    """Resolve blurt_account from tenant bindings when only stone_address is known."""
     addr = (stone_address or "").strip()
     if not addr:
         return ""
@@ -48,13 +48,13 @@ def resolve_author_for_stone(
     with _conn() as conn:
         row = conn.execute(
             """
-            SELECT blurt_author FROM compute_tenant_bindings
+            SELECT blurt_account FROM compute_tenant_bindings
             WHERE tenant_id = ? AND stone_address = ?
             ORDER BY updated_at DESC LIMIT 1
             """,
             (tid, addr),
         ).fetchone()
-    return str(row["blurt_author"]) if row else ""
+    return str(row["blurt_account"]) if row else ""
 
 
 def collect_tenant_snapshots(*, tenant_id: str = "", limit: int = 50) -> List[Dict[str, Any]]:
@@ -73,7 +73,7 @@ def collect_tenant_snapshots(*, tenant_id: str = "", limit: int = 50) -> List[Di
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT tenant_id, blurt_author, stone_address, flops_cap, updated_at
+            SELECT tenant_id, blurt_account, stone_address, flops_cap, updated_at
             FROM compute_tenant_bindings
             WHERE tenant_id = ?
             ORDER BY updated_at DESC
@@ -86,7 +86,7 @@ def collect_tenant_snapshots(*, tenant_id: str = "", limit: int = 50) -> List[Di
                 {
                     "format": SYNC_FORMAT,
                     "tenant_id": str(row["tenant_id"]),
-                    "blurt_author": str(row["blurt_author"]),
+                    "blurt_account": str(row["blurt_account"]),
                     "stone_address": str(row["stone_address"]),
                     "rails": {
                         "compute": {"flops_cap": int(row["flops_cap"] or 0)},
@@ -97,7 +97,7 @@ def collect_tenant_snapshots(*, tenant_id: str = "", limit: int = 50) -> List[Di
             )
         bw_rows = conn.execute(
             """
-            SELECT tenant_id, blurt_author, stone_address, bytes_cap, updated_at
+            SELECT tenant_id, blurt_account, stone_address, bytes_cap, updated_at
             FROM bandwidth_tenant_bindings
             WHERE tenant_id = ?
             ORDER BY updated_at DESC
@@ -106,11 +106,11 @@ def collect_tenant_snapshots(*, tenant_id: str = "", limit: int = 50) -> List[Di
             (tid, lim),
         ).fetchall()
         bw_map = {
-            (str(r["tenant_id"]), str(r["blurt_author"])): dict(r) for r in bw_rows
+            (str(r["tenant_id"]), str(r["blurt_account"])): dict(r) for r in bw_rows
         }
         st_rows = conn.execute(
             """
-            SELECT tenant_id, blurt_author, stone_address, bytes_cap, updated_at
+            SELECT tenant_id, blurt_account, stone_address, bytes_cap, updated_at
             FROM storage_tenant_bindings
             WHERE tenant_id = ?
             ORDER BY updated_at DESC
@@ -119,10 +119,10 @@ def collect_tenant_snapshots(*, tenant_id: str = "", limit: int = 50) -> List[Di
             (tid, lim),
         ).fetchall()
         st_map = {
-            (str(r["tenant_id"]), str(r["blurt_author"])): dict(r) for r in st_rows
+            (str(r["tenant_id"]), str(r["blurt_account"])): dict(r) for r in st_rows
         }
     for snap in snaps:
-        key = (snap["tenant_id"], snap["blurt_author"])
+        key = (snap["tenant_id"], snap["blurt_account"])
         bw_row = bw_map.get(key)
         st_row = st_map.get(key)
         if bw_row:
@@ -152,7 +152,7 @@ def ingest_tenant_snapshots(snapshots: List[Dict[str, Any]]) -> Dict[str, Any]:
         if not isinstance(snap, dict):
             skipped += 1
             continue
-        author = (snap.get("blurt_author") or "").lstrip("@").lower().strip()
+        author = (snap.get("blurt_account") or "").lstrip("@").lower().strip()
         if not author:
             skipped += 1
             continue
@@ -165,21 +165,21 @@ def ingest_tenant_snapshots(snapshots: List[Dict[str, Any]]) -> Dict[str, Any]:
         if int(compute_r.get("flops_cap") or 0) > 0:
             compute.bind_tenant_author(
                 tenant_id=tid,
-                blurt_author=author,
+                blurt_account=author,
                 stone_address=addr,
                 flops_cap=int(compute_r.get("flops_cap") or 0),
             )
         if int(bw_r.get("bytes_cap") or 0) > 0:
             bw.bind_tenant_author(
                 tenant_id=tid,
-                blurt_author=author,
+                blurt_account=author,
                 stone_address=addr,
                 bytes_cap=int(bw_r.get("bytes_cap") or 0),
             )
         if int(st_r.get("bytes_cap") or 0) > 0:
             storage.bind_tenant_author(
                 tenant_id=tid,
-                blurt_author=author,
+                blurt_account=author,
                 stone_address=addr,
                 bytes_cap=int(st_r.get("bytes_cap") or 0),
             )
@@ -201,15 +201,15 @@ def ingest_tenant_snapshots(snapshots: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 def resolve_tenant_context(
     *,
-    blurt_author: str = "",
+    blurt_account: str = "",
     tenant_id: str = "",
     stone_address: str = "",
 ) -> Dict[str, str]:
-    author = (blurt_author or "").lstrip("@").lower().strip()
+    author = (blurt_account or "").lstrip("@").lower().strip()
     tid = (tenant_id or _default_tenant()).strip()[:64] or _default_tenant()
     return {
         "tenant_id": tid,
-        "blurt_author": author,
+        "blurt_account": author,
         "stone_address": (stone_address or "").strip(),
     }
 

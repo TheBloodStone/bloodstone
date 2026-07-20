@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from chain_mesh.security import public_error
 import json
 import os
 import re
@@ -47,7 +48,7 @@ def init_compute_job_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 job_id TEXT NOT NULL,
                 stone_address TEXT NOT NULL,
-                blurt_author TEXT NOT NULL DEFAULT '',
+                blurt_account TEXT NOT NULL DEFAULT '',
                 agent_id TEXT NOT NULL DEFAULT '',
                 job_type TEXT NOT NULL DEFAULT 'batch',
                 status TEXT NOT NULL DEFAULT 'pending',
@@ -86,7 +87,7 @@ def build_compute_job_manifest(
     *,
     stone_address: str,
     job_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     agent_id: str = "",
     job_type: str = "batch",
     status: str = "pending",
@@ -122,7 +123,7 @@ def build_compute_job_manifest(
         "v": "1",
         "job_id": jid,
         "stone_address": addr,
-        "blurt_author": (blurt_author or "").lstrip("@").lower(),
+        "blurt_account": (blurt_account or "").lstrip("@").lower(),
         "agent_id": (agent_id or "").strip().lower(),
         "job_type": jtype,
         "status": st,
@@ -138,7 +139,7 @@ def build_compute_job_manifest(
     }
     if normalized_ai:
         body["ai_spec"] = normalized_ai
-    auth = body["blurt_author"]
+    auth = body["blurt_account"]
     posting = [auth] if auth else []
     return {
         "id": COMPUTE_JOB_ID,
@@ -169,7 +170,7 @@ def index_compute_job(
         conn.execute(
             """
             INSERT INTO bloodstone_compute_jobs (
-                job_id, stone_address, blurt_author, agent_id, job_type, status,
+                job_id, stone_address, blurt_account, agent_id, job_type, status,
                 flops_budget, input_asset_keys, output_asset_key, region, provider_id,
                 job_json, trx_id, block_num, created_at, updated_at, is_current
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
@@ -177,7 +178,7 @@ def index_compute_job(
             (
                 jid,
                 addr,
-                str(body.get("blurt_author") or author or "").lstrip("@").lower(),
+                str(body.get("blurt_account") or author or "").lstrip("@").lower(),
                 str(body.get("agent_id") or ""),
                 str(body.get("job_type") or "batch"),
                 str(body.get("status") or "pending"),
@@ -204,7 +205,7 @@ def get_compute_job(*, job_id: str = "") -> Optional[Dict[str, Any]]:
     with _conn() as conn:
         row = conn.execute(
             """
-            SELECT job_id, stone_address, blurt_author, agent_id, job_type, status,
+            SELECT job_id, stone_address, blurt_account, agent_id, job_type, status,
                    flops_budget, input_asset_keys, output_asset_key, region, provider_id,
                    job_json, trx_id, block_num, created_at, updated_at
             FROM bloodstone_compute_jobs
@@ -256,7 +257,7 @@ def submit_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     custom = build_compute_job_manifest(
         stone_address=str(payload.get("stone_address") or ""),
         job_id=str(payload.get("job_id") or ""),
-        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+        blurt_account=str(payload.get("blurt_account") or payload.get("blurt_author") or payload.get("author") or ""),
         agent_id=str(payload.get("agent_id") or ""),
         job_type=str(payload.get("job_type") or "batch"),
         status=str(payload.get("status") or "pending"),
@@ -272,7 +273,7 @@ def submit_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import tenant_dashboard as tdash
 
     tctx = tdash.resolve_tenant_context(
-        blurt_author=str(body.get("blurt_author") or ""),
+        blurt_account=str(body.get("blurt_account") or ""),
         tenant_id=str(payload.get("tenant_id") or ""),
         stone_address=body["stone_address"],
     )
@@ -280,7 +281,7 @@ def submit_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     gate = tgate.check_submit_allowed(
         tenant_id=tctx["tenant_id"],
-        blurt_author=tctx["blurt_author"],
+        blurt_account=tctx["blurt_account"],
         stone_address=body["stone_address"],
     )
     if not gate.get("allowed"):
@@ -289,12 +290,12 @@ def submit_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         body["stone_address"],
         flops_budget=int(body.get("flops_budget") or 0),
         job_id=str(body.get("job_id") or ""),
-        blurt_author=tctx["blurt_author"],
+        blurt_account=tctx["blurt_account"],
         tenant_id=tctx["tenant_id"],
     )
     if not quota_check.get("allowed"):
         raise PermissionError(quota_check.get("reason") or "compute quota exceeded")
-    index_compute_job(body=body, author=body.get("blurt_author", ""))
+    index_compute_job(body=body, author=body.get("blurt_account", ""))
     quota = depin.compute_quota(body["stone_address"])
     public = os.environ.get("BLOODSTONE_PUBLIC_ROOT", "https://bloodstonewallet.mytunnel.org").rstrip("/")
     return {
@@ -482,7 +483,7 @@ def sync_registry_jobs() -> Dict[str, Any]:
         try:
             results.append(sync_account_jobs(acct))
         except Exception as exc:
-            results.append({"ok": False, "account": acct, "error": str(exc)})
+            results.append({"ok": False, "account": acct, "error": public_error(exc)})
     return {"ok": True, "accounts": results}
 
 
@@ -498,7 +499,7 @@ def import_job_rows(rows: List[Dict[str, Any]]) -> int:
         if not parsed:
             continue
         try:
-            index_compute_job(body=parsed, author=str(parsed.get("blurt_author") or ""))
+            index_compute_job(body=parsed, author=str(parsed.get("blurt_account") or ""))
             imported += 1
         except ValueError:
             continue

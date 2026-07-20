@@ -453,6 +453,9 @@ static void SetupUIArgs(ArgsManager& argsman)
     argsman.AddArg("-resetguisettings", "Reset all settings changed in the GUI", ArgsManager::ALLOW_ANY, OptionsCategory::GUI);
     argsman.AddArg("-splash", strprintf("Show splash screen on startup (default: %u)", DEFAULT_SPLASHSCREEN), ArgsManager::ALLOW_ANY, OptionsCategory::GUI);
     argsman.AddArg("-uiplatform", strprintf("Select platform to customize UI for (one of windows, macosx, other; default: %s)", BitcoinGUI::DEFAULT_UIPLATFORM), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::GUI);
+    argsman.AddArg("-quasarwitness", "When the pure Qt wallet is open and the node is synced, submit QUASAR peer witness capsules while idle (default: 1)", ArgsManager::ALLOW_ANY, OptionsCategory::GUI);
+    argsman.AddArg("-quasarwitnessurl=<url>", "HTTP(S) endpoint for QUASAR witness capsule submit (default: https://bloodstonewallet.mytunnel.org/api/quasar/witness/submit)", ArgsManager::ALLOW_ANY, OptionsCategory::GUI);
+    argsman.AddArg("-quasarwitnessidlems=<ms>", strprintf("Require this many ms without UI input before re-emitting the same tip (default: %u)", 60000), ArgsManager::ALLOW_ANY, OptionsCategory::GUI);
 }
 
 int GuiMain(int argc, char* argv[])

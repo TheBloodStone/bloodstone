@@ -188,6 +188,21 @@ final class LocalSha256dStratumServer {
                 StratumPoolRelay.relayWithHandshake(sock, poolUpstreamHost, poolUpstreamPort, firstLine, secondLine);
                 return;
             }
+            // Phone miners authorize only after subscribe reply — relay as soon as
+            // we have subscribe so jobs are not created with a broken local path.
+            if (poolRelayConfigured && !soloMode && isSubscribeLine(firstLine)) {
+                Log.i(TAG, "pool relay (sequential) → " + poolUpstreamHost + ":" + poolUpstreamPort);
+                if (secondLine != null && !secondLine.isEmpty()) {
+                    StratumPoolRelay.relayWithHandshake(
+                        sock, poolUpstreamHost, poolUpstreamPort, firstLine, secondLine
+                    );
+                } else {
+                    StratumPoolRelay.relayWithPrefetchedLine(
+                        sock, poolUpstreamHost, poolUpstreamPort, firstLine
+                    );
+                }
+                return;
+            }
 
             String extranonce1 = randomExtranonce1();
             final Job[] lastJob = {null};
@@ -442,6 +457,15 @@ final class LocalSha256dStratumServer {
             JSONArray params = req.optJSONArray("params");
             return params != null && params.length() > 1
                 && "solo".equalsIgnoreCase(params.optString(1, ""));
+        } catch (Exception exc) {
+            return false;
+        }
+    }
+
+    private static boolean isSubscribeLine(String line) {
+        try {
+            JSONObject req = new JSONObject(line);
+            return "mining.subscribe".equals(req.optString("method", ""));
         } catch (Exception exc) {
             return false;
         }

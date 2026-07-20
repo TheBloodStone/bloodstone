@@ -19,11 +19,36 @@
   if (document.body?.dataset?.androidApp !== "1") return;
 
   var UPDATE_BASE = (document.body.dataset.updateBase || "https://bloodstonewallet.mytunnel.org").replace(/\/$/, "");
-  var MANIFEST_URLS = [
-    UPDATE_BASE + "/mining/api/android-miner/update",
-    UPDATE_BASE + "/api/android-miner/update",
-  ];
+  var BETA_TOKEN_KEY = "bloodstone-beta-access-token";
   var bootInFlight = false;
+
+  function getBetaAccessToken() {
+    try {
+      return localStorage.getItem(BETA_TOKEN_KEY) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function manifestRequest(url) {
+    var token = getBetaAccessToken();
+    var headers = { Accept: "application/json" };
+    if (token) {
+      headers["X-Bloodstone-Beta-Token"] = token;
+    }
+    var finalUrl = url;
+    if (token) {
+      finalUrl += (url.indexOf("?") >= 0 ? "&" : "?") + "beta_token=" + encodeURIComponent(token);
+    }
+    return { url: finalUrl, headers: headers };
+  }
+
+  function manifestUrls() {
+    return [
+      UPDATE_BASE + "/mining/api/android-miner/update",
+      UPDATE_BASE + "/api/android-miner/update",
+    ];
+  }
 
   var MIN_WEB_UI = "1.3.73-web";
 
@@ -196,14 +221,15 @@
     window.location.href = url;
   }
 
-  function fetchJson(url) {
+  function fetchJson(url, headers) {
+    headers = headers || { Accept: "application/json" };
     var cap = window.Capacitor;
     if (cap && typeof cap.nativePromise === "function") {
       return cap
         .nativePromise("CapacitorHttp", "request", {
           url: url,
           method: "GET",
-          headers: { Accept: "application/json" },
+          headers: headers,
         })
         .then(function (response) {
           var status = Number(response && response.status) || 0;
@@ -214,7 +240,7 @@
           return typeof raw === "string" ? JSON.parse(raw) : raw;
         });
     }
-    return fetch(url, { cache: "no-store" }).then(function (res) {
+    return fetch(url, { cache: "no-store", headers: headers }).then(function (res) {
       if (!res.ok) throw new Error("HTTP " + res.status);
       return res.json();
     });
@@ -222,9 +248,10 @@
 
   function fetchManifest() {
     var chain = Promise.reject(new Error("no manifest"));
-    MANIFEST_URLS.forEach(function (url) {
+    manifestUrls().forEach(function (url) {
       chain = chain.catch(function () {
-        return fetchJson(url).then(function (data) {
+        var req = manifestRequest(url);
+        return fetchJson(req.url, req.headers).then(function (data) {
           if (!data || !data.ok || !data.web_bundle_url) {
             throw new Error("manifest incomplete");
           }

@@ -15,7 +15,7 @@ class TestAiWaveV(unittest.TestCase):
 
         tdash.bind_all_rails(
             tenant_id="quorum-a",
-            blurt_author="quorumuser",
+            blurt_account="quorumuser",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             flops_cap=800_000,
             bandwidth_bytes_cap=900_000,
@@ -55,7 +55,7 @@ class TestAiWaveV(unittest.TestCase):
         result = tb.broadcast_tenant_payload(
             {
                 "tenant_id": "broadcast-v",
-                "blurt_author": "manifestuser",
+                "blurt_account": "manifestuser",
                 "stone_address": "STONE1abcdefghijklmnopqrstuvwxyz12",
                 "flops_cap": 2_000_000,
                 "bandwidth_bytes_cap": 3_000_000,
@@ -74,7 +74,7 @@ class TestAiWaveV(unittest.TestCase):
 
         tdash.bind_all_rails(
             tenant_id="queue-v",
-            blurt_author="queueuser",
+            blurt_account="queueuser",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             flops_cap=1000,
             bandwidth_bytes_cap=2000,

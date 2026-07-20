@@ -11,9 +11,9 @@ RENTAL_KEY_PREFIX = "assets/rental/"
 
 
 def verify_partner_publish_token(payload: Dict[str, Any]) -> None:
-    token = str(payload.get("publish_token") or "").strip()
-    if not PUBLISH_TOKEN or token != PUBLISH_TOKEN:
-        raise PermissionError("invalid publish token")
+    from chain_mesh.security import require_publish_token
+
+    require_publish_token(payload)
 
 
 def require_blurt_partner_asset_key(asset_key: str) -> str:

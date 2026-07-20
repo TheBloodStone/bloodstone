@@ -174,6 +174,40 @@ def init_db() -> None:
                     ON chain_blurt_traffic_daily(day_utc);
                 """
             )
+            migrate_blurt_author_columns(conn)
+
+
+def migrate_blurt_author_columns(conn: sqlite3.Connection) -> Dict[str, Any]:
+    """
+    Rename DB column blurt_author → blurt_account (Open Item 7 / audit rename).
+
+    SQLite 3.25+ RENAME COLUMN. Idempotent: no-op when already migrated.
+    Callers should use blurt_account in SQL; dual API keys remain at HTTP edge.
+    """
+    renamed = []
+    tables = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    ).fetchall()
+    for row in tables:
+        table = str(row[0] if not isinstance(row, sqlite3.Row) else row["name"])
+        try:
+            cols = {
+                str(c[1] if not isinstance(c, sqlite3.Row) else c["name"])
+                for c in conn.execute(f"PRAGMA table_info({table})").fetchall()
+            }
+        except sqlite3.Error:
+            continue
+        if "blurt_author" in cols and "blurt_account" not in cols:
+            try:
+                conn.execute(
+                    f'ALTER TABLE "{table}" RENAME COLUMN blurt_author TO blurt_account'
+                )
+                renamed.append(table)
+            except sqlite3.Error:
+                # Older SQLite or complex PK: leave column; code uses blurt_account
+                # only after migration succeeds.
+                pass
+    return {"ok": True, "renamed_tables": renamed}
 
 
 def record_blurt_traffic_daily(
@@ -785,8 +819,17 @@ def search_assets(
         params.append(f"{prefix.rstrip('/')}/%")
 
     if mime_contains:
-        clauses.append("LOWER(mime_type) LIKE ?")
-        params.append(f"%{mime_contains}%")
+        mc = mime_contains.strip().lower()
+        use_sub = os.environ.get("CHAIN_MESH_SEARCH_SUBSTRING", "0").strip().lower() in (
+            "1", "true", "yes",
+        )
+        if use_sub:
+            clauses.append("LOWER(mime_type) LIKE ?")
+            params.append(f"%{mc}%")
+        else:
+            # prefix match on mime (e.g. application/%)
+            clauses.append("LOWER(mime_type) LIKE ?")
+            params.append(f"{mc}%")
 
     if glob_like:
         glob_clause = """(
@@ -796,16 +839,48 @@ def search_assets(
         clauses.append(glob_clause)
         params.extend([glob_like, glob_like])
 
+    # E-03 / F-10: default prefix match for tokens ≥3 chars; substring only when
+    # CHAIN_MESH_SEARCH_SUBSTRING=1 (or token length < 3). file_sha256 is exact only.
+    use_substring = os.environ.get("CHAIN_MESH_SEARCH_SUBSTRING", "0").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
     for tok in toks:
-        like = f"%{tok}%"
+        # F-10: 64-hex → exact file_sha256 match (never leading-wildcard scan).
+        if len(tok) == 64 and all(c in "0123456789abcdef" for c in tok):
+            clauses.append("LOWER(COALESCE(file_sha256, '')) = ?")
+            params.append(tok)
+            continue
+        if use_substring or len(tok) < 3:
+            like = f"%{tok}%"
+            if use_substring:
+                clauses.append(
+                    """(
+                        LOWER(asset_key) LIKE ? OR LOWER(display_name) LIKE ?
+                        OR LOWER(version) LIKE ? OR LOWER(mime_type) LIKE ?
+                    )"""
+                )
+                params.extend([like, like, like, like])
+            else:
+                # Short tokens: substring on name fields only (no file_sha256 scan)
+                clauses.append(
+                    """(
+                        LOWER(asset_key) LIKE ? OR LOWER(display_name) LIKE ?
+                        OR LOWER(version) LIKE ?
+                    )"""
+                )
+                params.extend([like, like, like])
+            continue
+        # Default: prefix-oriented match (B-tree friendly on asset_key / display_name)
+        like_prefix = f"{tok}%"
         clauses.append(
             """(
                 LOWER(asset_key) LIKE ? OR LOWER(display_name) LIKE ?
-                OR LOWER(version) LIKE ? OR LOWER(mime_type) LIKE ?
-                OR LOWER(file_sha256) LIKE ?
+                OR LOWER(asset_key) LIKE ? OR LOWER(version) LIKE ?
             )"""
         )
-        params.extend([like, like, like, like, like])
+        params.extend([like_prefix, like_prefix, f"%/{tok}%", f"{tok}%"])
 
     where = " AND ".join(clauses)
     sql = f"""

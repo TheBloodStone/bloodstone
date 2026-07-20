@@ -1,5 +1,6 @@
 """Index BSM1 on-chain anchors from block transactions."""
 
+from chain_mesh.security import public_error
 import json
 import os
 import sqlite3
@@ -436,7 +437,7 @@ def ensure_fresh(*, max_age_sec: int = 300) -> Dict[str, Any]:
     try:
         tip = int(rpc("getblockcount"))
     except RuntimeError as exc:
-        return {"ok": False, "error": str(exc)}
+        return {"ok": False, "error": public_error(exc)}
     stale = (int(time.time()) - last) > max_age_sec or last_h < tip
     if stale:
         return refresh_index(full=False)

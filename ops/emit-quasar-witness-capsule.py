@@ -44,8 +44,18 @@ def _rpc():
 def main() -> int:
     rpc = _rpc()
     witness = qapi.emit_coordinator_witness(rpc)
+    tip_review = qapi.witness_tip_review_payload(rpc, force=False)
     alerts = qapi.alerts_payload(rpc)
     print("witness", witness.get("capsule", {}).get("capsule_id", "")[:16])
+    d = tip_review.get("disagreement") or {}
+    r = tip_review.get("review") or {}
+    print(
+        "tip_review",
+        "disagree=" + str(bool(d.get("disagreement"))),
+        "action=" + str(r.get("action") or "n/a"),
+        "reviewer=" + str(r.get("reviewer") or "n/a"),
+        "review_id=" + str(tip_review.get("review_id") or "")[:16],
+    )
     print("alerts", alerts.get("alert_count", 0), "active", alerts.get("active"))
     return 0
 

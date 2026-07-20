@@ -1,6 +1,6 @@
-# Bloodstone Halving Schedule
+# Bloodstone Issuance Schedule (Stepped + QSE)
 
-**July 2026 · v1.0**  
+**July 2026 · v2.0**  
 **Network:** Bloodstone mainnet (STONE)  
 **Live schedule API:** `https://bloodstonewallet.mytunnel.org/mining/api/pool/subsidy-schedule`
 
@@ -8,164 +8,180 @@
 
 ## Executive summary
 
-Bloodstone proof-of-work issuance follows a **two-phase monetary schedule** inherited from SpaceXpanse ROD consensus:
+Bloodstone PoW issuance is a **stepped annual schedule** ending in a permanent tail called **QUASAR Security Emission (QSE)** — not classic 50% halvings forever.
 
-1. **Halving phase (eras 0–4)** — the block subsidy is cut in half every **1,054,080 blocks** (~2.7 years at ~80 s mean block time).
-2. **Inflation phase (eras 5–63)** — instead of further halvings, each era mints a calculated inflation tranche spread evenly across the interval (~**2.956%** growth per era, factor **1.02956**).
-3. **End of PoW (era 64+)** — block subsidy reaches **0**; no further PoW minting.
+| Phase | Subsidy / block | Duration |
+|-------|-----------------|----------|
+| **Year 1** | **100 STONE** | 1 issuance year |
+| **Years 2–3** | **1,000 STONE** | 2 issuance years |
+| **Year 4** | **750 STONE** | 1 year |
+| **Year 5** | **500 STONE** | 1 year |
+| **Year 6** | **350 STONE** | 1 year |
+| **Year 7** | **250 STONE** | 1 year |
+| **Year 8+** | **200 STONE** base forever | **QSE tail** |
 
-Bloodstone relaunched in **June 2026** with a **100 STONE** era-0 reward. A scheduled consensus upgrade at **block 12,000** raises the subsidy base to **1,000 STONE** for all subsequent halving math. Blocks below height 12,000 remain valid at 100 STONE.
+```
+Genesis
+  100          year 1
+  1000         years 2–3
+    ↓
+  750
+    ↓
+  500
+    ↓
+  350
+    ↓
+  250
+    ↓
+  200 forever   ← QUASAR Security Emission (QSE)
+```
 
-As of this document (tip height **~9,626**, July 2026), the network is still in **era 0** at **100 STONE** per block. The 1,000 STONE fork activates in approximately **2,374 blocks**.
+**Why this shape:** softer step-downs after the growth years avoid a harsh year-4 cliff from the first layout, while keeping a permanent security budget instead of driving subsidy to zero.
 
 ---
 
-## How the halving index works
+## Constants
 
 | Constant | Value | Meaning |
 |----------|-------|---------|
-| `nSubsidyHalvingInterval` | **1,054,080** | Blocks per era |
-| `initialSubsidy` | **100 STONE** (pre-fork) / **1,000 STONE** (post block 12,000) | Era-0 base reward |
-| Inflation factor | **1.02956** | ~2.956% per era after era 4 |
-| Inflation base coins | **1,833,823,998** | Legacy ROD inflation curve anchor |
-| Genesis premine | **199,999,998 STONE** | One-time treasury allocation (not PoW) |
+| Mean block time (design) | **~80 s** | Target spacing |
+| Blocks per issuance year | **394,470** | `round(365.25 × 86400 / 80)` |
+| Year-1 subsidy | **100 STONE** | Bootstrap |
+| Growth subsidy | **1,000 STONE** | Years 2–3 |
+| QSE base | **200 STONE** | Year 8+ floor |
+| Genesis premine | **199,999,998 STONE** | One-time (not PoW) |
 
-**Halving index (era):**
-
-```
-era = floor(blockHeight / 1,054,080)
-```
-
-**Eras 0–4 (halving phase):**
+**Issuance year index (0-based):**
 
 ```
-subsidy = effectiveInitialSubsidy >> era
+yearIndex = floor(blockHeight / 394470)
 ```
 
-Where `effectiveInitialSubsidy` is **100 STONE** for heights 1–11,999 and **1,000 STONE** for heights ≥ 12,000.
-
-**Eras 5–63 (inflation phase):**
-
-The legacy SpaceXpanse formula computes an inflation tranche for the era, then divides it across 1,054,080 blocks. When the initial subsidy differs from legacy **800 ROD**, issuance is scaled:
-
-```
-scale = effectiveInitialSubsidy / 800
-subsidy = (inflationTranche / 1,054,080) × scale
-```
-
-For the **1,000 STONE** post-fork base, `scale = 1.25`. For the original **100 STONE** relaunch base, `scale = 0.125`.
-
-**Era 64+:** subsidy = **0**.
+**Human year** = `yearIndex + 1`.
 
 ---
 
-## 1,000 STONE fork at block 12,000
+## Full height schedule
 
-| Item | Detail |
-|------|--------|
-| Activation height | **12,000** |
-| Pre-fork subsidy | **100 STONE** per block (heights 1–11,999) |
-| Post-fork subsidy | **1,000 STONE** per block (heights ≥ 12,000, era 0) |
-| Chain compatibility | All pre-fork blocks remain valid; no genesis change |
-| Halving math | Eras 1–4 halve from the **1,000 STONE** base |
+| Human year | Year index | Start height | End height (excl.) | Subsidy / block | Phase |
+|------------|------------|--------------|--------------------|-----------------|-------|
+| 1 | 0 | 0 | 394,470 | **100** | Bootstrap |
+| 2 | 1 | 394,470 | 788,940 | **1,000** | Growth |
+| 3 | 2 | 788,940 | 1,183,410 | **1,000** | Growth |
+| 4 | 3 | 1,183,410 | 1,577,880 | **750** | Step-down |
+| 5 | 4 | 1,577,880 | 1,972,350 | **500** | Step-down |
+| 6 | 5 | 1,972,350 | 2,366,820 | **350** | Step-down |
+| 7 | 6 | 2,366,820 | 2,761,290 | **250** | Step-down |
+| 8+ | ≥7 | 2,761,290 | ∞ | **200** (QSE) | Tail forever |
 
-### Era 0 minting split (with fork)
+Approximate calendar years assume ~80 s mean block time from genesis. Wall-clock dates slide if block times differ.
 
-| Segment | Blocks | Rate | STONE minted |
-|---------|--------|------|--------------|
-| Pre-fork | 1 – 11,999 | 100 STONE | **1,199,900** |
-| Post-fork | 12,000 – 1,054,079 | 1,000 STONE | **1,042,080,000** |
-| **Era 0 total** | 1,054,080 PoW blocks | — | **~1.043 billion STONE** |
+### Pre-ICO historical note
 
----
-
-## Halving schedule — eras 0–4 (post-fork, 1,000 STONE base)
-
-Approximate calendar years assume **~80 s** mean block time from the June 2026 genesis. Adjust if network block times change.
-
-| Era | Start block | Subsidy / block | Phase | STONE minted (era) | Approx. year |
-|-----|-------------|-----------------|-------|-------------------|--------------|
-| 0 | 1 | 100 → **1,000**¹ | Halving | ~1.043 B | 2026 |
-| 1 | 1,054,080 | **500** | Halving | ~528 M | ~2029 |
-| 2 | 2,108,160 | **250** | Halving | ~265 M | ~2031 |
-| 3 | 3,162,240 | **125** | Halving | ~132 M | ~2034 |
-| 4 | 4,216,320 | **62.5** | Halving | ~66 M | ~2037 |
-
-¹ Era 0 uses **100 STONE** until block 12,000, then **1,000 STONE** for the remainder of the era.
-
-### Milestones from current tip (~9,626)
-
-| Event | Block height | Blocks remaining |
-|-------|--------------|----------------|
-| 1,000 STONE fork | 12,000 | ~2,374 |
-| Era 1 halving (500 STONE) | 1,054,080 | ~1,044,454 |
-| Era 5 inflation begins | 5,270,400 | ~5,260,774 |
+Before the post-ICO fork height, consensus still pays **1 STONE** (legacy SpaceXpanse rule). After post-ICO, the stepped table above applies. Pool payouts always prefer the **actual coinbase** for confirmed blocks.
 
 ---
 
-## Inflation phase — eras 5+ (scaled for 1,000 STONE base)
+## Why 200? (QSE economics)
 
-At block **5,270,400** (era 5), halving stops and inflation begins. With the **1,000 STONE** base and scale factor **1.25**, projected subsidies are:
+At **~80 s** blocks:
 
-| Era | Start block | Subsidy / block (projected) | STONE minted (era) | Approx. year |
-|-----|-------------|----------------------------|-------------------|--------------|
-| 5 | 5,270,400 | **~66.19** | ~70 M | ~2039 |
-| 6 | 6,324,480 | **~68.14** | ~72 M | ~2042 |
-| 7 | 7,378,560 | **~70.15** | ~74 M | ~2045 |
-| 8 | 8,432,640 | **~72.23** | ~76 M | ~2047 |
-| 9 | 9,486,720 | **~74.36** | ~78 M | ~2050 |
-| 10 | 10,540,800 | **~76.56** | ~81 M | ~2053 |
+- ≈ **394,470 blocks / year**
+- **200 STONE / block** → ≈ **78.9 million STONE / year** tail mint
 
-Eras 5–63 continue with ~2.956% growth per era. Era **64+** ends PoW issuance (subsidy = 0).
+Against an early circulating base near **~201 million** (premine-centric figure used in policy discussion), that is on the order of **~39% annual issuance initially**, then **declines as circulating supply grows**.
 
-### Chain vs projected at era 5 (Bloodstone Core 0.7.0)
+> **Discord note (9 Jul 2026):** an intermediate estimate used ≈39,400 blocks/year (10× low for 80 s blocks) and therefore quoted ≈7.9M STONE/year ≈ **3.9%**. The **agreed ladder still uses 200 forever**; the corrected arithmetic at true block rate is above. If governance later targets ~4% of early supply, QSE base would be ~**20 STONE** — that is a parameter choice, not a change to the step shape.
 
-Without the **0.7.0** inflation-scaling consensus fix, on-chain era-5 subsidy would follow the unscaled legacy ROD curve (~**52.95 STONE** at era 5 with the 1,000 STONE fork active). Bloodstone Core **0.7.0** scales inflation when `initialSubsidy < 800 STONE`, aligning chain and pool projections.
-
-| Era | On-chain (pre-0.7.0) | Projected (0.7.0 scaled) |
-|-----|----------------------|--------------------------|
-| 5 | ~52.95 STONE | **~66.19 STONE** |
-| 6 | ~54.51 STONE | **~68.14 STONE** |
-| 7 | ~56.12 STONE | **~70.15 STONE** |
-
-**Recommendation:** Deploy Bloodstone Core **0.7.0** network-wide before block **5,270,400**.
+For a DePIN security network, a permanent tail is intentional: long-run security should not depend only on fees on day one. A growing share of miner income is still expected from **transaction fees** and **commercial mesh services** (storage, bandwidth, compute) outside the consensus subsidy.
 
 ---
 
-## Cumulative PoW supply (premine + projected issuance)
+## QUASAR Security Emission (QSE)
 
-| Source | STONE |
-|--------|-------|
-| Genesis premine | 199,999,998 |
-| Era 0 PoW (with 1,000 fork) | ~1,043,000,000 |
-| Eras 1–4 PoW | ~991,000,000 |
-| Eras 5–14 PoW (inflation) | ~799,000,000 |
-| **Cumulative after era 14** | **~3.03 billion STONE** |
+**Name:** QUASAR Security Emission · **Short:** **QSE**
 
-PoW issuance dominates long-run supply growth; the premine is a fixed one-time allocation.
+QSE is the **year-8+ tail** (base **200 STONE**/block). Design intent beyond a flat floor:
+
+```
+Target Security Score
+        ↓
+   Above target  →  reward stays flat (base QSE)
+   Below target  →  reward automatically rises
+```
+
+**Candidate score inputs** (objectively measurable over time):
+
+- number of miners  
+- algorithm balance (multi-algo)  
+- witness count  
+- geographic diversity  
+- LAN Echo participation  
+- active mesh nodes  
+- BSM anchors  
+
+**Self-healing economy:** the protocol pays more when security weakens.
+
+**Status:** base QSE (**200**) is in the issuance table. **Dynamic health multiplier** is staged:
+
+1. **Now** — documented policy; pool can apply `BLOODSTONE_QSE_HEALTH_MULT` to *projections* only  
+2. **Next** — off-chain score → ops/monitoring  
+3. **Later** — consensus-verifiable inputs only (no gameable soft metrics in `GetBlockSubsidy`)
+
+### What stays *out* of protocol subsidy
+
+Do **not** carve fixed protocol % for storage, governance, monitoring, etc. unless cryptographically measurable on-chain.
+
+Keep consensus simple:
+
+1. **Block producer** earns the subsidy.  
+2. **QUASAR bonuses** only for verifiable security contributions (multi-algo, witnesses, mesh availability, …).  
+3. **Marketplace services** (storage / bandwidth / compute) earn from **commercial revenue**, not inflation.
+
+**Positioning:** not merely “a chain with three mining algorithms” — a chain whose **monetary policy purchases security diversity**, not only raw hashpower.
+
+---
+
+## Projected PoW mint (pre-QSE years)
+
+| Segment | Blocks | Rate | STONE minted (approx.) |
+|---------|--------|------|-------------------------|
+| Year 1 | 394,470 | 100 | **~39.4 M** |
+| Years 2–3 | 788,940 | 1,000 | **~788.9 M** |
+| Year 4 | 394,470 | 750 | **~295.9 M** |
+| Year 5 | 394,470 | 500 | **~197.2 M** |
+| Year 6 | 394,470 | 350 | **~138.1 M** |
+| Year 7 | 394,470 | 250 | **~98.6 M** |
+| **Years 1–7 total** | — | — | **~1.56 B** |
+| Year 8+ each year | 394,470 | 200 | **~78.9 M / year** |
+
+Plus genesis premine **~200 M**. Cumulative supply grows with QSE forever (by design).
+
+---
+
+## Supersedes prior layout
+
+| Old (v1.0) | New (v2.0) |
+|------------|------------|
+| Halve every **1,054,080** blocks | Step every **~394,470** blocks (issuance year) |
+| Jump to **1,000** at height **12,000** | Full **year 1 at 100**; **1,000** only in years **2–3** |
+| Eras 0–4 binary halvings then inflation formula | Soft steps: 1000→750→500→350→250→**200 forever** |
+| Era 64 subsidy → 0 | **No zero tail** — QSE continues |
+
+Nodes must run Core with stepped `GetBlockSubsidy` **before** any leftover height-12000 fork logic would diverge. Pool formula (`pool_block_subsidy.py`) already follows v2.0 for projections; **confirmed payouts still use on-chain coinbase**.
 
 ---
 
 ## Pool and miner alignment
 
-The unified mining pool reads the **on-chain subsidy** at each block height when crediting miners:
-
 | Component | Role |
 |-----------|------|
-| `pool_block_subsidy.py` | Mirrors `GetBlockSubsidy()`; queries `getblockstats` via RPC |
-| `pool_db.distribute_block()` | Credits miners using actual coinbase subsidy + fees |
-| Dashboard | Shows halving era, next halving height, and subsidy projections |
-| API | `GET /mining/api/pool/subsidy-schedule` |
-
-**Miner impact at halvings:** gross per-block pool revenue drops ~50% at each era boundary (eras 0–4). Dashboard estimates update automatically; no stratum or wallet changes are required.
-
-Verify live subsidy at any height:
+| `pool_block_subsidy.py` | Stepped schedule + QSE; reads live coinbase via RPC |
+| `pool_db.distribute_block()` | Credits miners from actual coinbase + fees |
+| Dashboard / API | `GET /mining/api/pool/subsidy-schedule` |
 
 ```bash
 bloodstone-cli getblockstats <height> '["subsidy"]'
-```
-
-```bash
 curl -sS "https://bloodstonewallet.mytunnel.org/mining/api/pool/subsidy-schedule" | python3 -m json.tool
 ```
 
@@ -173,32 +189,26 @@ curl -sS "https://bloodstonewallet.mytunnel.org/mining/api/pool/subsidy-schedule
 
 ## Reference implementation
 
-Authoritative subsidy logic lives in:
+- **Pool:** `/root/pool_block_subsidy.py`
+- **Consensus:** `bloodstone-linux-build/src/validation.cpp` → `GetBlockSubsidy()`
+- **Mainnet params:** `chainparams.cpp` → `nBlocksPerYear = 394470`, `qseBaseSubsidy = 200 * COIN`
 
-- **Pool resolver:** `/root/pool_block_subsidy.py`
-- **Consensus:** `bloodstone-linux-build/src/validation.cpp` (`GetBlockSubsidy()`)
-- **Mainnet params:** `bloodstone-linux-build/src/chainparams.cpp`
-
-Environment overrides (pool / projections):
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `BLOODSTONE_SUBSIDY_HALVING_INTERVAL` | 1054080 | Blocks per era |
-| `BLOODSTONE_INITIAL_SUBSIDY_STONE` | 100 | Pre-fork era-0 base |
-| `BLOODSTONE_INCREASED_SUBSIDY_HEIGHT` | 12000 | 1,000 STONE fork height |
-| `BLOODSTONE_INCREASED_SUBSIDY_STONE` | 1000 | Post-fork era-0 base |
-| `BLOODSTONE_INFLATION_FACTOR` | 1.02956 | Per-era inflation multiplier |
-| `BLOODSTONE_INFLATION_SCALE` | auto (base/800) | Projection scaling for era 5+ |
+| Env (pool) | Default | Purpose |
+|------------|---------|---------|
+| `BLOODSTONE_BLOCKS_PER_YEAR` | 394470 | Issuance year length |
+| `BLOODSTONE_QSE_BASE_STONE` | 200 | Tail base |
+| `BLOODSTONE_QSE_HEALTH_MULT` | 1.0 | Projection-only security boost (≥1) |
+| `BLOODSTONE_QSE_HEALTH_MULT_MAX` | 2.0 | Cap on health boost |
+| `BLOODSTONE_POST_ICO_HEIGHT` | 9910 | Pre-ICO 1 STONE rule boundary |
 
 ---
 
-## Related documentation
+## Related
 
-- [Bloodstone Economic Model White Paper](https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Economic-Model-White-Paper.docx) — full STONE economics, pool waterfall, cross-algo incentives
-- [Subsidy Fork Release Notes](https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Subsidy-Fork-Release-Notes.docx) — Bloodstone Core 0.7.0 upgrade checklist
-- [Subsidy Fork 1000 STONE White Paper](https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Subsidy-Fork-1000-White-Paper.docx) — technical spec for the block 12,000 fork
-- [Mining dashboard](https://bloodstonewallet.mytunnel.org/mining/)
+- Mining dashboard: `https://bloodstonewallet.mytunnel.org/mining/`
+- Economic model / QUASAR materials under `/downloads/`
+- EVM revenue router is separate (commercial rails), not PoW subsidy
 
 ---
 
-*Document generated July 2026. Live tip height and rewards may differ — use the subsidy-schedule API for current values.*
+*Policy locked from Discord discussion 9 Jul 2026 (stepped ladder + QSE naming + keep protocol rewards simple). Document v2.0 July 2026.*

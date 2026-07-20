@@ -131,6 +131,26 @@ def send_to_address_broadcast(
     return txid
 
 
+def _peer_reported_height(peer: Dict[str, Any]) -> int:
+    """Best-effort peer tip height.
+
+    Bitcoin Core reports synced_blocks/synced_headers as -1 when unknown.
+    ``-1 or startingheight`` is a bug in Python (truthy -1 wins), which made
+    mining nodes look thousands of blocks "ahead" and skip every auxblock.
+    """
+    for key in ("synced_blocks", "synced_headers", "startingheight"):
+        raw = peer.get(key)
+        if raw is None:
+            continue
+        try:
+            height = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if height >= 0:
+            return height
+    return 0
+
+
 def sync_status() -> Dict[str, Any]:
     """Compare local chain tip to connected peers."""
     info = rpc("getblockchaininfo")
@@ -141,18 +161,24 @@ def sync_status() -> Dict[str, Any]:
         peers = rpc("getpeerinfo") or []
     except RuntimeError:
         peers = []
-    peer_heights = [
-        int(p.get("synced_blocks") or p.get("startingheight") or 0) for p in peers
-    ]
+    peer_heights = [_peer_reported_height(p) for p in peers if isinstance(p, dict)]
     max_peer = max(peer_heights) if peer_heights else 0
-    lag = max(0, local - max_peer)
+    # How far peers lag behind us (normal while this node is mining the tip).
+    ahead = max(0, local - max_peer)
+    # How far we lag behind peers (stale tip — unsafe to submit blocks).
+    behind = max(0, max_peer - local)
     return {
         "local_height": local,
         "headers": headers,
         "peer_count": len(peers),
         "max_peer_height": max_peer,
-        "peer_lag": lag,
-        "synced_with_peers": lag <= MAX_PEER_LAG and len(peers) > 0,
+        # peer_lag kept for backward compat (= how far we are ahead of peers).
+        "peer_lag": ahead,
+        "peer_ahead": ahead,
+        "peer_behind": behind,
+        # Ready when we have peers and are not significantly *behind* the network.
+        # Being ahead is expected on a mining seed while peers catch up.
+        "synced_with_peers": behind <= MAX_PEER_LAG and len(peers) > 0,
         "verificationprogress": float(info.get("verificationprogress", 0)),
         "initialblockdownload": bool(info.get("initialblockdownload", False)),
         "warnings": info.get("warnings") or "",
@@ -182,9 +208,13 @@ def ensure_network_ready(min_peers: int = 1) -> Tuple[bool, str]:
         return False, "node still in initial block download"
     if status["peer_count"] < min_peers:
         return False, f"only {status['peer_count']} peer(s) connected"
-    if not status["synced_with_peers"]:
+    behind = int(status.get("peer_behind") or 0)
+    if behind > MAX_PEER_LAG:
         return (
             False,
-            f"local tip {status['local_height']} is {status['peer_lag']} blocks ahead of peers",
+            (
+                f"local tip {status['local_height']} is {behind} blocks behind "
+                f"peers (max peer {status['max_peer_height']})"
+            ),
         )
     return True, "ok"

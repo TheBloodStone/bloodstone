@@ -46,7 +46,7 @@ def init_tenant_quorum_db() -> None:
             CREATE TABLE IF NOT EXISTS tenant_fleet_votes (
                 vote_id TEXT PRIMARY KEY,
                 tenant_id TEXT NOT NULL,
-                blurt_author TEXT NOT NULL,
+                blurt_account TEXT NOT NULL,
                 reporter_node_id TEXT NOT NULL DEFAULT '',
                 rails_hash TEXT NOT NULL DEFAULT '',
                 rails_json TEXT NOT NULL DEFAULT '{}',
@@ -56,11 +56,11 @@ def init_tenant_quorum_db() -> None:
                 expires_at INTEGER NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_tenant_fleet_votes_lookup
-                ON tenant_fleet_votes(tenant_id, blurt_author, rails_hash, reported_at DESC);
+                ON tenant_fleet_votes(tenant_id, blurt_account, rails_hash, reported_at DESC);
 
             CREATE TABLE IF NOT EXISTS tenant_fleet_quorum (
                 tenant_id TEXT NOT NULL,
-                blurt_author TEXT NOT NULL,
+                blurt_account TEXT NOT NULL,
                 rails_hash TEXT NOT NULL DEFAULT '',
                 votes_found INTEGER NOT NULL DEFAULT 0,
                 quorum_n INTEGER NOT NULL DEFAULT 2,
@@ -69,7 +69,7 @@ def init_tenant_quorum_db() -> None:
                 rails_json TEXT NOT NULL DEFAULT '{}',
                 stone_address TEXT NOT NULL DEFAULT '',
                 updated_at INTEGER NOT NULL,
-                PRIMARY KEY (tenant_id, blurt_author)
+                PRIMARY KEY (tenant_id, blurt_account)
             );
             """
         )
@@ -83,7 +83,7 @@ def rails_hash(snapshot: Dict[str, Any]) -> str:
     rails = snapshot.get("rails") if isinstance(snapshot.get("rails"), dict) else {}
     body = {
         "tenant_id": str(snapshot.get("tenant_id") or "").strip()[:64],
-        "blurt_author": _normalize_author(str(snapshot.get("blurt_author") or "")),
+        "blurt_account": _normalize_author(str(snapshot.get("blurt_account") or "")),
         "stone_address": str(snapshot.get("stone_address") or "").strip(),
         "rails": rails,
     }
@@ -115,7 +115,7 @@ def record_snapshot_votes(
             if not ok:
                 skipped += 1
                 continue
-            author = _normalize_author(str(snap.get("blurt_author") or ""))
+            author = _normalize_author(str(snap.get("blurt_account") or ""))
             tid = str(snap.get("tenant_id") or "").strip()[:64]
             if not author or not tid:
                 skipped += 1
@@ -130,7 +130,7 @@ def record_snapshot_votes(
             conn.execute(
                 """
                 INSERT INTO tenant_fleet_votes (
-                    vote_id, tenant_id, blurt_author, reporter_node_id, rails_hash,
+                    vote_id, tenant_id, blurt_account, reporter_node_id, rails_hash,
                     rails_json, stone_address, signature, reported_at, expires_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(vote_id) DO UPDATE SET
@@ -170,7 +170,7 @@ def update_quorum_state() -> Dict[str, Any]:
     with _conn() as conn:
         pairs = conn.execute(
             """
-            SELECT DISTINCT tenant_id, blurt_author
+            SELECT DISTINCT tenant_id, blurt_account
             FROM tenant_fleet_votes
             WHERE expires_at >= ?
             """,
@@ -178,13 +178,13 @@ def update_quorum_state() -> Dict[str, Any]:
         ).fetchall()
         for pair in pairs:
             tid = str(pair["tenant_id"])
-            author = str(pair["blurt_author"])
+            author = str(pair["blurt_account"])
             checked += 1
             rows = conn.execute(
                 """
                 SELECT rails_hash, rails_json, stone_address, COUNT(DISTINCT reporter_node_id) AS voters
                 FROM tenant_fleet_votes
-                WHERE tenant_id = ? AND blurt_author = ? AND expires_at >= ?
+                WHERE tenant_id = ? AND blurt_account = ? AND expires_at >= ?
                 GROUP BY rails_hash
                 ORDER BY voters DESC
                 LIMIT 1
@@ -200,10 +200,10 @@ def update_quorum_state() -> Dict[str, Any]:
             conn.execute(
                 """
                 INSERT INTO tenant_fleet_quorum (
-                    tenant_id, blurt_author, rails_hash, votes_found, quorum_n, quorum_m,
+                    tenant_id, blurt_account, rails_hash, votes_found, quorum_n, quorum_m,
                     satisfied, rails_json, stone_address, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(tenant_id, blurt_author) DO UPDATE SET
+                ON CONFLICT(tenant_id, blurt_account) DO UPDATE SET
                     rails_hash = excluded.rails_hash,
                     votes_found = excluded.votes_found,
                     quorum_n = excluded.quorum_n,
@@ -247,7 +247,7 @@ def apply_satisfied_bindings(*, limit: int = 50) -> Dict[str, Any]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT tenant_id, blurt_author, rails_json, stone_address
+            SELECT tenant_id, blurt_account, rails_json, stone_address
             FROM tenant_fleet_quorum
             WHERE satisfied = 1
             ORDER BY updated_at DESC
@@ -264,7 +264,7 @@ def apply_satisfied_bindings(*, limit: int = 50) -> Dict[str, Any]:
         if not isinstance(rails, dict):
             skipped += 1
             continue
-        author = str(row["blurt_author"])
+        author = str(row["blurt_account"])
         tid = str(row["tenant_id"])
         addr = str(row["stone_address"] or "").strip()
         compute_r = rails.get("compute") if isinstance(rails.get("compute"), dict) else {}
@@ -274,7 +274,7 @@ def apply_satisfied_bindings(*, limit: int = 50) -> Dict[str, Any]:
         if int(compute_r.get("flops_cap") or 0) > 0:
             compute.bind_tenant_author(
                 tenant_id=tid,
-                blurt_author=author,
+                blurt_account=author,
                 stone_address=addr,
                 flops_cap=int(compute_r.get("flops_cap") or 0),
             )
@@ -282,7 +282,7 @@ def apply_satisfied_bindings(*, limit: int = 50) -> Dict[str, Any]:
         if int(bw_r.get("bytes_cap") or 0) > 0:
             bw.bind_tenant_author(
                 tenant_id=tid,
-                blurt_author=author,
+                blurt_account=author,
                 stone_address=addr,
                 bytes_cap=int(bw_r.get("bytes_cap") or 0),
             )
@@ -290,7 +290,7 @@ def apply_satisfied_bindings(*, limit: int = 50) -> Dict[str, Any]:
         if int(st_r.get("bytes_cap") or 0) > 0:
             storage.bind_tenant_author(
                 tenant_id=tid,
-                blurt_author=author,
+                blurt_account=author,
                 stone_address=addr,
                 bytes_cap=int(st_r.get("bytes_cap") or 0),
             )
@@ -374,7 +374,7 @@ def status_payload() -> Dict[str, Any]:
         tracked = conn.execute("SELECT COUNT(*) AS c FROM tenant_fleet_quorum").fetchone()["c"]
         sample = conn.execute(
             """
-            SELECT tenant_id, blurt_author, votes_found, satisfied, updated_at
+            SELECT tenant_id, blurt_account, votes_found, satisfied, updated_at
             FROM tenant_fleet_quorum
             ORDER BY updated_at DESC
             LIMIT 5

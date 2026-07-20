@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from chain_mesh.security import public_error
 import json
 import os
 import time
@@ -36,7 +37,7 @@ def init_tenant_manifest_db() -> None:
             CREATE TABLE IF NOT EXISTS tenant_manifest_index (
                 manifest_key TEXT PRIMARY KEY,
                 tenant_id TEXT NOT NULL,
-                blurt_author TEXT NOT NULL,
+                blurt_account TEXT NOT NULL,
                 stone_address TEXT NOT NULL DEFAULT '',
                 manifest_json TEXT NOT NULL DEFAULT '{}',
                 source TEXT NOT NULL DEFAULT 'local',
@@ -45,7 +46,7 @@ def init_tenant_manifest_db() -> None:
                 updated_at INTEGER NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_tenant_manifest_author
-                ON tenant_manifest_index(blurt_author, updated_at DESC);
+                ON tenant_manifest_index(blurt_account, updated_at DESC);
             """
         )
 
@@ -55,7 +56,7 @@ def _parse_manifest_body(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
     if str(data.get("v") or "") != "1":
         return None
-    author = _normalize_author(str(data.get("blurt_author") or data.get("author") or ""))
+    author = _normalize_author(str(data.get("blurt_account") or data.get("blurt_author") or data.get("author") or ""))
     tid = str(data.get("tenant_id") or _default_tenant()).strip()[:64]
     if not author:
         return None
@@ -65,7 +66,7 @@ def _parse_manifest_body(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "v": "1",
         "format": TENANT_MANIFEST_ID,
         "tenant_id": tid,
-        "blurt_author": author,
+        "blurt_account": author,
         "stone_address": str(data.get("stone_address") or "").strip(),
         "rails": rails,
         "npu_models": npu_models,
@@ -77,7 +78,7 @@ def _parse_manifest_body(data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 def build_tenant_manifest_body(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     stone_address: str = "",
     flops_cap: int = 0,
     bandwidth_bytes_cap: int = 0,
@@ -87,12 +88,12 @@ def build_tenant_manifest_body(
     from chain_mesh import tenant_dashboard as tdash
 
     tid = (tenant_id or _default_tenant()).strip()[:64] or _default_tenant()
-    author = _normalize_author(blurt_author)
+    author = _normalize_author(blurt_account)
     if not author:
-        raise ValueError("blurt_author required")
+        raise ValueError("blurt_account required")
     dash = tdash.dashboard_payload(
         tenant_id=tid,
-        blurt_author=author,
+        blurt_account=author,
         stone_address=stone_address,
     )
     rails = dash.get("rails") if isinstance(dash.get("rails"), dict) else {}
@@ -104,12 +105,12 @@ def build_tenant_manifest_body(
         rails.setdefault("storage", {})["bytes_cap"] = int(storage_bytes_cap)
     from chain_mesh import tenant_npu_models as tnpu
 
-    npu_models = tnpu.npu_models_for_manifest(tenant_id=tid, blurt_author=author)
+    npu_models = tnpu.npu_models_for_manifest(tenant_id=tid, blurt_account=author)
     return {
         "v": "1",
         "format": TENANT_MANIFEST_ID,
         "tenant_id": tid,
-        "blurt_author": author,
+        "blurt_account": author,
         "stone_address": (stone_address or "").strip(),
         "rails": rails,
         "npu_models": npu_models,
@@ -121,7 +122,7 @@ def build_tenant_manifest_body(
 def build_tenant_broadcast_manifest(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     stone_address: str = "",
     body: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -129,11 +130,11 @@ def build_tenant_broadcast_manifest(
     if not parsed:
         parsed = build_tenant_manifest_body(
             tenant_id=tenant_id,
-            blurt_author=blurt_author,
+            blurt_account=blurt_account,
             stone_address=stone_address,
         )
     parsed["updated_at"] = _now()
-    auth = parsed.get("blurt_author") or ""
+    auth = parsed.get("blurt_account") or ""
     return {
         "id": TENANT_MANIFEST_ID,
         "required_posting_auths": [auth] if auth else [],
@@ -153,13 +154,13 @@ def index_manifest(
     if not parsed:
         raise ValueError("invalid tenant manifest body")
     init_tenant_manifest_db()
-    key = f"{parsed['tenant_id']}:{parsed['blurt_author']}"
+    key = f"{parsed['tenant_id']}:{parsed['blurt_account']}"
     now = _now()
     with _conn() as conn:
         conn.execute(
             """
             INSERT INTO tenant_manifest_index (
-                manifest_key, tenant_id, blurt_author, stone_address,
+                manifest_key, tenant_id, blurt_account, stone_address,
                 manifest_json, source, trx_id, block_num, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(manifest_key) DO UPDATE SET
@@ -173,7 +174,7 @@ def index_manifest(
             (
                 key,
                 parsed["tenant_id"],
-                parsed["blurt_author"],
+                parsed["blurt_account"],
                 parsed.get("stone_address") or "",
                 json.dumps(parsed, separators=(",", ":")),
                 source,
@@ -183,7 +184,7 @@ def index_manifest(
             ),
         )
     apply_manifest_bindings(parsed)
-    return {"ok": True, "manifest_key": key, "blurt_author": parsed["blurt_author"]}
+    return {"ok": True, "manifest_key": key, "blurt_account": parsed["blurt_account"]}
 
 
 def apply_manifest_bindings(body: Dict[str, Any]) -> Dict[str, Any]:
@@ -196,7 +197,7 @@ def apply_manifest_bindings(body: Dict[str, Any]) -> Dict[str, Any]:
     if not parsed:
         return {"ok": False, "reason": "invalid manifest"}
     rails = parsed.get("rails") if isinstance(parsed.get("rails"), dict) else {}
-    author = parsed["blurt_author"]
+    author = parsed["blurt_account"]
     tid = parsed["tenant_id"]
     addr = parsed.get("stone_address") or ""
     compute_r = rails.get("compute") if isinstance(rails.get("compute"), dict) else {}
@@ -205,21 +206,21 @@ def apply_manifest_bindings(body: Dict[str, Any]) -> Dict[str, Any]:
     if int(compute_r.get("flops_cap") or 0) > 0:
         compute.bind_tenant_author(
             tenant_id=tid,
-            blurt_author=author,
+            blurt_account=author,
             stone_address=addr,
             flops_cap=int(compute_r.get("flops_cap") or 0),
         )
     if int(bw_r.get("bytes_cap") or 0) > 0:
         bw.bind_tenant_author(
             tenant_id=tid,
-            blurt_author=author,
+            blurt_account=author,
             stone_address=addr,
             bytes_cap=int(bw_r.get("bytes_cap") or 0),
         )
     if int(st_r.get("bytes_cap") or 0) > 0:
         storage.bind_tenant_author(
             tenant_id=tid,
-            blurt_author=author,
+            blurt_account=author,
             stone_address=addr,
             bytes_cap=int(st_r.get("bytes_cap") or 0),
         )
@@ -233,20 +234,20 @@ def apply_manifest_bindings(body: Dict[str, Any]) -> Dict[str, Any]:
         try:
             tnpu.bind_npu_model(
                 tenant_id=tid,
-                blurt_author=author,
+                blurt_account=author,
                 runtime=rt,
                 model_path=str(entry.get("model_path") or ""),
                 hardware_kind=str(entry.get("hardware_kind") or "cpu"),
             )
         except Exception:
             pass
-    return {"ok": True, "tenant_id": tid, "blurt_author": author}
+    return {"ok": True, "tenant_id": tid, "blurt_account": author}
 
 
 def broadcast_tenant_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     manifest = build_tenant_broadcast_manifest(
         tenant_id=str(payload.get("tenant_id") or ""),
-        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+        blurt_account=str(payload.get("blurt_account") or payload.get("blurt_author") or payload.get("author") or ""),
         stone_address=str(payload.get("stone_address") or ""),
         body=payload if payload.get("rails") or payload.get("v") == "1" else None,
     )
@@ -268,7 +269,7 @@ def broadcast_tenant_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "body": body,
         "verify_url": (
             f"{public}/api/convergence/tenant/dashboard"
-            f"?blurt_author={body.get('blurt_author')}&tenant_id={body.get('tenant_id')}"
+            f"?blurt_account={body.get('blurt_account')}&tenant_id={body.get('tenant_id')}"
         ),
         "next_steps": [
             f"Broadcast {TENANT_MANIFEST_ID} custom_json on Blurt",
@@ -285,7 +286,7 @@ def list_local_broadcast_candidates(*, limit: int = 10) -> Dict[str, Any]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT tenant_id, blurt_author, stone_address, flops_cap, updated_at
+            SELECT tenant_id, blurt_account, stone_address, flops_cap, updated_at
             FROM compute_tenant_bindings
             ORDER BY updated_at DESC
             LIMIT ?
@@ -298,7 +299,7 @@ def list_local_broadcast_candidates(*, limit: int = 10) -> Dict[str, Any]:
             manifests.append(
                 build_tenant_broadcast_manifest(
                     tenant_id=str(row["tenant_id"]),
-                    blurt_author=str(row["blurt_author"]),
+                    blurt_account=str(row["blurt_account"]),
                     stone_address=str(row["stone_address"] or ""),
                 )
             )
@@ -321,7 +322,7 @@ def prepare_tenant_broadcast_queue(*, limit: int = 10) -> Dict[str, Any]:
         queue.append(
             {
                 "tenant_id": body.get("tenant_id"),
-                "blurt_author": body.get("blurt_author"),
+                "blurt_account": body.get("blurt_account"),
                 "blurt_custom_json": {
                     "id": manifest.get("id"),
                     "required_posting_auths": manifest.get("required_posting_auths") or [],
@@ -383,7 +384,7 @@ def sync_registry_tenants() -> Dict[str, Any]:
         try:
             results.append(sync_account_tenants(acct))
         except Exception as exc:
-            results.append({"ok": False, "account": acct, "error": str(exc)})
+            results.append({"ok": False, "account": acct, "error": public_error(exc)})
     total = sum(int(r.get("indexed") or 0) for r in results if r.get("ok"))
     return {"ok": True, "accounts": results, "indexed": total}
 

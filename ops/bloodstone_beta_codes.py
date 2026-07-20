@@ -1,4 +1,9 @@
-"""One-time beta tester codes and device access tokens for release channels."""
+"""Beta tester codes and device access tokens for release channels.
+
+Code types:
+  single   — one-time invite; redeemed token stays on beta OTA until revoked
+  lifetime — reusable unlock; enter once per device, always receive latest beta builds
+"""
 
 from __future__ import annotations
 
@@ -17,6 +22,7 @@ DB_PATH = os.environ.get(
     "BLOODSTONE_BETA_CODES_DB", "/var/lib/bloodstone/beta_codes.db"
 )
 _CODE_RE = re.compile(r"^[A-Z0-9]{4}(?:-[A-Z0-9]{4}){2,3}$")
+_CODE_TYPES = ("single", "lifetime")
 _DB_LOCK = threading.Lock()
 
 
@@ -53,6 +59,7 @@ def init_db() -> None:
                 CREATE TABLE IF NOT EXISTS beta_codes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     code_hash TEXT NOT NULL UNIQUE,
+                    code_type TEXT NOT NULL DEFAULT 'single',
                     label TEXT NOT NULL DEFAULT '',
                     created_at REAL NOT NULL,
                     created_by TEXT NOT NULL DEFAULT '',
@@ -83,8 +90,26 @@ def init_db() -> None:
                 """
             )
             conn.commit()
+            _ensure_beta_code_columns(conn)
         finally:
             conn.close()
+
+
+def _ensure_beta_code_columns(conn: sqlite3.Connection) -> None:
+    cols = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(beta_codes)").fetchall()
+    }
+    if "code_type" not in cols:
+        conn.execute(
+            "ALTER TABLE beta_codes ADD COLUMN code_type TEXT NOT NULL DEFAULT 'single'"
+        )
+        conn.commit()
+
+
+def _normalize_code_type(code_type: str) -> str:
+    value = str(code_type or "single").strip().lower()
+    return value if value in _CODE_TYPES else "single"
 
 
 def _normalize_code(code: str) -> str:
@@ -92,12 +117,16 @@ def _normalize_code(code: str) -> str:
     raw = raw.replace(" ", "").replace("_", "-")
     if raw.startswith("BSBETA-"):
         raw = raw[len("BSBETA-") :]
-    if raw.startswith("BS-BETA-"):
+    if raw.startswith("BS-BETA-LIFE-"):
+        raw = "LIFE-" + raw[len("BS-BETA-LIFE-") :]
+    elif raw.startswith("BS-BETA-"):
         raw = raw[len("BS-BETA-") :]
     return raw
 
 
-def _format_code(raw: str) -> str:
+def _format_code(raw: str, *, code_type: str = "single") -> str:
+    if _normalize_code_type(code_type) == "lifetime":
+        return _format_lifetime_code(raw)
     parts = [p for p in raw.split("-") if p]
     if not parts:
         parts = [secrets.token_hex(2).upper()[:4] for _ in range(3)]
@@ -106,14 +135,32 @@ def _format_code(raw: str) -> str:
     return "BS-BETA-" + "-".join(parts[:3])
 
 
-def _new_raw_code() -> str:
-    return "-".join(secrets.token_hex(2).upper()[:4] for _ in range(3))
+def _format_lifetime_code(raw: str) -> str:
+    parts = [p for p in raw.split("-") if p]
+    if parts and parts[0] == "LIFE":
+        parts = parts[1:]
+    if not parts:
+        parts = [secrets.token_hex(2).upper()[:4] for _ in range(2)]
+    while len(parts) < 2:
+        parts.append(secrets.token_hex(2).upper()[:4])
+    return "BS-BETA-LIFE-" + "-".join(parts[:2])
 
 
-def generate_code(*, label: str = "", created_by: str = "") -> Dict[str, Any]:
-    """Create a one-time beta tester code. Plaintext is returned once."""
+def _new_raw_code(*, code_type: str = "single") -> str:
+    segments = 2 if _normalize_code_type(code_type) == "lifetime" else 3
+    return "-".join(secrets.token_hex(2).upper()[:4] for _ in range(segments))
+
+
+def generate_code(
+    *,
+    label: str = "",
+    created_by: str = "",
+    code_type: str = "single",
+) -> Dict[str, Any]:
+    """Create a beta tester code. Plaintext is returned once."""
     init_db()
-    plaintext = _format_code(_new_raw_code())
+    kind = _normalize_code_type(code_type)
+    plaintext = _format_code(_new_raw_code(code_type=kind), code_type=kind)
     code_hash = _hash_secret(plaintext)
     now = time.time()
     with _DB_LOCK:
@@ -121,10 +168,17 @@ def generate_code(*, label: str = "", created_by: str = "") -> Dict[str, Any]:
         try:
             cur = conn.execute(
                 """
-                INSERT INTO beta_codes (code_hash, label, created_at, created_by)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO beta_codes
+                    (code_hash, code_type, label, created_at, created_by)
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (code_hash, str(label or "").strip(), now, str(created_by or "").strip()),
+                (
+                    code_hash,
+                    kind,
+                    str(label or "").strip(),
+                    now,
+                    str(created_by or "").strip(),
+                ),
             )
             conn.commit()
             code_id = int(cur.lastrowid)
@@ -134,32 +188,40 @@ def generate_code(*, label: str = "", created_by: str = "") -> Dict[str, Any]:
         "ok": True,
         "code": plaintext,
         "code_id": code_id,
+        "code_type": kind,
         "label": str(label or "").strip(),
         "created_at": now,
     }
 
 
-def _lookup_pending_code(code: str) -> Optional[sqlite3.Row]:
+def _lookup_redeemable_code(code: str) -> Optional[sqlite3.Row]:
     init_db()
     normalized = _normalize_code(code)
     if not normalized:
         return None
+    candidates = [normalized]
+    if normalized.startswith("LIFE-"):
+        candidates.append(_format_lifetime_code(normalized))
+    else:
+        candidates.append(_format_code(normalized))
+        candidates.append(_format_lifetime_code(normalized))
     with _DB_LOCK:
         conn = _connect()
         try:
             rows = conn.execute(
                 """
-                SELECT id, code_hash, label, created_at, redeemed_at
+                SELECT id, code_hash, code_type, label, created_at, redeemed_at
                 FROM beta_codes
-                WHERE redeemed_at IS NULL
                 ORDER BY id DESC
                 """
             ).fetchall()
             for row in rows:
-                if _verify_secret(row["code_hash"], normalized):
-                    return row
-                if _verify_secret(row["code_hash"], _format_code(normalized)):
-                    return row
+                row_type = _normalize_code_type(row["code_type"])
+                if row_type == "single" and row["redeemed_at"] is not None:
+                    continue
+                for candidate in candidates:
+                    if _verify_secret(row["code_hash"], candidate):
+                        return row
         finally:
             conn.close()
     return None
@@ -206,7 +268,7 @@ def redeem_code(
     lan_ip: str = "",
     require_lan: bool = True,
 ) -> Dict[str, Any]:
-    """Consume a one-time code and issue a long-lived beta access token."""
+    """Redeem a beta code and issue a long-lived beta access token."""
     if require_lan:
         on_lan = is_private_client_ip(lan_ip) or is_private_client_ip(client_ip)
         if not on_lan:
@@ -216,7 +278,7 @@ def redeem_code(
                 "message": "Beta codes can only be redeemed while on a LAN connection.",
             }
 
-    row = _lookup_pending_code(code)
+    row = _lookup_redeemable_code(code)
     if not row:
         return {
             "ok": False,
@@ -224,6 +286,7 @@ def redeem_code(
             "message": "Invalid or already used beta code.",
         }
 
+    code_type = _normalize_code_type(row["code_type"])
     token = secrets.token_urlsafe(32)
     token_hash = _hash_secret(token)
     now = time.time()
@@ -232,20 +295,30 @@ def redeem_code(
     with _DB_LOCK:
         conn = _connect()
         try:
-            updated = conn.execute(
-                """
-                UPDATE beta_codes
-                SET redeemed_at = ?, redeemed_device_id = ?, redeemed_ip = ?
-                WHERE id = ? AND redeemed_at IS NULL
-                """,
-                (now, device, str(client_ip or "").strip()[:64], int(row["id"])),
-            )
-            if updated.rowcount != 1:
-                return {
-                    "ok": False,
-                    "error": "invalid_or_used_code",
-                    "message": "Invalid or already used beta code.",
-                }
+            if code_type == "single":
+                updated = conn.execute(
+                    """
+                    UPDATE beta_codes
+                    SET redeemed_at = ?, redeemed_device_id = ?, redeemed_ip = ?
+                    WHERE id = ? AND redeemed_at IS NULL
+                    """,
+                    (now, device, str(client_ip or "").strip()[:64], int(row["id"])),
+                )
+                if updated.rowcount != 1:
+                    return {
+                        "ok": False,
+                        "error": "invalid_or_used_code",
+                        "message": "Invalid or already used beta code.",
+                    }
+            else:
+                conn.execute(
+                    """
+                    UPDATE beta_codes
+                    SET redeemed_device_id = ?, redeemed_ip = ?
+                    WHERE id = ?
+                    """,
+                    (device, str(client_ip or "").strip()[:64], int(row["id"])),
+                )
             conn.execute(
                 """
                 INSERT INTO beta_access_tokens
@@ -262,14 +335,16 @@ def redeem_code(
         "ok": True,
         "token": token,
         "release_channel": "beta",
+        "code_type": code_type,
+        "lifetime_unlock": code_type == "lifetime",
         "label": row["label"] or "",
     }
 
 
-def verify_access_token(token: str) -> bool:
+def get_access_token_info(token: str) -> Optional[Dict[str, Any]]:
     value = str(token or "").strip()
     if len(value) < 16:
-        return False
+        return None
     init_db()
     now = time.time()
     with _DB_LOCK:
@@ -277,24 +352,37 @@ def verify_access_token(token: str) -> bool:
         try:
             rows = conn.execute(
                 """
-                SELECT token_hash, revoked_at
-                FROM beta_access_tokens
-                WHERE revoked_at IS NULL
-                ORDER BY created_at DESC
+                SELECT t.token_hash, t.revoked_at, t.code_id, t.device_id,
+                       c.code_type, c.label
+                FROM beta_access_tokens t
+                LEFT JOIN beta_codes c ON c.id = t.code_id
+                WHERE t.revoked_at IS NULL
+                ORDER BY t.created_at DESC
                 LIMIT 500
                 """
             ).fetchall()
             for row in rows:
                 if _verify_secret(row["token_hash"], value):
+                    code_type = _normalize_code_type(row["code_type"])
                     conn.execute(
                         "UPDATE beta_access_tokens SET last_seen_at = ? WHERE token_hash = ?",
                         (now, row["token_hash"]),
                     )
                     conn.commit()
-                    return True
+                    return {
+                        "active": True,
+                        "code_type": code_type,
+                        "lifetime_unlock": code_type == "lifetime",
+                        "label": row["label"] or "",
+                        "device_id": row["device_id"] or "",
+                    }
         finally:
             conn.close()
-    return False
+    return None
+
+
+def verify_access_token(token: str) -> bool:
+    return bool(get_access_token_info(token))
 
 
 def get_lan_validated_release(lan_key: str) -> Optional[Dict[str, Any]]:
@@ -439,7 +527,7 @@ def list_codes(*, include_redeemed: bool = True, limit: int = 100) -> List[Dict[
             if include_redeemed:
                 rows = conn.execute(
                     """
-                    SELECT id, label, created_at, created_by, redeemed_at,
+                    SELECT id, code_type, label, created_at, created_by, redeemed_at,
                            redeemed_device_id, redeemed_ip
                     FROM beta_codes
                     ORDER BY id DESC
@@ -450,10 +538,10 @@ def list_codes(*, include_redeemed: bool = True, limit: int = 100) -> List[Dict[
             else:
                 rows = conn.execute(
                     """
-                    SELECT id, label, created_at, created_by, redeemed_at,
+                    SELECT id, code_type, label, created_at, created_by, redeemed_at,
                            redeemed_device_id, redeemed_ip
                     FROM beta_codes
-                    WHERE redeemed_at IS NULL
+                    WHERE redeemed_at IS NULL OR code_type = 'lifetime'
                     ORDER BY id DESC
                     LIMIT ?
                     """,

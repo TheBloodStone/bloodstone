@@ -271,17 +271,17 @@ def check_bandwidth_allowed(
     stone_address: str,
     byte_size: int,
     *,
-    blurt_author: str = "",
+    blurt_account: str = "",
     tenant_id: str = "",
 ) -> Dict[str, Any]:
-    if (blurt_author or "").strip():
+    if (blurt_account or "").strip():
         try:
             from chain_mesh import bandwidth_tenant_quota as tenant
 
             return tenant.check_tenant_bandwidth_allowed(
                 stone_address=stone_address,
                 byte_size=int(byte_size),
-                blurt_author=str(blurt_author or ""),
+                blurt_account=str(blurt_account or ""),
                 tenant_id=str(tenant_id or ""),
             )
         except Exception:
@@ -305,10 +305,10 @@ def check_compute_allowed(
     *,
     flops_budget: int = 0,
     job_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     tenant_id: str = "",
 ) -> Dict[str, Any]:
-    if (blurt_author or "").strip():
+    if (blurt_account or "").strip():
         try:
             from chain_mesh import compute_tenant_quota as tenant
 
@@ -316,7 +316,7 @@ def check_compute_allowed(
                 stone_address=stone_address,
                 flops_budget=int(flops_budget),
                 job_id=str(job_id or ""),
-                blurt_author=str(blurt_author or ""),
+                blurt_account=str(blurt_account or ""),
                 tenant_id=str(tenant_id or ""),
             )
         except Exception:
@@ -359,19 +359,19 @@ def record_compute_usage(
     stone_address: str,
     *,
     delta_flops: int,
-    blurt_author: str = "",
+    blurt_account: str = "",
     tenant_id: str = "",
 ) -> Dict[str, Any]:
     init_depin_db()
     addr = (stone_address or "").strip()
     delta = int(delta_flops)
     now = _now()
-    if (blurt_author or "").strip():
+    if (blurt_account or "").strip():
         try:
             from chain_mesh import compute_tenant_quota as tenant
 
             tenant.record_tenant_compute_usage(
-                blurt_author=str(blurt_author),
+                blurt_account=str(blurt_account),
                 stone_address=addr,
                 delta_flops=delta,
                 tenant_id=str(tenant_id or ""),
@@ -401,19 +401,19 @@ def record_bandwidth_usage(
     stone_address: str,
     *,
     delta_bytes: int,
-    blurt_author: str = "",
+    blurt_account: str = "",
     tenant_id: str = "",
 ) -> Dict[str, Any]:
     init_depin_db()
     addr = (stone_address or "").strip()
     delta = int(delta_bytes)
     now = _now()
-    if (blurt_author or "").strip():
+    if (blurt_account or "").strip():
         try:
             from chain_mesh import bandwidth_tenant_quota as tenant
 
             tenant.record_tenant_bandwidth_usage(
-                blurt_author=str(blurt_author),
+                blurt_account=str(blurt_account),
                 stone_address=addr,
                 delta_bytes=delta,
                 tenant_id=str(tenant_id or ""),

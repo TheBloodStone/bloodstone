@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from chain_mesh.security import public_error
 import json
 import time
 from typing import Any, Dict, List, Optional
@@ -211,7 +212,7 @@ def create_transfer_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
             result["mesh_publish"] = publish_result
             result["overwrite"] = True
         except Exception as exc:
-            result["mesh_publish"] = {"ok": False, "error": str(exc)}
+            result["mesh_publish"] = {"ok": False, "error": public_error(exc)}
 
     if anchor:
         anchor_result = anchor_transfer_payload(transfer_id)

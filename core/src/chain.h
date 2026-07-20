@@ -19,17 +19,51 @@
 
 /**
  * Maximum amount of time that a block timestamp is allowed to exceed the
- * current network-adjusted time before the block will be accepted.
+ * current network-adjusted time before the block will be accepted — after
+ * Phase H1 activation (see Consensus::Params::nH1TimewarpActivationHeight).
+ *
+ * Phase H1: tightened from Bitcoin's 7200s (2h) to 1800s (30m) jointly with
+ * the DGW window-min timewarp rule (see TIMEWARP_MIN_WINDOW_SECONDS in pow.h).
+ * Pre-activation headers still use MAX_FUTURE_BLOCK_TIME_LEGACY.
  */
-static constexpr int64_t MAX_FUTURE_BLOCK_TIME = 2 * 60 * 60;
+static constexpr int64_t MAX_FUTURE_BLOCK_TIME = 30 * 60;
+
+/** Pre-H1 / Bitcoin-compatible future-stamp bound (2 hours). */
+static constexpr int64_t MAX_FUTURE_BLOCK_TIME_LEGACY = 2 * 60 * 60;
 
 /**
  * Timestamp window used as a grace period by code that compares external
  * timestamps (such as timestamps passed to RPCs, or wallet key creation times)
- * to block timestamps. This should be set at least as high as
- * MAX_FUTURE_BLOCK_TIME.
+ * to block timestamps. At least as high as the largest future-stamp bound
+ * that can still appear on disk (legacy 7200 pre-H1).
  */
-static constexpr int64_t TIMESTAMP_WINDOW = MAX_FUTURE_BLOCK_TIME;
+static constexpr int64_t TIMESTAMP_WINDOW = MAX_FUTURE_BLOCK_TIME_LEGACY;
+
+/**
+ * Effective future-stamp bound for a block at nHeight given activation height H.
+ * Post-H1: MAX_FUTURE_BLOCK_TIME (1800). Pre-H1: MAX_FUTURE_BLOCK_TIME_LEGACY (7200).
+ * Overload takes activation height so tests need not copy Consensus::Params.
+ */
+inline int64_t MaxFutureBlockTimeForHeight(int nHeight, int activationHeight)
+{
+    return nHeight >= activationHeight ? MAX_FUTURE_BLOCK_TIME : MAX_FUTURE_BLOCK_TIME_LEGACY;
+}
+
+inline int64_t MaxFutureBlockTimeForHeight(int nHeight, const Consensus::Params& params)
+{
+    return MaxFutureBlockTimeForHeight(nHeight, params.nH1TimewarpActivationHeight);
+}
+
+/** True when Phase H1 window-min + tightened future bound apply at nHeight. */
+inline bool IsH1TimewarpActive(int nHeight, int activationHeight)
+{
+    return nHeight >= activationHeight;
+}
+
+inline bool IsH1TimewarpActive(int nHeight, const Consensus::Params& params)
+{
+    return IsH1TimewarpActive(nHeight, params.nH1TimewarpActivationHeight);
+}
 
 /**
  * Maximum gap between node time and block time used

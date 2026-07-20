@@ -14,7 +14,7 @@ class TestAiWaveX(unittest.TestCase):
 
         tnpu.bind_npu_model(
             tenant_id="route-x",
-            blurt_author="routeuser",
+            blurt_account="routeuser",
             runtime="onnx",
             model_path="/tmp/route-x.onnx",
             hardware_kind="hailo",
@@ -22,7 +22,7 @@ class TestAiWaveX(unittest.TestCase):
         spec = troute.resolve_job_inference_spec(
             {
                 "tenant_id": "route-x",
-                "blurt_author": "routeuser",
+                "blurt_account": "routeuser",
                 "ai_spec": {},
             }
         )
@@ -45,10 +45,10 @@ class TestAiWaveX(unittest.TestCase):
         from chain_mesh import tenant_ai_route as troute
 
         payload = troute.build_dispatch_payload(
-            {"blurt_author": "dispatchx", "tenant_id": "bloodstone"},
+            {"blurt_account": "dispatchx", "tenant_id": "bloodstone"},
             base_payload={"prompt": "hi"},
         )
-        self.assertEqual(payload.get("blurt_author"), "dispatchx")
+        self.assertEqual(payload.get("blurt_account"), "dispatchx")
         self.assertIn("tenant_id", payload)
 
     def test_manifest_gossip_build_and_ingest(self):
@@ -57,7 +57,7 @@ class TestAiWaveX(unittest.TestCase):
 
         tdash.bind_all_rails(
             tenant_id="gossip-x",
-            blurt_author="gossipuser",
+            blurt_account="gossipuser",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             flops_cap=1000,
             bandwidth_bytes_cap=2000,
@@ -86,13 +86,13 @@ class TestAiWaveX(unittest.TestCase):
 
         tdash.bind_all_rails(
             tenant_id="dash-x",
-            blurt_author="dashx",
+            blurt_account="dashx",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             flops_cap=5000,
             bandwidth_bytes_cap=6000,
             storage_bytes_cap=7000,
         )
-        dash = tdash.dashboard_payload(tenant_id="dash-x", blurt_author="dashx")
+        dash = tdash.dashboard_payload(tenant_id="dash-x", blurt_account="dashx")
         self.assertIn("submit_gate", dash)
         self.assertIn("ai_route", dash)
         html = tdash.dashboard_page_html()

@@ -120,6 +120,7 @@ export function initShareInternetPanel({
   const panel = root.getElementById("share-internet-panel");
   const toggle = root.getElementById("share-internet-toggle");
   const statusEl = root.getElementById("share-internet-status");
+  const clientEl = root.getElementById("share-internet-client-status");
   const electedEl = root.getElementById("share-internet-elected");
   if (!panel || !toggle) return null;
 
@@ -134,19 +135,65 @@ export function initShareInternetPanel({
     onStatus(text, kind);
   };
 
+  const setClientStatus = (text, kind = "") => {
+    if (!clientEl) return;
+    clientEl.textContent = text;
+    clientEl.className = `muted small${kind ? ` ${kind}` : ""}`;
+  };
+
+  const refreshClientStatus = async () => {
+    setClientStatus("This phone: checking connection…");
+    try {
+      const ip = await resolvePublicIp();
+      if (ip) {
+        publicIpCache = ip;
+        setClientStatus(`This phone: online (${ip})`, "ok");
+        return { online: true, ip };
+      }
+    } catch {
+      /* fall through */
+    }
+    try {
+      const { findBestLanGateway } = await import("./mesh-gateway-lan.js");
+      const gw = await findBestLanGateway();
+      if (gw?.ip) {
+        setClientStatus(
+          `This phone: no direct internet · LAN gateway ${gw.ip} available`,
+          "warn",
+        );
+        return { online: false, lanGateway: gw.ip };
+      }
+    } catch {
+      /* fall through */
+    }
+    setClientStatus(
+      "This phone: offline — enable Share on a phone with Wi‑Fi/mobile data",
+      "error",
+    );
+    return { online: false };
+  };
+
   const refreshElected = async (deviceId) => {
     if (!electedEl) return;
+    electedEl.textContent = "Resolving gateway…";
     try {
+      if (!publicIpCache) {
+        publicIpCache = await resolvePublicIp();
+      }
       const { fetchElectedGateway } = await import("./mesh-internet-gateway.js");
       const elected = await fetchElectedGateway({
         publicIp: publicIpCache,
-        deviceId,
+        deviceId: deviceId || "",
       });
       const src = elected.source === "peer" ? "household peer" : "coordinator VPS";
-      electedEl.textContent =
-        `LAN miners route through ${elected.recipient || "mesh-gateway"} (${src})`;
-    } catch {
-      electedEl.textContent = "Gateway election unavailable";
+      const who = elected.lan_ip
+        ? `${elected.recipient || "gateway"} @ ${elected.lan_ip}`
+        : elected.recipient || "mesh-gateway";
+      electedEl.textContent = `LAN miners route through ${who} (${src})`;
+    } catch (err) {
+      electedEl.textContent = `Gateway election failed: ${
+        err?.message || "network error"
+      } — will retry`;
     }
   };
 
@@ -157,8 +204,16 @@ export function initShareInternetPanel({
       toggle.checked = false;
       return;
     }
+    setStatus("Starting share…");
     if (!publicIpCache) {
       publicIpCache = await resolvePublicIp();
+    }
+    if (!publicIpCache) {
+      setStatus(
+        "No public IP yet — phone may be offline. Turn on mobile data/Wi‑Fi and try again.",
+        "error",
+      );
+      // Still allow register with empty public_ip (server fills from request).
     }
     const lanIp = await getLanIp();
     loop = startShareInternetLoop({
@@ -167,11 +222,15 @@ export function initShareInternetPanel({
       lanIp,
       peerKind,
       onStatus: (s) => {
-        setStatus(s.message || (s.sharing ? "Sharing internet" : "Stopped"), s.ok ? "ok" : "error");
+        setStatus(
+          s.message || (s.sharing ? "Sharing internet" : "Stopped"),
+          s.ok ? "ok" : "error",
+        );
       },
     });
     await loop.start();
     onLog("Sharing internet with LAN miners over mesh", "success");
+    void refreshClientStatus();
     void refreshElected(deviceId);
   };
 
@@ -198,9 +257,13 @@ export function initShareInternetPanel({
   });
 
   void (async () => {
-    const deviceId = await resolveDeviceId();
+    const deviceId = (await resolveDeviceId()) || "";
+    await refreshClientStatus();
     void refreshElected(deviceId);
-    window.setInterval(() => void refreshElected(deviceId), 30000);
+    window.setInterval(() => {
+      void refreshClientStatus();
+      void refreshElected(deviceId);
+    }, 30000);
     let autoStart = false;
     try {
       autoStart = localStorage.getItem(SHARE_INTERNET_STORAGE_KEY) === "1";

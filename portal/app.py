@@ -17,12 +17,18 @@ from flask import Flask, jsonify, render_template, request
 
 import bloodstone_branding
 import bloodstone_beta_codes
+import bloodstone_http_auth as http_auth
 import bloodstone_downloads
 import bloodstone_quasar
 import bloodstone_rich_list
 import pool_db
 import pool_device_fleet
 import pool_payout_settings
+
+try:
+    from chain_mesh import __version__ as CONVERGENCE_VERSION
+except ImportError:  # pragma: no cover
+    CONVERGENCE_VERSION = "0.36.0-beta"
 
 CONF_PATH = os.environ.get("BLOODSTONE_CONF", "/root/.bloodstone/bloodstone.conf")
 PUBLIC_HOST = os.environ.get("BLOODSTONE_PUBLIC_HOST", "rodcoinwallet.duckdns.org")
@@ -66,7 +72,39 @@ CONTRACT_EXPLORER_TEMPLATES = {
     "avax": "https://snowtrace.io/address/{address}",
 }
 
+
+def _safe_err(exc, public="request failed"):
+    try:
+        from chain_mesh.security import public_error
+        return public_error(exc, public=public)
+    except Exception:
+        if isinstance(exc, (ValueError, PermissionError, TypeError)):
+            return str(exc)[:200]
+        return public
+
+
+def _api_error(exc, status=None, *, public="request failed"):
+    if status is None:
+        if isinstance(exc, PermissionError):
+            status = 403
+        elif isinstance(exc, (ValueError, TypeError, KeyError)):
+            status = 400
+        else:
+            status = 500
+    return jsonify({"ok": False, "error": _safe_err(exc, public=public)}), status
+
+
 app = Flask(__name__)
+print(
+    f"Bloodstone portal v{CONVERGENCE_VERSION} "
+    f"(bloodstone-pi-fleet-convergence-{CONVERGENCE_VERSION}) starting...",
+    flush=True,
+)
+
+
+@app.before_request
+def _guard_convergence_writes():
+    return http_auth.guard_convergence_post()
 
 
 @app.context_processor
@@ -115,7 +153,7 @@ def _cached(key: str, ttl_sec: float, loader, fallback=None):
         try:
             value = loader()
         except Exception as exc:
-            value = stale if stale is not None else {"error": str(exc)}
+            value = stale if stale is not None else {"error": _safe_err(exc)}
         with _CACHE_LOCK:
             _CACHE[key] = (time.time(), value)
         return value
@@ -191,16 +229,27 @@ def load_rpc_url():
 RPC_URL = load_rpc_url()
 
 
+def _mask_rpc_secrets(text):
+    """M-02: never log RPC user:password@ URLs."""
+    import re
+
+    return re.sub(r"(://[^:/?#\s]+):([^@/\s]+)@", r"\1:***@", str(text or ""))
+
+
 def rpc(method, params=None):
     payload = {"jsonrpc": "1.0", "id": "portal", "method": method, "params": params or []}
-    resp = requests.post(
-        RPC_URL,
-        json=payload,
-        headers={"content-type": "text/plain;"},
-        timeout=30,
-    )
-    resp.raise_for_status()
-    data = resp.json()
+    try:
+        resp = requests.post(
+            RPC_URL,
+            json=payload,
+            headers={"content-type": "text/plain;"},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        # Mask credentials if request library embeds URL in the exception message.
+        raise RuntimeError(_mask_rpc_secrets(exc)) from None
     if data.get("error"):
         raise RuntimeError(data["error"].get("message", str(data["error"])))
     return data["result"]
@@ -405,7 +454,7 @@ def chain_stats():
             "connections": info.get("connections", 0),
         }
     except Exception as exc:
-        return {"ok": False, "error": str(exc)}
+        return {"ok": False, "error": _safe_err(exc)}
 
 
 SERVICES = [
@@ -566,7 +615,7 @@ def pool_dashboard_data(address: str = "", use_cache: bool = True) -> dict:
             )
         return data
     except Exception as exc:
-        return {"error": str(exc)}
+        return {"error": _safe_err(exc)}
 
 
 POOLS = [
@@ -629,6 +678,17 @@ def index():
     except Exception:
         fleet_stats = None
     rich_list = rich_list_data(use_cache=True)
+    if not isinstance(rich_list, dict):
+        rich_list = {"ok": False, "entries": [], "loading": True}
+    # Template expects these keys even while the UTXO index is building.
+    rich_list.setdefault("entries", [])
+    rich_list.setdefault("loading", False)
+    rich_list.setdefault("error", None)
+    rich_list.setdefault("total_onchain_stone", None)
+    rich_list.setdefault("holders_scanned", None)
+    rich_list.setdefault("holders_with_balance", None)
+    rich_list.setdefault("estimated_supply_stone", None)
+    rich_list.setdefault("indexed_height", None)
     if rich_list.get("loading") or (not rich_list.get("entries") and not rich_list.get("error")):
         bloodstone_rich_list.schedule_rich_list_refresh()
     return render_template(
@@ -701,6 +761,649 @@ def exchange_page():
 @app.route("/api/exchange")
 def api_exchange():
     return jsonify(exchange_listing())
+
+
+def data_sales_listing() -> dict:
+    """Published data rates in STONE + setup requirements for buyers and sellers."""
+    try:
+        from chain_mesh import depin_credits as depin
+        from chain_mesh import stone_data_payments as sdp
+        from chain_mesh import storage_credits as storage
+
+        enforce_bw = bool(depin.ENFORCE_BANDWIDTH)
+        enforce_st = bool(storage.ENFORCE_QUOTA)
+        enforce_cp = bool(depin.ENFORCE_COMPUTE)
+        stone_rates = sdp.rates_payload()
+        treasuries = stone_rates.get("treasury_addresses") or sdp.treasuries()
+        treasury_storage = (treasuries.get("storage") or "").strip()
+        treasury_bandwidth = (treasuries.get("bandwidth") or "").strip()
+        treasury_compute = (treasuries.get("compute") or "").strip()
+        # Backward-compatible single field → storage treasury.
+        treasury = treasury_storage or stone_rates.get("treasury_address") or ""
+        st_per_gib = float(stone_rates["storage"]["stone_per_unit"])
+        bw_per_100 = float(stone_rates["bandwidth"]["stone_per_unit"])
+        cp_per_gflop = float(stone_rates["compute"]["stone_per_unit"])
+        upkeep_per_gib = float(
+            (stone_rates.get("upkeep") or {}).get("stone_per_gib_month")
+            or stone_rates["storage"].get("upkeep_stone_per_gib_month")
+            or 0.1
+        )
+        upkeep_grace = int(
+            (stone_rates.get("upkeep") or {}).get("grace_days")
+            or stone_rates["storage"].get("upkeep_grace_days")
+            or 30
+        )
+        # Optional Blurt alternate rail (legacy) — not the primary settlement.
+        blurt_storage_outpost = storage.OUTPOST_ACCOUNT
+        blurt_depin_outpost = depin.DEPIN_OUTPOST_ACCOUNT
+        try:
+            from chain_mesh import storage_upkeep as supkeep
+
+            upkeep_network = supkeep.network_upkeep_summary()
+        except Exception:
+            upkeep_network = {}
+    except Exception:
+        enforce_bw = enforce_st = enforce_cp = False
+        treasury_storage = os.environ.get("DATA_SALES_TREASURY_STORAGE", "")
+        treasury_bandwidth = os.environ.get("DATA_SALES_TREASURY_BANDWIDTH", "")
+        treasury_compute = os.environ.get("DATA_SALES_TREASURY_COMPUTE", "")
+        treasury = treasury_storage or os.environ.get("DATA_SALES_TREASURY_ADDRESS", "")
+        treasuries = {
+            "storage": treasury_storage,
+            "bandwidth": treasury_bandwidth,
+            "compute": treasury_compute,
+        }
+        st_per_gib = bw_per_100 = cp_per_gflop = 1.0
+        upkeep_per_gib = float(os.environ.get("DATA_SALES_UPKEEP_STONE_PER_GIB_MONTH", "0.1"))
+        upkeep_grace = int(os.environ.get("DATA_SALES_UPKEEP_GRACE_DAYS", "30"))
+        stone_rates = {}
+        upkeep_network = {}
+        blurt_storage_outpost = "bloodstone-storage"
+        blurt_depin_outpost = "bloodstone-depin"
+
+    return {
+        "ok": True,
+        "title": "Bloodstone data sales",
+        "updated": bloodstone_time.now_pacific(),
+        "public_root": PUBLIC_ROOT,
+        "currency": {
+            "payment_token": "USDT+STONE",
+            "commercial_token": "USDT",
+            "provider_token": "STONE",
+            "network": "Bloodstone mainnet + EVM USDT",
+            "treasury_addresses": treasuries,
+            "treasury_address": treasury,
+            "note": (
+                "Two payment rails — USDT (EVM commercial) and direct STONE (mesh-native). "
+                "Team / founder trail / active / referral percentages are the same on both. "
+                "USDT residual converts to STONE for providers; STONE residual is already STONE."
+            ),
+        },
+        "storage": {
+            "product": "mesh_storage",
+            "display_rate": f"{st_per_gib:g} STONE",
+            "unit": "1 GiB",
+            "stone_per_unit": st_per_gib,
+            "treasury_address": treasury_storage,
+            "blurb": (
+                "Persistent chain-mesh object storage (chunked assets, BSM anchors). "
+                f"Plus monthly upkeep {upkeep_per_gib:g} STONE/GiB on retained data "
+                f"(first {upkeep_grace} days free)."
+            ),
+            "payment": (
+                f"Send {st_per_gib:g}+ STONE → storage treasury → claim product=storage"
+            ),
+            "upkeep_stone_per_gib_month": upkeep_per_gib,
+            "upkeep_display": f"{upkeep_per_gib:g} STONE / GiB · month",
+            "upkeep_grace_days": upkeep_grace,
+            "enforced": enforce_st,
+        },
+        "upkeep": {
+            "product": "storage_upkeep",
+            "display_rate": f"{upkeep_per_gib:g} STONE",
+            "unit": "1 GiB · month",
+            "stone_per_gib_month": upkeep_per_gib,
+            "stone_per_tib_month": upkeep_per_gib * 1024,
+            "display_tib": f"{upkeep_per_gib * 1024:g} STONE / TiB · month",
+            "grace_days": upkeep_grace,
+            "treasury_address": treasury_storage,
+            "blurb": (
+                "Monthly keep-alive for old / retained data so disk, power, and "
+                "replication stay funded. Assessed on bytes currently stored, not "
+                "unused prepaid quota."
+            ),
+            "payment": (
+                f"Send upkeep STONE → storage treasury → claim product=upkeep "
+                f"(quote: GET /api/data-sales/upkeep?stone_address=…)"
+            ),
+            "assessed_on": "bytes currently stored",
+            "network": upkeep_network,
+        },
+        "bandwidth": {
+            "product": "mesh_bandwidth",
+            "display_rate": f"{bw_per_100:g} STONE",
+            "unit": "100 MiB",
+            "stone_per_unit": bw_per_100,
+            "treasury_address": treasury_bandwidth,
+            "blurb": "DTN / mesh / internet-gateway data transfer credit.",
+            "payment": (
+                f"Send {bw_per_100:g}+ STONE → bandwidth treasury → claim product=bandwidth"
+            ),
+            "enforced": enforce_bw,
+        },
+        "compute": {
+            "product": "mesh_compute",
+            "display_rate": f"{cp_per_gflop:g} STONE",
+            "unit": "1 GFLOP",
+            "stone_per_unit": cp_per_gflop,
+            "treasury_address": treasury_compute,
+            "blurb": "DePIN job credits for edge compute workers.",
+            "payment": (
+                f"Send {cp_per_gflop:g}+ STONE → compute treasury → claim product=compute"
+            ),
+            "enforced": enforce_cp,
+        },
+        "treasury_addresses": treasuries,
+        "treasury_address": treasury,
+        "claim_api": f"{PUBLIC_ROOT}/api/data-sales/claim",
+        "stone_rates": stone_rates,
+        "table": [
+            {
+                "name": "Storage (write credit)",
+                "buy": f"{st_per_gib:g} STONE → 1 GiB",
+                "treasury": treasury_storage,
+                "get": "Prepaid mesh storage credit on your STONE address",
+                "enforced": enforce_st,
+            },
+            {
+                "name": "Storage upkeep (retention)",
+                "buy": f"{upkeep_per_gib:g} STONE → 1 GiB · month",
+                "treasury": treasury_storage,
+                "get": (
+                    f"Keeps stored data online after {upkeep_grace}-day grace; "
+                    "assessed on bytes currently stored"
+                ),
+                "enforced": False,
+            },
+            {
+                "name": "Bandwidth / data",
+                "buy": f"{bw_per_100:g} STONE → 100 MiB",
+                "treasury": treasury_bandwidth,
+                "get": "Prepaid transfer credit on your STONE address",
+                "enforced": enforce_bw,
+            },
+            {
+                "name": "Compute",
+                "buy": f"{cp_per_gflop:g} STONE → 1 GFLOP",
+                "treasury": treasury_compute,
+                "get": "Prepaid compute credit (optional job_id on claim)",
+                "enforced": enforce_cp,
+            },
+        ],
+        "provider_roles": [
+            {
+                "role": "Storage peer",
+                "supply": "Disk for mesh chunks / asset library",
+                "hardware": "Pi 4/5 + USB SSD, or always-on PC/VPS",
+                "software": "Pi fleet bundle or full bloodstoned + mesh coordinator",
+            },
+            {
+                "role": "Bandwidth / gateway",
+                "supply": "Uplink for mesh HTTP gateway / DTN / LAN share",
+                "hardware": "Android phone (share internet) or Pi/router with uplink",
+                "software": "Bloodstone miner Android app · mesh share-internet · fleet DTN",
+            },
+            {
+                "role": "Compute worker",
+                "supply": "CPU/GPU/NPU job capacity",
+                "hardware": "Pi, PC, or GPU box on fleet",
+                "software": "Convergence compute agent + tenant bind",
+            },
+        ],
+        "buyer_setup": [
+            {
+                "title": "Create / fund a STONE wallet",
+                "detail": "Data is paid in STONE on Bloodstone mainnet. Use Core Qt, web wallet, or Android miner.",
+                "link": f"{PUBLIC_ROOT}/wallet/",
+                "link_label": "Open wallet",
+            },
+            {
+                "title": "Send STONE to the product treasury",
+                "detail": (
+                    "Three separate wallets: storage, bandwidth, compute. "
+                    f"Storage: {treasury_storage or 'see /api/data-sales'} · "
+                    f"Bandwidth: {treasury_bandwidth or 'see /api/data-sales'} · "
+                    f"Compute: {treasury_compute or 'see /api/data-sales'}. "
+                    "Amount × published rate determines credit size."
+                ),
+                "link": f"{PUBLIC_ROOT}/api/data-sales",
+                "link_label": "JSON rates + treasuries",
+            },
+            {
+                "title": "Claim the payment",
+                "detail": (
+                    "POST /api/data-sales/claim with txid, your stone_address, and product "
+                    "(storage|bandwidth|compute). Claim only credits if the tx paid that product's treasury."
+                ),
+                "link": f"{PUBLIC_ROOT}/api/data-sales",
+                "link_label": "Claim API details",
+            },
+            {
+                "title": "Check quota",
+                "detail": "Query remaining bytes/FLOPs for your STONE address on the convergence quota endpoints.",
+                "link": f"{PUBLIC_ROOT}/api/convergence/status",
+                "link_label": "Convergence status",
+            },
+            {
+                "title": "Use the mesh product",
+                "detail": "Publish/fetch mesh assets, open DTN/gateway paths, or submit compute jobs against your credits.",
+                "link": f"{PUBLIC_ROOT}/mining/",
+                "link_label": "Mining / mesh portal",
+            },
+        ],
+        "seller_setup": [
+            {
+                "title": "Run mesh-capable hardware",
+                "detail": "Pi fleet (edge), Android miner with Share Internet, or a full Bloodstone node on SSD.",
+                "link": f"{PUBLIC_ROOT}/downloads/",
+                "link_label": "Downloads",
+            },
+            {
+                "title": "Install with chain bootstrap (nodes)",
+                "detail": "Full nodes should use the tip chain bootstrap so you are not stuck mid-sync.",
+                "link": f"{PUBLIC_ROOT}/downloads/bloodstone-chain-bootstrap-latest.tar.gz",
+                "link_label": "Chain bootstrap",
+            },
+            {
+                "title": "Register provider identity",
+                "detail": "Bind a STONE address; advertise storage/bandwidth/compute capabilities on the fleet.",
+                "link": f"{PUBLIC_ROOT}/api/convergence/agent/register",
+                "link_label": "Agent register API",
+            },
+            {
+                "title": "Keep uplink and disk healthy",
+                "detail": "Bandwidth sellers need stable NAT/firewall (TCP 17333 / LAN gateway). Storage sellers need free disk.",
+                "link": f"{PUBLIC_ROOT}/downloads/#qt-fix-tools",
+                "link_label": "Node fix tools",
+            },
+            {
+                "title": "Serve demand paid in STONE",
+                "detail": (
+                    "Buyers pay STONE into the matching product treasury and claim credits; "
+                    "stay online to deliver data/compute. Operator payouts can draw from each treasury separately."
+                ),
+                "link": f"{PUBLIC_ROOT}/api/data-sales",
+                "link_label": "Data sales API",
+            },
+        ],
+        "examples": [
+            {
+                "title": "Buy 5 GiB mesh storage",
+                "body": (
+                    f"1) Send {5 * st_per_gib:g} STONE → {treasury_storage or 'STORAGE_TREASURY'}\n"
+                    "2) POST /api/data-sales/claim\n"
+                    '   {"txid":"<txid>","stone_address":"YOUR_STONE_ADDRESS","product":"storage"}'
+                ),
+            },
+            {
+                "title": f"Pay monthly upkeep for 10 GiB retained data ({10 * upkeep_per_gib:g} STONE)",
+                "body": (
+                    f"1) GET /api/data-sales/upkeep?stone_address=YOUR_STONE_ADDRESS  (quote)\n"
+                    f"2) Send {10 * upkeep_per_gib:g} STONE → {treasury_storage or 'STORAGE_TREASURY'}\n"
+                    "3) POST /api/data-sales/claim\n"
+                    '   {"txid":"<txid>","stone_address":"YOUR_STONE_ADDRESS","product":"upkeep"}'
+                ),
+            },
+            {
+                "title": "Buy 1 GiB bandwidth (10 × 100 MiB packs at default rate)",
+                "body": (
+                    f"1) Send {10 * bw_per_100:g} STONE → {treasury_bandwidth or 'BANDWIDTH_TREASURY'}\n"
+                    "2) POST /api/data-sales/claim\n"
+                    '   {"txid":"<txid>","stone_address":"YOUR_STONE_ADDRESS","product":"bandwidth"}'
+                ),
+            },
+            {
+                "title": "Buy compute credits",
+                "body": (
+                    f"1) Send {cp_per_gflop:g}+ STONE → {treasury_compute or 'COMPUTE_TREASURY'}\n"
+                    "2) POST /api/data-sales/claim\n"
+                    '   {"txid":"<txid>","stone_address":"YOUR_STONE_ADDRESS","product":"compute","job_id":"my-job-01"}'
+                ),
+            },
+            {
+                "title": "Corporate path — buy 10 GiB storage in USDT",
+                "body": (
+                    "1) GET /api/data-sales/usdt/quote?product=storage&units=10\n"
+                    "2) Send USDT (ERC-20) → central EVM treasury from quote\n"
+                    "3) POST /api/data-sales/usdt/claim\n"
+                    '   {"usdt_txid":"<txid>","product":"storage","units":10,"stone_address":"YOUR_STONE_ADDRESS"}\n'
+                    "4) Team USDT split books automatically; remainder → STONE provider pool"
+                ),
+            },
+        ],
+        "blurt_alternate": {
+            "available": True,
+            "note": (
+                "Optional Blurt-native path still exists for ecosystem bridging: "
+                "pay BLURT to outpost accounts with storage|bandwidth|compute memos. "
+                "Commercial front door is USDT; mesh-native settlement remains STONE."
+            ),
+            "storage_outpost": blurt_storage_outpost,
+            "depin_outpost": blurt_depin_outpost,
+        },
+        "checklist": [
+            "STONE wallet funded (payment currency)",
+            f"Storage treasury: {treasury_storage or '(configure DATA_SALES_TREASURY_STORAGE)'}",
+            f"Bandwidth treasury: {treasury_bandwidth or '(configure DATA_SALES_TREASURY_BANDWIDTH)'}",
+            f"Compute treasury: {treasury_compute or '(configure DATA_SALES_TREASURY_COMPUTE)'}",
+            "Claim via POST /api/data-sales/claim with txid + stone_address + product",
+            "For sellers: node or Pi/Android mesh stack online with seed peers",
+            "Full-node sellers: tip bootstrap installed; height near network tip",
+            "Firewall allows P2P 17333 (and LAN gateway ports if sharing internet)",
+            "Providers: watch explorer mesh capacity meters (prepaid demand vs surplus)",
+        ],
+        "capacity_api": f"{PUBLIC_ROOT}/api/data-sales/capacity",
+        "explorer_capacity": f"{PUBLIC_ROOT}/explorer/",
+        "monetization": _monetization_for_listing(),
+    }
+
+
+def _monetization_for_listing() -> dict:
+    """USDT-first commercial model embedded in data-sales JSON."""
+    try:
+        from chain_mesh import usdt_monetization as mon
+
+        payload = mon.monetization_payload()
+        payload["stats"] = mon.summary_stats()
+        return payload
+    except Exception as exc:
+        return {"ok": False, "error": _safe_err(exc)}
+
+
+@app.route("/data/")
+@app.route("/data-sales/")
+def data_sales_page():
+    rates = data_sales_listing()
+    return render_template(
+        "data_sales.html",
+        rates=rates,
+        public_root=PUBLIC_ROOT,
+        public_host=PUBLIC_HOST,
+        updated=bloodstone_time.now_pacific(),
+    )
+
+
+@app.route("/api/data-sales")
+@app.route("/api/data/rates")
+def api_data_sales():
+    return jsonify(data_sales_listing())
+
+
+@app.route("/api/data-sales/capacity")
+@app.route("/api/mesh-capacity")
+def api_data_sales_capacity():
+    """Prepaid credit demand vs fleet capacity (same meters as explorer)."""
+    try:
+        from chain_mesh import capacity_demand as cap
+
+        return jsonify(cap.capacity_demand_payload())
+    except Exception as exc:
+        return _api_error(exc, 503)
+
+
+@app.route("/api/data-sales/upkeep")
+def api_data_sales_upkeep():
+    """Quote or summarize monthly storage upkeep (retention of old data)."""
+    try:
+        from chain_mesh import storage_upkeep as supkeep
+
+        addr = (request.args.get("stone_address") or request.args.get("address") or "").strip()
+        if addr:
+            return jsonify(supkeep.quote_upkeep(addr))
+        return jsonify(supkeep.network_upkeep_summary())
+    except Exception as exc:
+        return _api_error(exc, 400)
+
+
+
+
+@app.route("/api/network/payment-config")
+def api_network_payment_config():
+    """Public auditable payment addresses + reseller policy (single source of truth)."""
+    try:
+        from chain_mesh import reseller_platform as rp
+        return jsonify(rp.payment_config_payload())
+    except Exception as exc:
+        return _api_error(exc, 500)
+
+
+@app.route("/api/reseller/overview")
+def api_reseller_overview():
+    try:
+        from chain_mesh import reseller_platform as rp
+        return jsonify(rp.platform_overview())
+    except Exception as exc:
+        return _api_error(exc, 500)
+
+
+@app.route("/api/data-sales/monetization")
+def api_data_sales_monetization():
+    """USDT-first commercial model: team split → STONE provider pool → hold tiers."""
+    try:
+        from chain_mesh import usdt_monetization as mon
+
+        payload = mon.monetization_payload()
+        payload["stats"] = mon.summary_stats()
+        return jsonify(payload)
+    except Exception as exc:
+        return _api_error(exc, 500)
+
+
+@app.route("/api/data-sales/alignment")
+def api_data_sales_alignment():
+    """Founder STONE alignment + USDT trail/active + community referral structure."""
+    try:
+        from chain_mesh import founder_alignment as align
+
+        return jsonify(align.alignment_payload())
+    except Exception as exc:
+        return _api_error(exc, 500)
+
+
+@app.route("/api/data-sales/alignment/waterfall")
+def api_data_sales_alignment_waterfall():
+    """Preview USDT waterfall for a gross amount (optional referral code)."""
+    try:
+        from chain_mesh import founder_alignment as align
+        from decimal import Decimal
+
+        usdt = Decimal(str(request.args.get("usdt") or request.args.get("gross") or "100"))
+        ref = (request.args.get("ref") or request.args.get("referral_code") or "").strip()
+        return jsonify({"ok": True, **align.commercial_waterfall(usdt, referral_code=ref)})
+    except Exception as exc:
+        return _api_error(exc, 400)
+
+
+@app.route("/api/data-sales/alignment/tranche", methods=["POST"])
+def api_data_sales_alignment_tranche():
+    """Schedule founder STONE monthly tranche (or initial) if participation active."""
+    payload = request.get_json(silent=True) or {}
+    try:
+        from chain_mesh import founder_alignment as align
+
+        kind = str(payload.get("kind") or "monthly").strip().lower()
+        if kind == "initial":
+            return jsonify(align.schedule_initial_alignment(note=str(payload.get("note") or "")))
+        return jsonify(
+            align.schedule_monthly_tranche(
+                period_label=str(payload.get("period_label") or ""),
+                participation_ok=payload.get("participation_ok"),
+                note=str(payload.get("note") or ""),
+            )
+        )
+    except Exception as exc:
+        return _api_error(exc, 400)
+
+
+@app.route("/api/data-sales/referral/register", methods=["POST"])
+def api_data_sales_referral_register():
+    """Register a community/team referral code (global sales force)."""
+    payload = request.get_json(silent=True) or {}
+    try:
+        from chain_mesh import founder_alignment as align
+
+        return jsonify(
+            align.register_referral_code(
+                owner_label=str(payload.get("owner_label") or payload.get("name") or "promoter"),
+                owner_stone_address=str(payload.get("stone_address") or ""),
+                owner_usdt_wallet=str(payload.get("usdt_wallet") or ""),
+                channel=str(payload.get("channel") or "community"),
+                code=str(payload.get("code") or ""),
+            )
+        )
+    except Exception as exc:
+        return _api_error(exc, 400)
+
+
+@app.route("/api/data-sales/usdt/quote")
+def api_data_sales_usdt_quote():
+    """Quote USDT for storage|upkeep|bandwidth|compute units."""
+    try:
+        from chain_mesh import usdt_monetization as mon
+
+        product = (request.args.get("product") or "storage").strip()
+        units = float(request.args.get("units") or request.args.get("qty") or 1)
+        ref = (request.args.get("ref") or request.args.get("referral_code") or "").strip()
+        return jsonify(mon.quote_resource(product, units, referral_code=ref))
+    except Exception as exc:
+        return _api_error(exc, 400)
+
+
+@app.route("/api/data-sales/usdt/claim", methods=["POST"])
+def api_data_sales_usdt_claim():
+    """Record USDT commercial payment → team accounting + provider STONE pool."""
+    payload = request.get_json(silent=True) or {}
+    try:
+        from chain_mesh import usdt_monetization as mon
+
+        result = mon.record_usdt_payment(
+            product=str(payload.get("product") or ""),
+            units=float(payload.get("units") or payload.get("qty") or 1),
+            usdt_gross=str(payload.get("usdt_gross")) if payload.get("usdt_gross") is not None else None,
+            usdt_txid=str(payload.get("usdt_txid") or payload.get("txid") or ""),
+            stone_address=str(payload.get("stone_address") or ""),
+            payer_ref=str(payload.get("payer_ref") or payload.get("email") or ""),
+            memo=str(payload.get("memo") or ""),
+            payment_ref=str(payload.get("payment_ref") or ""),
+            referral_code=str(payload.get("referral_code") or payload.get("ref") or ""),
+        )
+        # Optionally credit mesh quota when stone_address + product map to STONE rails
+        if result.get("ok") and not result.get("duplicate"):
+            stone_addr = str(payload.get("stone_address") or "").strip()
+            product = str(payload.get("product") or "").strip().lower()
+            units = float(payload.get("units") or 1)
+            if stone_addr and product in ("storage", "bandwidth", "compute", "upkeep"):
+                try:
+                    result["mesh_credit"] = _credit_from_usdt_units(
+                        product=product, units=units, stone_address=stone_addr, usdt_txid=str(payload.get("usdt_txid") or "")
+                    )
+                except Exception as credit_exc:
+                    result["mesh_credit"] = {"ok": False, "error": str(credit_exc)}
+        return jsonify(result)
+    except Exception as exc:
+        return _api_error(exc, 400)
+
+
+@app.route("/api/data-sales/provider-tier")
+def api_data_sales_provider_tier():
+    """Hold-to-earn tier for a given attested STONE holding (or address lookup later)."""
+    try:
+        from chain_mesh import usdt_monetization as mon
+
+        held = float(request.args.get("stone_held") or request.args.get("holdings") or 0)
+        base = request.args.get("base_stone")
+        tier = mon.provider_tier_for_holdings(held)
+        out = {"ok": True, "tier": tier}
+        if base is not None:
+            out["distribution"] = mon.apply_provider_bonus(
+                mon._d(base) if hasattr(mon, "_d") else __import__("decimal").Decimal(str(base)),
+                held,
+            )
+        return jsonify(out)
+    except Exception as exc:
+        return _api_error(exc, 400)
+
+
+def _credit_from_usdt_units(*, product: str, units: float, stone_address: str, usdt_txid: str) -> dict:
+    """Map purchased USDT units onto existing mesh credit ledgers (1 unit = same pack as STONE rates)."""
+    from chain_mesh import depin_credits as depin
+    from chain_mesh import storage_credits as storage
+    from chain_mesh import storage_upkeep as upkeep
+
+    synthetic = f"usdt:{usdt_txid or 'manual'}:{product}:{units}"
+    product = product.lower()
+    if product == "storage":
+        bytes_credit = int(units * 1024 * 1024 * 1024)
+        return storage.credit_from_blurt_transfer(
+            stone_address=stone_address,
+            bytes_credited=bytes_credit,
+            blurt_txid=synthetic,
+            blurt_from="usdt-commercial",
+            blurt_amount=str(units),
+            memo=f"usdt-pay storage {units} GiB",
+        )
+    if product == "bandwidth":
+        bytes_credit = int(units * 100 * 1024 * 1024)
+        return depin.credit_bandwidth(
+            stone_address=stone_address,
+            bytes_credited=bytes_credit,
+            blurt_txid=synthetic,
+            blurt_from="usdt-commercial",
+            blurt_amount=str(units),
+            memo=f"usdt-pay bandwidth {units}×100MiB",
+        )
+    if product == "compute":
+        flops = int(units * 1_000_000_000)
+        return depin.credit_compute(
+            stone_address=stone_address,
+            job_id="prepaid",
+            flops_credited=flops,
+            blurt_txid=synthetic,
+            blurt_from="usdt-commercial",
+            blurt_amount=str(units),
+            memo=f"usdt-pay compute {units} GFLOP",
+        )
+    if product == "upkeep":
+        # units = GiB-months; convert to STONE-equivalent amount at 0.1 STONE/GiB-month default for ledger
+        stone_amt = str(float(units) * float(os.environ.get("DATA_SALES_UPKEEP_STONE_PER_GIB_MONTH", "0.1")))
+        return upkeep.record_upkeep_payment(
+            stone_address=stone_address,
+            stone_amount=stone_amt,
+            payment_ref=synthetic,
+            bytes_assessed=int(units * 1024 * 1024 * 1024),
+            memo=f"usdt-pay upkeep {units} GiB·month",
+            source="usdt-commercial",
+        )
+    raise ValueError("unsupported product for mesh credit")
+
+
+@app.route("/api/data-sales/claim", methods=["POST"])
+def api_data_sales_claim():
+    """Claim STONE payment → mesh data credits for a STONE address."""
+    payload = request.get_json(silent=True) or {}
+    try:
+        from chain_mesh import stone_data_payments as sdp
+
+        result = sdp.claim_payment(
+            txid=str(payload.get("txid") or ""),
+            stone_address=str(payload.get("stone_address") or ""),
+            product=str(payload.get("product") or ""),
+            job_id=str(payload.get("job_id") or ""),
+            referral_code=str(payload.get("referral_code") or payload.get("ref") or ""),
+        )
+        return jsonify(result)
+    except Exception as exc:
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/status")
@@ -829,7 +1532,7 @@ def api_convergence_provenance_anchor():
     try:
         return jsonify(cm.convergence_provenance_anchor_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/provenance/verify")
@@ -858,7 +1561,7 @@ def api_convergence_agent_register():
 
     if request.method == "GET":
         payload = {
-            "blurt_author": request.args.get("blurt_author") or request.args.get("author") or "",
+            "blurt_account": request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or "",
             "stone_address": request.args.get("stone_address") or "",
             "agent_id": request.args.get("agent_id") or "",
             "display_name": request.args.get("display_name") or "",
@@ -874,7 +1577,7 @@ def api_convergence_agent_register():
     try:
         return jsonify(cm.convergence_agent_register_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/agent/verify")
@@ -884,7 +1587,7 @@ def api_convergence_agent_verify():
     return jsonify(
         cm.convergence_agent_verify_payload(
             agent_id=(request.args.get("agent_id") or "").strip(),
-            blurt_author=(request.args.get("blurt_author") or request.args.get("author") or "").strip(),
+            blurt_account=(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or "").strip(),
         )
     )
 
@@ -904,7 +1607,7 @@ def api_convergence_agent_publish_flow():
     try:
         return jsonify(cm.convergence_agent_publish_flow_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/compute/quota")
@@ -924,7 +1627,7 @@ def api_convergence_compute_tenant_quota():
     return jsonify(
         cm.convergence_compute_tenant_quota_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             stone_address=str(request.args.get("stone_address") or ""),
         )
     )
@@ -945,7 +1648,7 @@ def api_convergence_compute_tenant_bind():
     try:
         return jsonify(cm.convergence_compute_tenant_bind_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/tenant/dashboard")
@@ -955,7 +1658,7 @@ def api_convergence_tenant_dashboard():
     return jsonify(
         cm.convergence_tenant_dashboard_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             stone_address=str(request.args.get("stone_address") or ""),
         )
     )
@@ -976,7 +1679,7 @@ def api_convergence_tenant_bind():
     try:
         return jsonify(cm.convergence_tenant_bind_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/tenant/fleet/status")
@@ -1029,7 +1732,7 @@ def api_convergence_tenant_broadcast():
     try:
         return jsonify(cm.convergence_tenant_broadcast_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/tenant/broadcast/queue")
@@ -1067,7 +1770,7 @@ def api_convergence_tenant_submit_check():
     return jsonify(
         cm.convergence_tenant_submit_check_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             stone_address=str(request.args.get("stone_address") or ""),
         )
     )
@@ -1080,7 +1783,7 @@ def api_convergence_tenant_quorum_author():
     return jsonify(
         cm.convergence_tenant_quorum_author_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
         )
     )
 
@@ -1093,7 +1796,7 @@ def api_convergence_tenant_npu_bind():
     try:
         return jsonify(cm.convergence_tenant_npu_bind_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/tenant/npu/status")
@@ -1110,7 +1813,7 @@ def api_convergence_tenant_npu_resolve():
     return jsonify(
         cm.convergence_tenant_npu_resolve_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             runtime=str(request.args.get("runtime") or ""),
         )
     )
@@ -1138,7 +1841,7 @@ def api_convergence_tenant_ai_route_resolve():
     return jsonify(
         cm.convergence_tenant_ai_route_resolve_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             runtime=str(request.args.get("runtime") or ""),
         )
     )
@@ -1172,7 +1875,7 @@ def api_convergence_tenant_route_ledger_assignments():
     return jsonify(
         cm.convergence_tenant_route_ledger_assignments_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             limit=int(request.args.get("limit") or 20),
         )
     )
@@ -1255,9 +1958,9 @@ def api_convergence_compute_job_submit():
     try:
         return jsonify(cm.convergence_compute_job_submit_payload(payload))
     except PermissionError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 403
+        return _api_error(exc, 403)
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/compute/job/verify")
@@ -1296,7 +1999,7 @@ def api_convergence_bandwidth_tenant_quota():
     return jsonify(
         cm.convergence_bandwidth_tenant_quota_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             stone_address=str(request.args.get("stone_address") or ""),
         )
     )
@@ -1317,7 +2020,7 @@ def api_convergence_bandwidth_tenant_bind():
     try:
         return jsonify(cm.convergence_bandwidth_tenant_bind_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/storage/quota")
@@ -1337,7 +2040,7 @@ def api_convergence_storage_tenant_quota():
     return jsonify(
         cm.convergence_storage_tenant_quota_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             stone_address=str(request.args.get("stone_address") or ""),
         )
     )
@@ -1358,7 +2061,7 @@ def api_convergence_storage_tenant_bind():
     try:
         return jsonify(cm.convergence_storage_tenant_bind_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/depin/quota")
@@ -1396,7 +2099,7 @@ def api_convergence_dtn_export():
             "node_id": request.args.get("node_id") or "",
             "region": request.args.get("region") or "",
             "stone_address": request.args.get("stone_address") or "",
-            "blurt_author": request.args.get("blurt_author") or request.args.get("author") or "",
+            "blurt_account": request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or "",
             "tenant_id": request.args.get("tenant_id") or "",
             "include_chunks": request.args.get("include_chunks", "1") not in ("0", "false", "no"),
             "queue_forward": request.args.get("queue_forward") in ("1", "true", "yes"),
@@ -1416,14 +2119,14 @@ def api_convergence_dtn_export():
                 region=str(payload.get("region") or ""),
                 queue_forward=bool(payload.get("queue_forward")),
                 stone_address=str(payload.get("stone_address") or ""),
-                blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+                blurt_account=str(payload.get("blurt_account") or payload.get("blurt_author") or payload.get("author") or ""),
                 tenant_id=str(payload.get("tenant_id") or ""),
             )
         )
     except PermissionError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 403
+        return _api_error(exc, 403)
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/export/download")
@@ -1445,13 +2148,13 @@ def api_convergence_dtn_export_download():
             include_chunks=request.args.get("include_chunks", "1") not in ("0", "false", "no"),
             region=(request.args.get("region") or "").strip(),
             stone_address=(request.args.get("stone_address") or "").strip(),
-            blurt_author=(request.args.get("blurt_author") or request.args.get("author") or "").strip(),
+            blurt_account=(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or "").strip(),
             tenant_id=(request.args.get("tenant_id") or "").strip(),
         )
     except PermissionError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 403
+        return _api_error(exc, 403)
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
     return Response(
         blob,
         mimetype="application/zip",
@@ -1470,12 +2173,12 @@ def api_convergence_dtn_import():
 
             return jsonify(import_dtn_bundle(upload.read()))
         except (ValueError, TypeError) as exc:
-            return jsonify({"ok": False, "error": str(exc)}), 400
+            return _api_error(exc, 400)
     payload = request.get_json(silent=True) or {}
     try:
         return jsonify(cm.convergence_dtn_import_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/forward/pending")
@@ -1497,7 +2200,7 @@ def api_convergence_dtn_forward_submit():
     try:
         return jsonify(cm.convergence_dtn_forward_submit_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/forward/flush", methods=["POST"])
@@ -1568,7 +2271,7 @@ def api_convergence_dtn_peers_register():
     try:
         return jsonify(cm.convergence_dtn_peer_register_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/replication/heal", methods=["POST"])
@@ -1584,7 +2287,7 @@ def api_convergence_dtn_replication_heal():
             )
         )
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/mdns/status")
@@ -1603,7 +2306,7 @@ def api_convergence_dtn_mdns_register():
     try:
         return jsonify(cm.convergence_dtn_mdns_register_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/mdns/browse", methods=["POST"])
@@ -1641,7 +2344,7 @@ def api_convergence_dtn_replication_check():
             )
         )
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/alerts")
@@ -1673,7 +2376,7 @@ def api_convergence_dtn_gossip_exchange():
     try:
         return jsonify(cm.convergence_dtn_gossip_exchange_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/gossip/round", methods=["POST"])
@@ -1761,7 +2464,7 @@ def api_convergence_dtn_planetary_exchange():
     try:
         return jsonify(cm.convergence_dtn_planetary_exchange_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/planetary/round", methods=["POST"])
@@ -1793,11 +2496,11 @@ def api_convergence_bridge_quote():
                 direction=str(request.args.get("direction") or ""),
                 amount=request.args.get("amount") or request.args.get("blurt_amount") or request.args.get("stone_amount"),
                 stone_address=str(request.args.get("stone_address") or ""),
-                blurt_account=str(request.args.get("blurt_account") or ""),
+                blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             )
         )
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/bridge/initiate", methods=["POST"])
@@ -1808,7 +2511,7 @@ def api_convergence_bridge_initiate():
     try:
         return jsonify(cm.convergence_bridge_initiate_payload(payload))
     except (ValueError, TypeError, RuntimeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/bridge/claim", methods=["POST"])
@@ -1824,7 +2527,7 @@ def api_convergence_bridge_claim():
             )
         )
     except (ValueError, TypeError, RuntimeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/bridge/attest", methods=["POST"])
@@ -1840,7 +2543,7 @@ def api_convergence_bridge_attest():
             )
         )
     except (ValueError, TypeError, RuntimeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/bridge/intents")
@@ -1898,7 +2601,7 @@ def api_convergence_ai_register():
     try:
         return jsonify(cm.convergence_ai_register_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/ai/route", methods=["POST"])
@@ -1915,7 +2618,7 @@ def api_convergence_ai_route():
             )
         )
     except (ValueError, TypeError, PermissionError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/ai/submit", methods=["POST"])
@@ -1926,7 +2629,7 @@ def api_convergence_ai_submit():
     try:
         return jsonify(cm.convergence_ai_submit_payload(payload))
     except (ValueError, TypeError, PermissionError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/ai/discover", methods=["POST"])
@@ -1955,7 +2658,7 @@ def api_convergence_ai_dispatch():
     try:
         return jsonify(cm.convergence_ai_dispatch_payload(payload))
     except (ValueError, TypeError, PermissionError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/ai/callback", methods=["POST"])
@@ -1966,7 +2669,7 @@ def api_convergence_ai_callback():
     try:
         return jsonify(cm.convergence_ai_callback_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/ai/npu/status")
@@ -1998,7 +2701,7 @@ def api_convergence_ai_provider_broadcast():
     try:
         return jsonify(cm.convergence_ai_provider_broadcast_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/ai/provider/broadcast/queue")
@@ -2038,7 +2741,7 @@ def api_convergence_spatial_manifest():
     try:
         return jsonify(cm.convergence_spatial_manifest_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/spatial/embed")
@@ -2112,7 +2815,7 @@ def api_quasar_status():
 
         return jsonify(qapi.status_payload(rpc))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/api/quasar/witness/submit", methods=["POST"])
@@ -2123,7 +2826,7 @@ def api_quasar_witness_submit():
     try:
         return jsonify(qapi.witness_submit(payload))
     except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/quasar/witness/capsules")
@@ -2145,7 +2848,7 @@ def api_quasar_lan_echo():
     try:
         return jsonify(qapi.lan_echo_submit(payload, public_ip=public_ip, rpc=rpc))
     except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/quasar/lan-echo/status")
@@ -2156,7 +2859,7 @@ def api_quasar_lan_echo_status():
     try:
         return jsonify(qapi.lan_echo_status_payload(public_ip=public_ip, rpc=rpc))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/api/quasar/alerts")
@@ -2166,7 +2869,7 @@ def api_quasar_alerts():
     try:
         return jsonify(qapi.alerts_payload(rpc))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/api/quasar/braid-index")
@@ -2177,7 +2880,7 @@ def api_quasar_braid_index():
     try:
         return jsonify(qapi.braid_index_payload(sync=sync, rpc=rpc))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/api/quasar/enforcement/check", methods=["POST"])
@@ -2189,7 +2892,7 @@ def api_quasar_enforcement_check():
     try:
         return jsonify(qapi.enforcement_check(amount, rpc))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/api/quasar/activation")
@@ -2206,7 +2909,7 @@ def api_quasar_signaling():
     try:
         return jsonify(qapi.signaling_payload(rpc))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/api/quasar/fork-rehearsal")
@@ -2217,7 +2920,7 @@ def api_quasar_fork_rehearsal():
     try:
         return jsonify(qapi.fork_rehearsal_payload(rpc, persist=persist))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/api/quasar/confirmations")
@@ -2227,7 +2930,7 @@ def api_quasar_confirmations():
     try:
         return jsonify(qapi.confirmations_payload(rpc))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/atomicdex/")
@@ -2253,12 +2956,23 @@ def api_pool_dashboard():
 
 def rich_list_data(limit: int = 25, use_cache: bool = True) -> dict:
     limit = max(5, min(100, int(limit)))
+    _empty = {
+        "ok": False,
+        "entries": [],
+        "loading": True,
+        "error": None,
+        "total_onchain_stone": None,
+        "holders_scanned": None,
+        "holders_with_balance": None,
+        "estimated_supply_stone": None,
+        "indexed_height": None,
+    }
     if use_cache:
         return _cached(
             f"rich_list_{limit}",
             float(os.environ.get("PORTAL_RICH_LIST_CACHE_SEC", "600")),
             lambda: bloodstone_rich_list.get_rich_list(limit=limit),
-            fallback={"ok": False, "entries": [], "loading": True},
+            fallback=_empty,
         )
     return bloodstone_rich_list.get_rich_list(limit=limit)
 
@@ -2326,7 +3040,10 @@ def api_beta_redeem():
 def api_beta_status():
     token = _portal_beta_token()
     lan_ip = _portal_lan_ip()
-    active = bloodstone_beta_codes.verify_access_token(token) if token else False
+    token_info = (
+        bloodstone_beta_codes.get_access_token_info(token) if token else None
+    )
+    active = bool(token_info and token_info.get("active"))
     lan_key = bloodstone_beta_codes.lan_key_from_ip(lan_ip) if lan_ip else None
     lan_release = (
         bloodstone_beta_codes.get_lan_validated_release(lan_key) if lan_key else None
@@ -2336,6 +3053,8 @@ def api_beta_status():
             "ok": True,
             "beta_active": active,
             "release_channel": "beta" if active else "stable",
+            "lifetime_unlock": bool(token_info and token_info.get("lifetime_unlock")),
+            "code_type": (token_info or {}).get("code_type"),
             "lan_key": lan_key,
             "lan_validated": bool(lan_release),
             "lan_apk_version": (lan_release or {}).get("apk_version"),
@@ -2390,7 +3109,7 @@ def api_rich_list():
             bloodstone_rich_list.schedule_rich_list_refresh(limit=int(limit))
         return jsonify(data)
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc), "entries": []}), 503
+        return jsonify({"ok": False, "error": _safe_err(exc), "entries": []}), 503
 
 
 @app.route("/api/pool/payout-log")
@@ -2442,7 +3161,27 @@ _warm_portal_cache()
 @app.route("/live")
 def health():
     """Lightweight liveness probe for watchdogs and load balancers."""
-    return jsonify({"ok": True, "service": "portal"})
+    return jsonify(
+        {
+            "ok": True,
+            "service": "portal",
+            "version": CONVERGENCE_VERSION,
+            "package": f"bloodstone-pi-fleet-convergence-{CONVERGENCE_VERSION}",
+        }
+    )
+
+
+@app.route("/version")
+@app.route("/api/version")
+def api_version():
+    """Package / convergence stack version (single source: chain_mesh.__version__)."""
+    return jsonify(
+        {
+            "ok": True,
+            "version": CONVERGENCE_VERSION,
+            "package": f"bloodstone-pi-fleet-convergence-{CONVERGENCE_VERSION}",
+        }
+    )
 
 
 @app.route("/api/status")

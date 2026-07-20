@@ -269,20 +269,20 @@
               <span>Check for live UI + APK updates on startup</span>
             </label>
             <p class="muted small">UI changes download automatically (no reinstall). APK updates are only needed for native plugin changes.</p>
-            <div class="android-beta-panel info-box" id="android-beta-panel" hidden>
-              <strong>Beta testing (LAN only)</strong>
+            <div class="android-beta-panel info-box" id="android-beta-panel">
+              <strong>Beta unlock</strong>
               <p class="muted small android-beta-status" id="android-beta-status"></p>
               <div id="android-beta-form">
                 <label class="field">
-                  <span class="muted small">One-time beta invite code</span>
-                  <input type="text" id="android-beta-code" autocomplete="off" spellcheck="false" placeholder="BS-BETA-XXXX-XXXX-XXXX">
+                  <span class="muted small">Beta invite code</span>
+                  <input type="text" id="android-beta-code" autocomplete="off" spellcheck="false" placeholder="BS-BETA-… or BS-BETA-LIFE-…" inputmode="text" autocapitalize="characters">
                 </label>
                 <div class="btn-row">
-                  <button type="button" class="btn btn-small" id="android-beta-redeem-btn">Unlock beta OTA</button>
+                  <button type="button" class="btn btn-small" id="android-beta-redeem-btn">Unlock beta updates</button>
                 </div>
               </div>
               <div id="android-beta-active" hidden>
-                <p class="muted small">Test the beta build on this LAN. When it looks good, approve it so everyone on this Wi‑Fi gets it as stable OTA.</p>
+                <p class="muted small">Pull down to check for the newest pre-release build. Approve on this LAN when ready for everyone on your Wi‑Fi.</p>
                 <div class="btn-row">
                   <button type="button" class="btn btn-small" id="android-beta-approve-btn">Approve for this LAN</button>
                   <button type="button" class="btn btn-small btn-ghost" id="android-beta-leave-btn">Leave beta channel</button>

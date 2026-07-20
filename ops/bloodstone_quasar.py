@@ -153,7 +153,11 @@ def confirmation_policy(
             "recommended_withdrawal": base,
             "multiplier": round(MAX_CONFIRMATIONS / base, 2),
             "policy": "halt_deposits",
-            "reason": "Witness capsules disagree on chain tip — halt deposits pending manual review.",
+            "reason": (
+                "Witness capsules disagree on chain tip or tip height — halt deposits "
+                "pending AI-reviewed operator confirmation "
+                "(/api/quasar/witness/tip-review)."
+            ),
         }
 
     if braid_status == "deferred":

@@ -1794,9 +1794,9 @@ bool CChainState::ConnectBlock(const CBlock& block, BlockValidationState& state,
     // upgrade from one software version to the next after a consensus rule
     // change is potentially tricky and issue-specific (see NeedsRedownload()
     // for one approach that was used for BIP 141 deployment).
-    // Also, currently the rule against blocks more than 2 hours in the future
-    // is enforced in ContextualCheckBlockHeader(); we wouldn't want to
-    // re-enforce that rule here (at least until we make it impossible for
+    // Also, currently the rule against blocks more than MAX_FUTURE_BLOCK_TIME
+    // in the future is enforced in ContextualCheckBlockHeader(); we wouldn't want
+    // to re-enforce that rule here (at least until we make it impossible for
     // GetAdjustedTime() to go backward).
     if (!CheckBlock(block, state, m_params.GetConsensus(), !fJustCheck, !fJustCheck)) {
         if (state.GetResult() == BlockValidationResult::BLOCK_MUTATED) {
@@ -3179,9 +3179,19 @@ static bool ContextualCheckBlockHeader(const CBlockHeader& block, BlockValidatio
     if (block.GetBlockTime() <= pindexPrev->GetMedianTimePast())
         return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "time-too-old", "block's timestamp is too early");
 
-    // Check timestamp
-    if (block.GetBlockTime() > nAdjustedTime + MAX_FUTURE_BLOCK_TIME)
-        return state.Invalid(BlockValidationResult::BLOCK_TIME_FUTURE, "time-too-new", "block timestamp too far in the future");
+    /* Phase H1: height-gated future bound (7200 pre-H / 1800 at-H) + window-min.
+       Gate logic lives in CheckH1HeaderTimeRules so tests share the same path. */
+    switch (CheckH1HeaderTimeRules(nHeight, block.GetBlockTime(), nAdjustedTime, pindexPrev,
+                                   block.pow.getCoreAlgo(), consensusParams)) {
+    case H1HeaderTimeResult::TIME_TOO_NEW:
+        return state.Invalid(BlockValidationResult::BLOCK_TIME_FUTURE, "time-too-new",
+                             "block timestamp too far in the future");
+    case H1HeaderTimeResult::TIMEWARP_WINDOW:
+        return state.Invalid(BlockValidationResult::BLOCK_INVALID_HEADER, "timewarp-dgw-window",
+                             "same-algo DGW window timespan too short");
+    case H1HeaderTimeResult::OK:
+        break;
+    }
 
     // Reject blocks with outdated version
     if ((block.nVersion < 2 && DeploymentActiveAfter(pindexPrev, consensusParams, Consensus::DEPLOYMENT_HEIGHTINCB)) ||

@@ -1,5 +1,6 @@
 """Publish and retrieve arbitrary files via chain mesh + optional on-chain anchor."""
 
+from chain_mesh.security import public_error
 import hashlib
 import os
 from typing import Any, Dict, List, Optional
@@ -135,7 +136,7 @@ def publish_asset(
             )
             result["anchor"] = anchor_result
         except Exception as exc:
-            result["anchor"] = {"ok": False, "error": str(exc)}
+            result["anchor"] = {"ok": False, "error": public_error(exc)}
 
     return result
 
@@ -258,7 +259,7 @@ def publish_asset_manifest(
             )
             result["anchor"] = anchor_result
         except Exception as exc:
-            result["anchor"] = {"ok": False, "error": str(exc)}
+            result["anchor"] = {"ok": False, "error": public_error(exc)}
 
     return result
 

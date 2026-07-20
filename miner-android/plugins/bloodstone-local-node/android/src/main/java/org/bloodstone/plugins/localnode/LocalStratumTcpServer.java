@@ -181,9 +181,33 @@ final class LocalStratumTcpServer {
             }
 
             boolean soloMode = secondLine != null && isSoloAuthorize(secondLine);
+            // Batch: subscribe+authorize arrived together → full handshake relay.
             if (poolRelayConfigured && secondLine != null && !secondLine.isEmpty() && !soloMode) {
                 Log.i(TAG, algo.name() + " pool relay → " + poolUpstreamHost + ":" + poolUpstreamPort);
                 StratumPoolRelay.relayWithHandshake(sock, poolUpstreamHost, poolUpstreamPort, firstLine, secondLine);
+                return;
+            }
+            // Sequential phone clients: only subscribe so far — relay now so the
+            // subscribe reply + later authorize/notify flow through upstream.
+            if (poolRelayConfigured && !soloMode && isSubscribeLine(firstLine)) {
+                Log.i(
+                    TAG,
+                    algo.name()
+                        + " pool relay (sequential) → "
+                        + poolUpstreamHost
+                        + ":"
+                        + poolUpstreamPort
+                );
+                // firstLine already consumed; if secondLine arrived empty/timeout, pass only first.
+                if (secondLine != null && !secondLine.isEmpty()) {
+                    StratumPoolRelay.relayWithHandshake(
+                        sock, poolUpstreamHost, poolUpstreamPort, firstLine, secondLine
+                    );
+                } else {
+                    StratumPoolRelay.relayWithPrefetchedLine(
+                        sock, poolUpstreamHost, poolUpstreamPort, firstLine
+                    );
+                }
                 return;
             }
 
@@ -239,7 +263,11 @@ final class LocalStratumTcpServer {
 
         if ("mining.authorize".equals(method)) {
             if (params.length() > 0) {
-                addressHolder[0] = params.optString(0, "");
+                // creatework rejects "addr.worker" — strip suffix like sha256 path.
+                addressHolder[0] = addressFromWorker(params.optString(0, ""));
+            }
+            if (params.length() > 1) {
+                soloMode = "solo".equalsIgnoreCase(params.optString(1, ""));
             }
             send(writer, id, true);
             pushJob(writer, addressHolder[0], extranonce1, lastWork, soloMode);
@@ -290,12 +318,28 @@ final class LocalStratumTcpServer {
         }
     }
 
+    private static boolean isSubscribeLine(String line) {
+        try {
+            JSONObject req = new JSONObject(line);
+            return "mining.subscribe".equals(req.optString("method", ""));
+        } catch (Exception exc) {
+            return false;
+        }
+    }
+
+    /** Bare payout address from stratum user "address.worker". */
+    private static String addressFromWorker(String worker) {
+        String trimmed = worker == null ? "" : worker.trim();
+        int dot = trimmed.indexOf('.');
+        return dot > 0 ? trimmed.substring(0, dot) : trimmed;
+    }
+
     private static String extractAuthorizeAddress(String line) {
         try {
             JSONObject req = new JSONObject(line);
             JSONArray params = req.optJSONArray("params");
             if (params != null && params.length() > 0) {
-                return params.optString(0, "");
+                return addressFromWorker(params.optString(0, ""));
             }
         } catch (Exception ignored) {
         }
@@ -303,24 +347,20 @@ final class LocalStratumTcpServer {
     }
 
     private void sendSubscribe(BufferedWriter writer, Object id, String extranonce1) throws IOException {
+        // Standard stratum subscribe result for all algos (web/android parse sub[1]=extranonce1).
         JSONArray result = new JSONArray();
-        if (algo == Algo.YESPOWER) {
-            JSONArray caps = new JSONArray();
-            JSONArray diffCap = new JSONArray();
-            diffCap.put("mining.set_difficulty");
-            diffCap.put(algo.poolName);
-            JSONArray notifyCap = new JSONArray();
-            notifyCap.put("mining.notify");
-            notifyCap.put(algo.poolName);
-            caps.put(diffCap);
-            caps.put(notifyCap);
-            result.put(caps);
-            result.put(extranonce1);
-            result.put(2);
-        } else {
-            result.put("bloodstone-local-node/1.0.0");
-            result.put(extranonce1);
-        }
+        JSONArray caps = new JSONArray();
+        JSONArray diffCap = new JSONArray();
+        diffCap.put("mining.set_difficulty");
+        diffCap.put(algo.poolName);
+        JSONArray notifyCap = new JSONArray();
+        notifyCap.put("mining.notify");
+        notifyCap.put(algo.poolName);
+        caps.put(diffCap);
+        caps.put(notifyCap);
+        result.put(caps);
+        result.put(extranonce1);
+        result.put(2);
         send(writer, id, result);
     }
 
@@ -358,6 +398,11 @@ final class LocalStratumTcpServer {
                 System.currentTimeMillis() / 1000L
             );
 
+            if (header == null || header.isEmpty()) {
+                Log.w(TAG, algo.name() + " pushJob missing header for " + address);
+                return;
+            }
+
             BigInteger blockTarget = StratumTargetMath.targetHexToInt(blockTargetHex);
             BigInteger shareTarget = StratumTargetMath.shareTargetInt(
                 blockTarget,
@@ -369,15 +414,14 @@ final class LocalStratumTcpServer {
 
             sendNotify(writer, "mining.set_share_target", new JSONArray().put(shareTargetHex));
             sendNotify(writer, "mining.set_difficulty", new JSONArray().put(stratumDiff));
-            if (algo == Algo.YESPOWER) {
-                sendNotify(
-                    writer,
-                    "mining.set_block_target",
-                    new JSONArray().put(
-                        StratumTargetMath.intToCompareHex(blockTarget)
-                    ).put(String.valueOf(height))
-                );
-            }
+            sendNotify(
+                writer,
+                "mining.set_block_target",
+                new JSONArray()
+                    .put(StratumTargetMath.intToCompareHex(blockTarget))
+                    .put(String.valueOf(height))
+                    .put(work.optString("hash", work.optString("blockhash", "")))
+            );
 
             JSONArray notify = new JSONArray();
             notify.put(jobId);
@@ -388,12 +432,14 @@ final class LocalStratumTcpServer {
             notify.put("00000000");
             notify.put(nbits);
             notify.put(ntime);
-            if (algo == Algo.YESPOWER) {
-                notify.put(true);
-            }
+            notify.put(true);
             sendNotify(writer, "mining.notify", notify);
+            Log.i(
+                TAG,
+                algo.name() + " job " + jobId + " height=" + height + " address=" + address
+            );
         } catch (Exception exc) {
-            Log.w(TAG, algo.name() + " pushJob failed: " + exc.getMessage());
+            Log.w(TAG, algo.name() + " pushJob failed for " + address + ": " + exc.getMessage());
         }
     }
 

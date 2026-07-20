@@ -17,9 +17,11 @@ powAlgoLog2Weight (const PowAlgo algo)
   switch (algo)
     {
     case PowAlgo::SHA256D:
-      return 0;
+      return 6;
     case PowAlgo::NEOSCRYPT:
       return 10;
+    case PowAlgo::YESPOWER:
+      return 22;
     default:
       assert (false);
     }
@@ -36,8 +38,10 @@ powLimitForAlgo (const PowAlgo algo, const Consensus::Params& params)
   arith_uint256 result = UintToArith256 (params.powLimitNeoscrypt);
   const int log2Diff = powAlgoLog2Weight (PowAlgo::NEOSCRYPT)
                         - powAlgoLog2Weight (algo);
-  assert (log2Diff >= 0);
-  result >>= log2Diff;
+  if (log2Diff >= 0)
+    result >>= log2Diff;
+  else
+    result <<= -log2Diff;
 
   return ArithToUint256 (result);
 }
@@ -47,8 +51,10 @@ PowAlgoFromString (const std::string& str)
 {
   if (str == "sha256d")
     return PowAlgo::SHA256D;
-  if (str == "neoscrypt")
+  if (str == "neoscrypt" || str == "neoscrypt-xaya")
     return PowAlgo::NEOSCRYPT;
+  if (str == "yespower")
+    return PowAlgo::YESPOWER;
   throw std::invalid_argument ("invalid PowAlgo: '" + str + "'");
 }
 
@@ -61,6 +67,8 @@ PowAlgoToString (const PowAlgo algo)
       return "sha256d";
     case PowAlgo::NEOSCRYPT:
       return "neoscrypt";
+    case PowAlgo::YESPOWER:
+      return "yespower";
     default:
       {
         std::ostringstream msg;
@@ -135,8 +143,9 @@ PowData::isValid (const uint256& hash, const Consensus::Params& params) const
         return error ("%s: SHA256D must be merge-mined", __func__);
       break;
     case PowAlgo::NEOSCRYPT:
+    case PowAlgo::YESPOWER:
       if (isMergeMined ())
-        return error ("%s: Neoscrypt cannot be merge-mined", __func__);
+        return error ("%s: stand-alone PoW algo cannot be merge-mined", __func__);
       break;
     default:
       return error ("%s: invalid mining algo used for PoW", __func__);

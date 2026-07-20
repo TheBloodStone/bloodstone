@@ -11,6 +11,7 @@
 #include <qt/intro.h>
 #include <qt/forms/ui_intro.h>
 
+#include <qt/chain_reset.h>
 #include <qt/guiconstants.h>
 #include <qt/guiutil.h>
 #include <qt/optionsmodel.h>
@@ -136,7 +137,7 @@ Intro::Intro(QWidget *parent, int64_t blockchain_size_gb, int64_t chain_state_si
         .arg(PACKAGE_NAME)
         .arg(m_blockchain_size_gb)
         .arg(2018)
-        .arg(tr("SpaceXpanse"))
+        .arg(PACKAGE_NAME)
     );
     ui->lblExplanation2->setText(ui->lblExplanation2->text().arg(PACKAGE_NAME));
 
@@ -209,12 +210,32 @@ bool Intro::showIfNeeded(bool& did_show_intro, int64_t& prune_MiB)
     QSettings settings;
     /* If data directory provided on command line, no need to look at settings
        or show a picking dialog */
-    if(!gArgs.GetArg("-datadir", "").empty())
+    if(!gArgs.GetArg("-datadir", "").empty()) {
+        const fs::path datadir = fs::path(gArgs.GetArg("-datadir", ""));
+        const fs::path resolved = fs::system_complete(datadir);
+        TryCreateDirectories(resolved);
+        TryCreateDirectories(resolved / "wallets");
+        if (!ChainReset::EnsureRelaunchChainOrAbort(resolved, nullptr)) {
+            return false;
+        }
         return true;
+    }
     /* 1) Default data directory for operating system */
     QString dataDir = GUIUtil::getDefaultDataDirectory();
-    /* 2) Allow QSettings to override default dir */
+    /* 2) Migrate legacy Bloodstone-Qt settings, then apply QSettings override */
+    dataDir = ChainReset::MigrateLegacySettingsPath(dataDir);
     dataDir = settings.value("strDataDir", dataDir).toString();
+    const QString resolvedDir = ChainReset::ResolveUsableDataDirectory(
+        dataDir, GUIUtil::getDefaultDataDirectory());
+    if (resolvedDir != dataDir) {
+        dataDir = resolvedDir;
+        settings.setValue("strDataDir", dataDir);
+    }
+    {
+        const fs::path path = GUIUtil::qstringToBoostPath(dataDir);
+        TryCreateDirectories(path);
+        TryCreateDirectories(path / "wallets");
+    }
 
     if(!fs::exists(GUIUtil::qstringToBoostPath(dataDir)) || gArgs.GetBoolArg("-choosedatadir", DEFAULT_CHOOSE_DATADIR) || settings.value("fReset", false).toBool() || gArgs.GetBoolArg("-resetguisettings", false))
     {
@@ -264,6 +285,9 @@ bool Intro::showIfNeeded(bool& did_show_intro, int64_t& prune_MiB)
      */
     if(dataDir != GUIUtil::getDefaultDataDirectory()) {
         gArgs.SoftSetArg("-datadir", GUIUtil::qstringToBoostPath(dataDir).string()); // use OS locale for path setting
+    }
+    if (!ChainReset::EnsureRelaunchChainOrAbort(GUIUtil::qstringToBoostPath(dataDir), nullptr)) {
+        return false;
     }
     return true;
 }
@@ -389,7 +413,7 @@ void Intro::UpdatePruneLabels(bool prune_checked)
         //: Explanatory text on the capability of the current prune target.
         tr("(sufficient to restore backups %n day(s) old)", "", expected_backup_days));
     ui->sizeWarningLabel->setText(
-        tr("%1 will download and store a copy of the SpaceXpanse block chain.").arg(PACKAGE_NAME) + " " +
+        tr("%1 will download and store a copy of the Bloodstone block chain.").arg(PACKAGE_NAME) + " " +
         storageRequiresMsg.arg(m_required_space_gb) + " " +
         tr("The wallet will also be stored in this directory.")
     );

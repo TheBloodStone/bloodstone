@@ -42,12 +42,12 @@ static const int TOOLTIP_WRAP_THRESHOLD = 80;
 /* Number of frames in spinner animation */
 #define SPINNER_FRAMES 36
 
-#define QAPP_ORG_NAME "SpaceXpanse"
-#define QAPP_ORG_DOMAIN "spacexpanse.org"
-#define QAPP_APP_NAME_DEFAULT "SpaceXpanse-Qt"
-#define QAPP_APP_NAME_TESTNET "SpaceXpanse-Qt-testnet"
-#define QAPP_APP_NAME_SIGNET "SpaceXpanse-Qt-signet"
-#define QAPP_APP_NAME_REGTEST "SpaceXpanse-Qt-regtest"
+#define QAPP_ORG_NAME "Bloodstone"
+#define QAPP_ORG_DOMAIN "bloodstonewallet.mytunnel.org"
+#define QAPP_APP_NAME_DEFAULT "Bloodstone-Qt"
+#define QAPP_APP_NAME_TESTNET "Bloodstone-Qt-testnet"
+#define QAPP_APP_NAME_SIGNET "Bloodstone-Qt-signet"
+#define QAPP_APP_NAME_REGTEST "Bloodstone-Qt-regtest"
 
 /* One gigabyte (GB) in bytes */
 static constexpr uint64_t GB_BYTES{1000000000};

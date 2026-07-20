@@ -12,13 +12,13 @@ class TestWaveP(unittest.TestCase):
 
         tenant.bind_tenant_author(
             tenant_id="test-fleet",
-            blurt_author="creator1",
+            blurt_account="creator1",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             flops_cap=1_000_000,
         )
         q = tenant.tenant_quota(
             tenant_id="test-fleet",
-            blurt_author="creator1",
+            blurt_account="creator1",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
         )
         self.assertEqual(q.get("flops_cap"), 1_000_000)
@@ -32,20 +32,20 @@ class TestWaveP(unittest.TestCase):
         os.environ["COMPUTE_CREDIT_ENFORCE"] = "0"
         tenant.bind_tenant_author(
             tenant_id="cap-test",
-            blurt_author="limited",
+            blurt_account="limited",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             flops_cap=100,
         )
         tenant.record_tenant_compute_usage(
             tenant_id="cap-test",
-            blurt_author="limited",
+            blurt_account="limited",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             delta_flops=90,
         )
         result = depin.check_compute_allowed(
             "STONE1abcdefghijklmnopqrstuvwxyz12",
             flops_budget=20,
-            blurt_author="limited",
+            blurt_account="limited",
             tenant_id="cap-test",
         )
         self.assertFalse(result.get("allowed"))

@@ -10,6 +10,7 @@ import subprocess
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from functools import wraps
 
@@ -31,6 +32,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 import bloodstone_branding
 import bloodstone_beta_codes
+import bloodstone_http_auth as http_auth
 import bloodstone_downloads
 import faucet_settings
 import installer_branding
@@ -53,6 +55,9 @@ from stratum_status import (
 SECRETS_PATH = os.environ.get("MINER_WEB_SECRETS", "/root/bloodstone-miner-web/secrets.conf")
 CHAIN_OVERVIEW_DISK_CACHE = os.environ.get(
     "CHAIN_OVERVIEW_DISK_CACHE", "/var/lib/bloodstone/chain-overview.json"
+)
+RECENT_BLOCKS_DISK_CACHE = os.environ.get(
+    "RECENT_BLOCKS_DISK_CACHE", "/var/lib/bloodstone/recent-blocks.json"
 )
 RECENT_BLOCKS = 15
 
@@ -133,6 +138,37 @@ def _write_chain_overview_disk_cache(data: dict) -> None:
         os.replace(tmp_path, CHAIN_OVERVIEW_DISK_CACHE)
     except Exception:
         pass
+
+
+def _read_recent_blocks_disk_cache():
+    try:
+        with open(RECENT_BLOCKS_DISK_CACHE, encoding="utf-8") as fh:
+            payload = json.load(fh)
+        blocks = payload.get("blocks")
+        tip = payload.get("tip")
+        if isinstance(blocks, list) and blocks and isinstance(tip, int):
+            return blocks, tip
+    except Exception:
+        pass
+    return None
+
+
+def _write_recent_blocks_disk_cache(blocks: list, tip: int) -> None:
+    try:
+        os.makedirs(os.path.dirname(RECENT_BLOCKS_DISK_CACHE), exist_ok=True)
+        tmp_path = f"{RECENT_BLOCKS_DISK_CACHE}.tmp"
+        with open(tmp_path, "w", encoding="utf-8") as fh:
+            json.dump({"at": time.time(), "blocks": blocks, "tip": tip}, fh)
+        os.replace(tmp_path, RECENT_BLOCKS_DISK_CACHE)
+    except Exception:
+        pass
+
+
+def _recent_blocks_fallback():
+    disk = _read_recent_blocks_disk_cache()
+    if disk:
+        return disk
+    return [], 0
 
 
 def _overview_fallback() -> dict:
@@ -241,10 +277,7 @@ def _load_chain_overview():
 
 def cached_chain_overview():
     ttl = _cache_ttl("MINER_CHAIN_OVERVIEW_CACHE_SEC", "45")
-    overview = _cached_value("chain_overview", ttl, _load_chain_overview, blocking=True)
-    if overview:
-        return overview
-    return _overview_fallback()
+    return _try_cached_value("chain_overview", ttl, _load_chain_overview, _overview_fallback())
 
 
 def cached_recent_blocks(limit=RECENT_BLOCKS):
@@ -319,6 +352,36 @@ def cached_admin_service_sections():
         [],
     )
 
+
+
+def _safe_err(exc, public="request failed"):
+    try:
+        from chain_mesh.security import public_error
+        return public_error(exc, public=public)
+    except Exception:
+        return public if not isinstance(exc, (ValueError, PermissionError, TypeError)) else str(exc)[:200]
+
+
+def _api_error(exc, status=None, *, public="request failed", ok_false=True):
+    """HTTP error body with client-safe messages (L-01 public_error)."""
+    try:
+        from chain_mesh.security import public_error
+        msg = public_error(exc, public=public)
+    except Exception:
+        msg = public if not isinstance(exc, (ValueError, PermissionError, TypeError)) else str(exc)[:200]
+    if status is None:
+        if isinstance(exc, PermissionError):
+            status = 403
+        elif isinstance(exc, (ValueError, TypeError, KeyError)):
+            status = 400
+        else:
+            status = 500
+    body = {"error": msg}
+    if ok_false:
+        body["ok"] = False
+    return jsonify(body), status
+
+
 app = Flask(__name__)
 # Chain mesh uploads POST base64 chunks (batch JSON can exceed nginx's 1 MiB default).
 app.config["MAX_CONTENT_LENGTH"] = int(
@@ -328,6 +391,12 @@ app.config["MAX_CONTENT_LENGTH"] = int(
 from prefix_middleware import apply_prefix  # noqa: E402
 
 apply_prefix(app)
+
+
+@app.before_request
+def _guard_convergence_writes():
+    return http_auth.guard_convergence_post()
+
 
 PUBLIC_BASE_URL = os.environ.get(
     "BLOODSTONE_PUBLIC_URL", "https://rodcoinwallet.duckdns.org/mining"
@@ -467,23 +536,36 @@ def short_hash(value, left=10, right=8):
     return f"{s[:left]}…{s[-right:]}"
 
 
+def _fetch_recent_block(height: int) -> dict:
+    block_hash = node_rpc.rpc("getblockhash", [height])
+    block = node_rpc.rpc("getblock", [block_hash, 1])
+    powdata = merge_mining_info.enrich_powdata(block.get("powdata"))
+    return {
+        "height": block["height"],
+        "hash": block["hash"],
+        "time": block["time"],
+        "time_fmt": fmt_time(block["time"]),
+        "nTx": block.get("nTx", 0),
+        "powdata": powdata,
+    }
+
+
 def recent_blocks(limit=RECENT_BLOCKS):
     tip = node_rpc.rpc("getblockcount")
-    blocks = []
-    for height in range(tip, max(-1, tip - limit), -1):
-        block_hash = node_rpc.rpc("getblockhash", [height])
-        block = node_rpc.rpc("getblock", [block_hash, 1])
-        powdata = merge_mining_info.enrich_powdata(block.get("powdata"))
-        blocks.append(
-            {
-                "height": block["height"],
-                "hash": block["hash"],
-                "time": block["time"],
-                "time_fmt": fmt_time(block["time"]),
-                "nTx": block.get("nTx", 0),
-                "powdata": powdata,
-            }
-        )
+    heights = list(range(tip, max(-1, tip - limit), -1))
+    if not heights:
+        return [], tip
+    workers = min(8, len(heights))
+    ordered: list = [None] * len(heights)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(_fetch_recent_block, height): idx
+            for idx, height in enumerate(heights)
+        }
+        for future in as_completed(futures):
+            ordered[futures[future]] = future.result()
+    blocks = [row for row in ordered if row is not None]
+    _write_recent_blocks_disk_cache(blocks, tip)
     return blocks, tip
 
 
@@ -807,7 +889,7 @@ def pool_dashboard_data(address: str = "") -> dict:
             data["rod_earn"] = rod
         return data
     except Exception as exc:
-        return {"error": str(exc)}
+        return {"error": _safe_err(exc)}
 
 
 @app.route("/manifest.webmanifest")
@@ -921,11 +1003,11 @@ def index():
         overview = cached_chain_overview()
         pools = cached_pools_status_light()
         _refresh_pools_status_full()
-        blocks, tip = _cached_value(
+        blocks, tip = _try_cached_value(
             f"recent_blocks_{RECENT_BLOCKS}",
             _cache_ttl("MINER_RECENT_BLOCKS_CACHE_SEC", "60"),
             lambda: recent_blocks(RECENT_BLOCKS),
-            blocking=True,
+            _recent_blocks_fallback(),
         )
         lookup_addr = (request.args.get("address") or "").strip()
         pool_dashboard = pool_dashboard_data(lookup_addr)
@@ -1181,7 +1263,7 @@ def api_sha256_rod_block_diff():
             if payload.get("asic_diff_min") is not None:
                 sm.set_asic_diff_min(float(payload["asic_diff_min"]))
         except (TypeError, ValueError) as exc:
-            return jsonify({"error": str(exc)}), 400
+            return _api_error(exc, 400, ok_false=False)
     return jsonify(sm.sha256_rod_block_diff_status(pool_share_difficulty=pool_diff))
 
 
@@ -1271,7 +1353,10 @@ def api_beta_redeem():
 def api_beta_status():
     token = _beta_token_from_request()
     lan_ip = _lan_ip_from_request()
-    active = bloodstone_beta_codes.verify_access_token(token) if token else False
+    token_info = (
+        bloodstone_beta_codes.get_access_token_info(token) if token else None
+    )
+    active = bool(token_info and token_info.get("active"))
     lan_key = bloodstone_beta_codes.lan_key_from_ip(lan_ip) if lan_ip else None
     lan_release = (
         bloodstone_beta_codes.get_lan_validated_release(lan_key) if lan_key else None
@@ -1281,6 +1366,8 @@ def api_beta_status():
             "ok": True,
             "beta_active": active,
             "release_channel": "beta" if active else "stable",
+            "lifetime_unlock": bool(token_info and token_info.get("lifetime_unlock")),
+            "code_type": (token_info or {}).get("code_type"),
             "lan_key": lan_key,
             "lan_validated": bool(lan_release),
             "lan_apk_version": (lan_release or {}).get("apk_version"),
@@ -1372,6 +1459,8 @@ def api_pool_miner_asic_earnings():
 
 
 @app.route("/api/pool/rescan-hashrates", methods=["POST", "GET"])
+@http_auth.require_write_key
+@http_auth.rate_limit(12, 60.0)
 def api_rescan_hashrates():
     """Invalidate caches and return fresh per-miner/worker hashrate samples."""
     import pool_db as pdb
@@ -1405,6 +1494,8 @@ def api_pool_bitaxe():
 
 
 @app.route("/api/pool/bitaxe/report", methods=["POST"])
+@http_auth.require_lan_forwarder_key
+@http_auth.rate_limit(120, 60.0)
 def api_pool_bitaxe_report():
     """Ingest Bitaxe stats from a LAN forwarder (curl /api/system/info → POST here)."""
     import pool_bitaxe as pbx
@@ -1416,7 +1507,7 @@ def api_pool_bitaxe_report():
     try:
         return jsonify(pbx.ingest_device_report(payload, reporter_ip=reporter_ip))
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return _api_error(exc, 400, ok_false=False)
 
 
 @app.route("/mining/api/pool/bitaxe/report", methods=["POST"])
@@ -1490,6 +1581,7 @@ def api_pool_subsidy_schedule_mining_prefix():
 
 
 @app.route("/api/pool/mobile-contribution", methods=["POST"])
+@http_auth.rate_limit(60, 60.0)
 def api_pool_mobile_contribution():
     """Credit browser/Android presence for ASIC cross-subsidy (connection, hashrate, YES)."""
     import pool_mobile_contrib as pmc
@@ -1541,9 +1633,9 @@ def api_pool_mobile_contribution():
             peer_ip=(request.headers.get("X-Real-IP") or request.remote_addr or ""),
         )
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return _api_error(exc, 400, ok_false=False)
     except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        return _api_error(exc, 500, ok_false=False)
 
     fleet = None
     try:
@@ -1652,7 +1744,7 @@ def api_pool_rentals():
             notes=str(payload.get("notes") or ""),
         )
     except (TypeError, ValueError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
     order = result.get("order") or {}
     if order:
         order["stratum"] = phr.stratum_connection_for_order(order)
@@ -1674,6 +1766,8 @@ def api_pool_rental_detail(order_id):
 
 @app.route("/api/pool/rentals/<order_id>/accept", methods=["POST"])
 @app.route("/mining/api/pool/rentals/<order_id>/accept", methods=["POST"])
+@http_auth.require_write_key
+@http_auth.rate_limit(20, 60.0)
 def api_pool_rental_accept(order_id):
     import pool_hashrate_rental as phr
 
@@ -1683,7 +1777,7 @@ def api_pool_rental_accept(order_id):
             order_id, seller_wallet=str(payload.get("seller_wallet") or "")
         )
     except (TypeError, ValueError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
     order = (result.get("order") or {})
     if order:
         result["order"] = _rental_order_response(order)
@@ -1701,9 +1795,9 @@ def api_pool_rental_cancel(order_id):
             order_id, renter_token=str(payload.get("renter_token") or "")
         )
     except PermissionError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 403
+        return _api_error(exc, 403)
     except (TypeError, ValueError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
     order = (result.get("order") or {})
     if order:
         result["order"] = _rental_order_response(order)
@@ -1722,9 +1816,9 @@ def api_chain_mesh_rental_upload():
     try:
         return jsonify(cm.rental_upload_batch(payload))
     except PermissionError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 403
+        return _api_error(exc, 403)
     except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/rental/publish-asset", methods=["POST"])
@@ -1739,11 +1833,11 @@ def api_chain_mesh_rental_publish_asset():
     try:
         return jsonify(cm.rental_publish_asset_payload(payload))
     except PermissionError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 403
+        return _api_error(exc, 403)
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+        return _api_error(exc, 500)
 
 
 @app.route("/api/network/nodes")
@@ -1842,7 +1936,7 @@ def api_chain_mesh_chunk_upload(chunk_hash):
     try:
         return jsonify(cm.upload_chunk(chunk_hash, data))
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return _api_error(exc, 400, ok_false=False)
 
 
 @app.route("/api/chain-mesh/upload", methods=["POST"])
@@ -1854,7 +1948,7 @@ def api_chain_mesh_upload_batch():
     try:
         return jsonify(cm.upload_batch(payload))
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return _api_error(exc, 400, ok_false=False)
 
 
 @app.route("/api/chain-mesh/publish-upload", methods=["POST"])
@@ -1869,7 +1963,7 @@ def api_chain_mesh_publish_upload_batch():
     try:
         return jsonify(cm.upload_batch(payload))
     except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/partner/upload", methods=["POST"])
@@ -1890,7 +1984,7 @@ def api_chain_mesh_partner_upload_batch():
         bt.record_partner_upload(payload)
         return jsonify(result)
     except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/v2/system")
@@ -1950,7 +2044,7 @@ def api_chain_mesh_v2_providers():
         try:
             return jsonify(cm.mesh_v2_register_provider_payload(payload))
         except ValueError as exc:
-            return jsonify({"ok": False, "error": str(exc)}), 400
+            return _api_error(exc, 400)
     tenant = (request.args.get("tenant") or "").strip()
     role = (request.args.get("role") or "").strip()
     return jsonify(cm.mesh_v2_list_providers_payload(tenant=tenant, role=role))
@@ -1991,7 +2085,7 @@ def api_convergence_storage_tenant_quota():
     return jsonify(
         cm.convergence_storage_tenant_quota_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             stone_address=str(request.args.get("stone_address") or ""),
         )
     )
@@ -2014,7 +2108,7 @@ def api_convergence_storage_tenant_bind():
     try:
         return jsonify(cm.convergence_storage_tenant_bind_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/blog/manifest", methods=["GET", "POST"])
@@ -2037,7 +2131,7 @@ def api_convergence_blog_manifest():
     try:
         return jsonify(cm.convergence_blog_manifest_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/blog/publish-flow", methods=["POST"])
@@ -2179,7 +2273,7 @@ def api_convergence_provenance_anchor():
     try:
         return jsonify(cm.convergence_provenance_anchor_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/provenance/verify")
@@ -2211,7 +2305,7 @@ def api_convergence_agent_register():
 
     if request.method == "GET":
         payload = {
-            "blurt_author": request.args.get("blurt_author") or request.args.get("author") or "",
+            "blurt_account": request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or "",
             "stone_address": request.args.get("stone_address") or "",
             "agent_id": request.args.get("agent_id") or "",
             "display_name": request.args.get("display_name") or "",
@@ -2227,7 +2321,7 @@ def api_convergence_agent_register():
     try:
         return jsonify(cm.convergence_agent_register_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/agent/verify")
@@ -2238,7 +2332,7 @@ def api_convergence_agent_verify():
     return jsonify(
         cm.convergence_agent_verify_payload(
             agent_id=(request.args.get("agent_id") or "").strip(),
-            blurt_author=(request.args.get("blurt_author") or request.args.get("author") or "").strip(),
+            blurt_account=(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or "").strip(),
         )
     )
 
@@ -2260,7 +2354,7 @@ def api_convergence_agent_publish_flow():
     try:
         return jsonify(cm.convergence_agent_publish_flow_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/compute/quota")
@@ -2282,7 +2376,7 @@ def api_convergence_compute_tenant_quota():
     return jsonify(
         cm.convergence_compute_tenant_quota_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             stone_address=str(request.args.get("stone_address") or ""),
         )
     )
@@ -2305,7 +2399,7 @@ def api_convergence_compute_tenant_bind():
     try:
         return jsonify(cm.convergence_compute_tenant_bind_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/tenant/dashboard")
@@ -2316,7 +2410,7 @@ def api_convergence_tenant_dashboard():
     return jsonify(
         cm.convergence_tenant_dashboard_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             stone_address=str(request.args.get("stone_address") or ""),
         )
     )
@@ -2339,7 +2433,7 @@ def api_convergence_tenant_bind():
     try:
         return jsonify(cm.convergence_tenant_bind_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/tenant/fleet/status")
@@ -2399,7 +2493,7 @@ def api_convergence_tenant_broadcast():
     try:
         return jsonify(cm.convergence_tenant_broadcast_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/tenant/broadcast/queue")
@@ -2442,7 +2536,7 @@ def api_convergence_tenant_submit_check():
     return jsonify(
         cm.convergence_tenant_submit_check_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             stone_address=str(request.args.get("stone_address") or ""),
         )
     )
@@ -2456,7 +2550,7 @@ def api_convergence_tenant_quorum_author():
     return jsonify(
         cm.convergence_tenant_quorum_author_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
         )
     )
 
@@ -2470,7 +2564,7 @@ def api_convergence_tenant_npu_bind():
     try:
         return jsonify(cm.convergence_tenant_npu_bind_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/tenant/npu/status")
@@ -2489,7 +2583,7 @@ def api_convergence_tenant_npu_resolve():
     return jsonify(
         cm.convergence_tenant_npu_resolve_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             runtime=str(request.args.get("runtime") or ""),
         )
     )
@@ -2520,7 +2614,7 @@ def api_convergence_tenant_ai_route_resolve():
     return jsonify(
         cm.convergence_tenant_ai_route_resolve_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             runtime=str(request.args.get("runtime") or ""),
         )
     )
@@ -2558,7 +2652,7 @@ def api_convergence_tenant_route_ledger_assignments():
     return jsonify(
         cm.convergence_tenant_route_ledger_assignments_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             limit=int(request.args.get("limit") or 20),
         )
     )
@@ -2650,9 +2744,9 @@ def api_convergence_compute_job_submit():
     try:
         return jsonify(cm.convergence_compute_job_submit_payload(payload))
     except PermissionError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 403
+        return _api_error(exc, 403)
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/compute/job/verify")
@@ -2695,7 +2789,7 @@ def api_convergence_bandwidth_tenant_quota():
     return jsonify(
         cm.convergence_bandwidth_tenant_quota_payload(
             tenant_id=str(request.args.get("tenant_id") or ""),
-            blurt_author=str(request.args.get("blurt_author") or request.args.get("author") or ""),
+            blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             stone_address=str(request.args.get("stone_address") or ""),
         )
     )
@@ -2718,7 +2812,7 @@ def api_convergence_bandwidth_tenant_bind():
     try:
         return jsonify(cm.convergence_bandwidth_tenant_bind_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/depin/quota")
@@ -2760,7 +2854,7 @@ def api_convergence_dtn_export():
             "node_id": request.args.get("node_id") or "",
             "region": request.args.get("region") or "",
             "stone_address": request.args.get("stone_address") or "",
-            "blurt_author": request.args.get("blurt_author") or request.args.get("author") or "",
+            "blurt_account": request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or "",
             "tenant_id": request.args.get("tenant_id") or "",
             "include_chunks": request.args.get("include_chunks", "1") not in ("0", "false", "no"),
             "queue_forward": request.args.get("queue_forward") in ("1", "true", "yes"),
@@ -2780,14 +2874,14 @@ def api_convergence_dtn_export():
                 region=str(payload.get("region") or ""),
                 queue_forward=bool(payload.get("queue_forward")),
                 stone_address=str(payload.get("stone_address") or ""),
-                blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+                blurt_account=str(payload.get("blurt_account") or payload.get("blurt_author") or payload.get("author") or ""),
                 tenant_id=str(payload.get("tenant_id") or ""),
             )
         )
     except PermissionError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 403
+        return _api_error(exc, 403)
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/export/download")
@@ -2810,13 +2904,13 @@ def api_convergence_dtn_export_download():
             include_chunks=request.args.get("include_chunks", "1") not in ("0", "false", "no"),
             region=(request.args.get("region") or "").strip(),
             stone_address=(request.args.get("stone_address") or "").strip(),
-            blurt_author=(request.args.get("blurt_author") or request.args.get("author") or "").strip(),
+            blurt_account=(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or "").strip(),
             tenant_id=(request.args.get("tenant_id") or "").strip(),
         )
     except PermissionError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 403
+        return _api_error(exc, 403)
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
     return Response(
         blob,
         mimetype="application/zip",
@@ -2836,12 +2930,12 @@ def api_convergence_dtn_import():
 
             return jsonify(import_dtn_bundle(upload.read()))
         except (ValueError, TypeError) as exc:
-            return jsonify({"ok": False, "error": str(exc)}), 400
+            return _api_error(exc, 400)
     payload = request.get_json(silent=True) or {}
     try:
         return jsonify(cm.convergence_dtn_import_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/forward/pending")
@@ -2865,7 +2959,7 @@ def api_convergence_dtn_forward_submit():
     try:
         return jsonify(cm.convergence_dtn_forward_submit_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/forward/flush", methods=["POST"])
@@ -2943,7 +3037,7 @@ def api_convergence_dtn_peers_register():
     try:
         return jsonify(cm.convergence_dtn_peer_register_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/replication/heal", methods=["POST"])
@@ -2960,7 +3054,7 @@ def api_convergence_dtn_replication_heal():
             )
         )
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/mdns/status")
@@ -2981,7 +3075,7 @@ def api_convergence_dtn_mdns_register():
     try:
         return jsonify(cm.convergence_dtn_mdns_register_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/mdns/browse", methods=["POST"])
@@ -3022,7 +3116,7 @@ def api_convergence_dtn_replication_check():
             )
         )
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/alerts")
@@ -3058,7 +3152,7 @@ def api_convergence_dtn_gossip_exchange():
     try:
         return jsonify(cm.convergence_dtn_gossip_exchange_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/gossip/round", methods=["POST"])
@@ -3157,7 +3251,7 @@ def api_convergence_dtn_planetary_exchange():
     try:
         return jsonify(cm.convergence_dtn_planetary_exchange_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/dtn/planetary/round", methods=["POST"])
@@ -3192,11 +3286,11 @@ def api_convergence_bridge_quote():
                 direction=str(request.args.get("direction") or ""),
                 amount=request.args.get("amount") or request.args.get("blurt_amount") or request.args.get("stone_amount"),
                 stone_address=str(request.args.get("stone_address") or ""),
-                blurt_account=str(request.args.get("blurt_account") or ""),
+                blurt_account=str(request.args.get("blurt_account") or request.args.get("blurt_author") or request.args.get("author") or ""),
             )
         )
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/bridge/initiate", methods=["POST"])
@@ -3208,7 +3302,7 @@ def api_convergence_bridge_initiate():
     try:
         return jsonify(cm.convergence_bridge_initiate_payload(payload))
     except (ValueError, TypeError, RuntimeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/bridge/claim", methods=["POST"])
@@ -3225,7 +3319,7 @@ def api_convergence_bridge_claim():
             )
         )
     except (ValueError, TypeError, RuntimeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/bridge/attest", methods=["POST"])
@@ -3242,7 +3336,7 @@ def api_convergence_bridge_attest():
             )
         )
     except (ValueError, TypeError, RuntimeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/bridge/intents")
@@ -3305,7 +3399,7 @@ def api_convergence_ai_register():
     try:
         return jsonify(cm.convergence_ai_register_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/ai/route", methods=["POST"])
@@ -3323,7 +3417,7 @@ def api_convergence_ai_route():
             )
         )
     except (ValueError, TypeError, PermissionError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/ai/submit", methods=["POST"])
@@ -3335,7 +3429,7 @@ def api_convergence_ai_submit():
     try:
         return jsonify(cm.convergence_ai_submit_payload(payload))
     except (ValueError, TypeError, PermissionError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/ai/discover", methods=["POST"])
@@ -3367,7 +3461,7 @@ def api_convergence_ai_dispatch():
     try:
         return jsonify(cm.convergence_ai_dispatch_payload(payload))
     except (ValueError, TypeError, PermissionError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/ai/callback", methods=["POST"])
@@ -3379,7 +3473,7 @@ def api_convergence_ai_callback():
     try:
         return jsonify(cm.convergence_ai_callback_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/ai/npu/status")
@@ -3415,7 +3509,7 @@ def api_convergence_ai_provider_broadcast():
     try:
         return jsonify(cm.convergence_ai_provider_broadcast_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/ai/provider/broadcast/queue")
@@ -3457,7 +3551,7 @@ def api_convergence_spatial_manifest():
     try:
         return jsonify(cm.convergence_spatial_manifest_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/convergence/spatial/embed")
@@ -3558,11 +3652,11 @@ def api_chain_mesh_partner_publish_asset():
     try:
         return jsonify(cm.partner_publish_asset_payload(payload))
     except PermissionError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 403
+        return _api_error(exc, 403)
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+        return _api_error(exc, 500)
 
 
 @app.route("/api/chain-mesh/peer", methods=["POST"])
@@ -3574,7 +3668,7 @@ def api_chain_mesh_peer_register():
     try:
         return jsonify({"ok": True, **cm.register_peer(payload)})
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return _api_error(exc, 400, ok_false=False)
 
 
 @app.route("/api/chain-mesh/status")
@@ -3642,7 +3736,7 @@ def api_chain_mesh_backup_download():
     except FileNotFoundError:
         return jsonify({"ok": False, "error": "no manifest published"}), 404
     except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
     return send_file(
         BytesIO(blob),
         mimetype="application/zip",
@@ -3666,15 +3760,15 @@ def api_chain_mesh_backup_import():
             raw = upload.read()
             return jsonify(import_backup_bytes(raw))
         except ValueError as exc:
-            return jsonify({"ok": False, "error": str(exc)}), 400
+            return _api_error(exc, 400)
         except Exception as exc:
-            return jsonify({"ok": False, "error": str(exc)}), 500
+            return _api_error(exc, 500)
     try:
         return jsonify(cm.mesh_backup_import_payload(payload))
     except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+        return _api_error(exc, 500)
 
 
 @app.route("/api/chain-mesh/assets")
@@ -3729,9 +3823,9 @@ def api_chain_mesh_asset(asset_key):
         try:
             return jsonify(cm.update_asset_metadata_payload(payload, asset_key=asset_key))
         except PermissionError as exc:
-            return jsonify({"ok": False, "error": str(exc)}), 403
+            return _api_error(exc, 403)
         except (ValueError, TypeError, KeyError) as exc:
-            return jsonify({"ok": False, "error": str(exc)}), 400
+            return _api_error(exc, 400)
 
     payload = cm.asset_manifest(asset_key)
     if not payload.get("ok"):
@@ -3828,7 +3922,7 @@ def api_chain_mesh_asset_download(asset_key):
     except FileNotFoundError:
         return jsonify({"ok": False, "error": "asset not found"}), 404
     except (ValueError, OSError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+        return _api_error(exc, 500)
 
     if file_size <= 0:
         return jsonify({"ok": False, "error": "empty asset"}), 404
@@ -3907,7 +4001,7 @@ def api_chain_mesh_asset_download(asset_key):
     except FileNotFoundError:
         return jsonify({"ok": False, "error": "asset not found"}), 404
     except (ValueError, OSError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+        return _api_error(exc, 500)
 
 
 @app.route("/api/chain-mesh/publish-asset", methods=["POST"])
@@ -3925,11 +4019,11 @@ def api_chain_mesh_publish_asset():
     try:
         return jsonify(cm.publish_asset_payload(payload))
     except PermissionError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 403
+        return _api_error(exc, 403)
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+        return _api_error(exc, 500)
 
 
 @app.route("/api/chain-mesh/transfer/protocol")
@@ -3949,9 +4043,9 @@ def api_chain_mesh_transfer_create():
     try:
         return jsonify(cm.transfer_create_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+        return _api_error(exc, 500)
 
 
 @app.route("/api/chain-mesh/transfer/<transfer_id>")
@@ -3986,9 +4080,9 @@ def api_chain_mesh_transfer_attest():
     try:
         return jsonify(cm.transfer_attest_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+        return _api_error(exc, 500)
 
 
 @app.route("/api/chain-mesh/transfer/inbox/<recipient>")
@@ -4027,7 +4121,7 @@ def api_network_chat_heartbeat():
     try:
         return jsonify(cm.network_chat_heartbeat_payload(payload, public_ip=public_ip))
     except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/network-chat/lobby")
@@ -4051,7 +4145,7 @@ def api_network_chat_lobby_send():
     try:
         return jsonify(cm.network_chat_lobby_send_payload(payload))
     except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/network-chat/dm/open", methods=["POST"])
@@ -4063,7 +4157,7 @@ def api_network_chat_dm_open():
     try:
         return jsonify(cm.network_chat_dm_open_payload(payload))
     except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/network-chat/channels/<participant>")
@@ -4075,7 +4169,7 @@ def api_network_chat_channels(participant):
     try:
         return jsonify(cm.network_chat_channels_payload(participant, limit=limit))
     except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/packet/protocol")
@@ -4095,9 +4189,9 @@ def api_chain_mesh_packet_channel_open():
     try:
         return jsonify(cm.packet_open_channel_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+        return _api_error(exc, 500)
 
 
 @app.route("/api/chain-mesh/packet/channel/<channel_id>")
@@ -4120,9 +4214,9 @@ def api_chain_mesh_packet_send():
     try:
         return jsonify(cm.packet_send_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+        return _api_error(exc, 500)
 
 
 @app.route("/api/chain-mesh/packet/inbox/<recipient>")
@@ -4140,7 +4234,7 @@ def api_chain_mesh_packet_inbox(recipient):
             )
         )
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/packet/relay-queue")
@@ -4157,7 +4251,7 @@ def api_chain_mesh_packet_relay_queue():
             )
         )
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/packet/attest", methods=["POST"])
@@ -4169,9 +4263,9 @@ def api_chain_mesh_packet_attest():
     try:
         return jsonify(cm.packet_attest_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+        return _api_error(exc, 500)
 
 
 @app.route("/api/chain-mesh/packet/stream/<recipient>")
@@ -4248,7 +4342,7 @@ def api_chain_mesh_tunnel_ip_channel():
     try:
         return jsonify(cm.ip_tunnel_open_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/tunnel/ip/send", methods=["POST"])
@@ -4260,7 +4354,7 @@ def api_chain_mesh_tunnel_ip_send():
     try:
         return jsonify(cm.ip_tunnel_send_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/tunnel/ip/inbox/<recipient>")
@@ -4278,7 +4372,7 @@ def api_chain_mesh_tunnel_ip_inbox(recipient):
             )
         )
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/tunnel/ip/gateway/status")
@@ -4304,7 +4398,7 @@ def api_chain_mesh_internet_gateway_register():
     try:
         return jsonify(cm.internet_gateway_register_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/internet-gateway/unregister", methods=["POST"])
@@ -4315,7 +4409,7 @@ def api_chain_mesh_internet_gateway_unregister():
     try:
         return jsonify(cm.internet_gateway_unregister_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/internet-gateway/elected")
@@ -4340,7 +4434,7 @@ def api_chain_mesh_internet_gateway_peer_egress():
     try:
         return jsonify(cm.internet_gateway_peer_egress_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/internet-gateway/pending/<device_id>")
@@ -4356,7 +4450,7 @@ def api_chain_mesh_internet_gateway_pending(device_id):
             )
         )
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/internet-gateway/reply", methods=["POST"])
@@ -4368,7 +4462,7 @@ def api_chain_mesh_internet_gateway_reply():
     try:
         return jsonify(cm.internet_gateway_reply_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/tunnel/ip/gateway/egress", methods=["POST"])
@@ -4384,7 +4478,7 @@ def api_chain_mesh_tunnel_ip_gateway_egress():
             )
         )
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/tunnel/ip/tls/client-hello")
@@ -4402,7 +4496,7 @@ def api_chain_mesh_tunnel_ip_tls_client_hello():
             )
         )
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/tunnel/ip/tls/client-flight2", methods=["POST"])
@@ -4414,7 +4508,7 @@ def api_chain_mesh_tunnel_ip_tls_client_flight2():
     try:
         return jsonify(cm.ip_tls_client_flight2_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/tunnel/ip/tls/encrypt-app-data", methods=["POST"])
@@ -4426,7 +4520,7 @@ def api_chain_mesh_tunnel_ip_tls_encrypt_app_data():
     try:
         return jsonify(cm.ip_tls_encrypt_app_data_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/tunnel/ip/tls/decrypt-app-data", methods=["POST"])
@@ -4438,7 +4532,7 @@ def api_chain_mesh_tunnel_ip_tls_decrypt_app_data():
     try:
         return jsonify(cm.ip_tls_decrypt_app_data_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/chain-mesh/submit-asset", methods=["POST"])
@@ -4450,9 +4544,9 @@ def api_chain_mesh_submit_asset():
     try:
         return jsonify(cm.submit_asset_payload(payload))
     except (ValueError, TypeError) as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 500
+        return _api_error(exc, 500)
 
 
 @app.route("/api/chain-mesh/pending-submissions", methods=["GET"])
@@ -4523,7 +4617,7 @@ def api_chain_mesh_local_node_register():
     try:
         return jsonify(cm.local_node_register(payload))
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return _api_error(exc, 400, ok_false=False)
 
 
 @app.route("/api/chain-mesh/job-cache", methods=["GET", "POST"])
@@ -4538,7 +4632,7 @@ def api_chain_mesh_job_cache():
     try:
         return jsonify(cm.job_cache_store(payload))
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return _api_error(exc, 400, ok_false=False)
 
 
 def _api_local_node_lan_register():
@@ -4550,7 +4644,7 @@ def _api_local_node_lan_register():
     try:
         return jsonify(cm.lan_register(payload, public_ip=public_ip))
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return _api_error(exc, 400, ok_false=False)
 
 
 @app.route("/api/local-node/lan-register", methods=["POST"])
@@ -4581,9 +4675,9 @@ def _api_local_node_rpc_relay():
     try:
         return jsonify(lng.relay_payload(payload))
     except ValueError as exc:
-        return jsonify({"jsonrpc": "1.0", "id": payload.get("id"), "error": {"message": str(exc)}}), 400
+        return jsonify({"jsonrpc": "1.0", "id": payload.get("id"), "error": {"message": _safe_err(exc)}}), 400
     except Exception as exc:
-        return jsonify({"jsonrpc": "1.0", "id": payload.get("id"), "error": {"message": str(exc)}}), 502
+        return jsonify({"jsonrpc": "1.0", "id": payload.get("id"), "error": {"message": _safe_err(exc)}}), 502
 
 
 @app.route("/api/local-node/rpc", methods=["POST"])
@@ -4604,7 +4698,7 @@ def api_chain_mesh_pending_shares():
     try:
         return jsonify(cm.pending_shares_store(payload))
     except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
+        return _api_error(exc, 400, ok_false=False)
 
 
 def _quasar_public_ip() -> str:
@@ -4621,7 +4715,7 @@ def api_quasar_status():
     try:
         return jsonify(qapi.status_payload(node_rpc.rpc))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/api/quasar/witness/submit", methods=["POST"])
@@ -4633,7 +4727,7 @@ def api_quasar_witness_submit():
     try:
         return jsonify(qapi.witness_submit(payload))
     except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/quasar/witness/capsules")
@@ -4659,7 +4753,7 @@ def api_quasar_lan_echo():
             qapi.lan_echo_submit(payload, public_ip=_quasar_public_ip(), rpc=node_rpc.rpc)
         )
     except ValueError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/api/quasar/lan-echo/status")
@@ -4672,7 +4766,7 @@ def api_quasar_lan_echo_status():
     try:
         return jsonify(qapi.lan_echo_status_payload(public_ip=public_ip, rpc=node_rpc.rpc))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/api/quasar/alerts")
@@ -4684,7 +4778,7 @@ def api_quasar_alerts():
     try:
         return jsonify(qapi.alerts_payload(node_rpc.rpc))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/api/quasar/braid-index")
@@ -4697,7 +4791,7 @@ def api_quasar_braid_index():
     try:
         return jsonify(qapi.braid_index_payload(sync=sync, rpc=node_rpc.rpc))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/api/quasar/enforcement/check", methods=["POST"])
@@ -4711,7 +4805,7 @@ def api_quasar_enforcement_check():
     try:
         return jsonify(qapi.enforcement_check(amount, node_rpc.rpc))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/api/quasar/activation")
@@ -4731,7 +4825,7 @@ def api_quasar_signaling():
     try:
         return jsonify(qapi.signaling_payload(node_rpc.rpc))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/api/quasar/fork-rehearsal")
@@ -4744,7 +4838,7 @@ def api_quasar_fork_rehearsal():
     try:
         return jsonify(qapi.fork_rehearsal_payload(node_rpc.rpc, persist=persist))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/api/quasar/confirmations")
@@ -4756,7 +4850,7 @@ def api_quasar_confirmations():
     try:
         return jsonify(qapi.confirmations_payload(node_rpc.rpc))
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 503
+        return _api_error(exc, 503)
 
 
 @app.route("/api/pool/dual-stats")
@@ -4821,6 +4915,224 @@ def api_unified_pool_balance():
             **balance,
         }
     )
+
+
+def _wallet_rpc(method, params=None, timeout=120):
+    """RPC with a longer timeout for wallet broadcast."""
+    import node_rpc
+    import requests
+
+    payload = {
+        "jsonrpc": "1.0",
+        "id": "mobile-wallet",
+        "method": method,
+        "params": params or [],
+    }
+    resp = requests.post(
+        node_rpc.rpc_url(),
+        json=payload,
+        headers={"content-type": "text/plain;"},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    if data.get("error"):
+        err = data["error"]
+        raise RuntimeError(err.get("message", str(err)) if isinstance(err, dict) else str(err))
+    return data.get("result")
+
+
+_B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+_ELECTRUMX_HOST = os.environ.get("BLOODSTONE_ELECTRUMX_HOST", "127.0.0.1")
+_ELECTRUMX_PORT = int(os.environ.get("BLOODSTONE_ELECTRUMX_PORT", "50001"))
+
+
+def _b58decode_check(s: str) -> bytes:
+    import hashlib
+
+    n = 0
+    for ch in s:
+        idx = _B58_ALPHABET.find(ch)
+        if idx < 0:
+            raise ValueError("invalid base58")
+        n = n * 58 + idx
+    h = n.to_bytes((n.bit_length() + 7) // 8 or 1, "big")
+    pad = 0
+    for ch in s:
+        if ch == "1":
+            pad += 1
+        else:
+            break
+    full = b"\x00" * pad + h
+    if len(full) < 5:
+        raise ValueError("too short")
+    payload, checksum = full[:-4], full[-4:]
+    expect = hashlib.sha256(hashlib.sha256(payload).digest()).digest()[:4]
+    if checksum != expect:
+        raise ValueError("bad checksum")
+    return payload
+
+
+def _stone_p2pkh_script(address: str) -> bytes:
+    payload = _b58decode_check(address)
+    if len(payload) != 21 or payload[0] != 0x3F:
+        raise ValueError("not a legacy STONE P2PKH address")
+    return bytes([0x76, 0xA9, 0x14]) + payload[1:] + bytes([0x88, 0xAC])
+
+
+def _address_to_scripthash(address: str) -> str:
+    import hashlib
+
+    script = _stone_p2pkh_script(address)
+    return hashlib.sha256(script).digest()[::-1].hex()
+
+
+def _electrumx_call(method: str, params, timeout: float = 20.0):
+    import json
+    import socket
+
+    req = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}) + "\n"
+    with socket.create_connection((_ELECTRUMX_HOST, _ELECTRUMX_PORT), timeout=timeout) as sock:
+        sock.sendall(req.encode("utf-8"))
+        data = b""
+        while b"\n" not in data:
+            chunk = sock.recv(65536)
+            if not chunk:
+                break
+            data += chunk
+    if not data:
+        raise RuntimeError("empty ElectrumX response")
+    body = json.loads(data.decode("utf-8"))
+    if body.get("error"):
+        err = body["error"]
+        raise RuntimeError(err.get("message", str(err)) if isinstance(err, dict) else str(err))
+    return body.get("result")
+
+
+def _electrum_address_utxos(address: str):
+    """Return (total_stone, utxo_list) via ElectrumX listunspent."""
+    sh = _address_to_scripthash(address)
+    script_hex = _stone_p2pkh_script(address).hex()
+    rows = _electrumx_call("blockchain.scripthash.listunspent", [sh]) or []
+    unspents = []
+    total_sats = 0
+    for u in rows:
+        if not isinstance(u, dict):
+            continue
+        sat = int(u.get("value") or 0)
+        if sat <= 0:
+            continue
+        total_sats += sat
+        unspents.append(
+            {
+                "txid": u.get("tx_hash"),
+                "vout": int(u.get("tx_pos") or 0),
+                "amount": sat / 1e8,
+                "satoshis": sat,
+                "scriptPubKey": script_hex,
+                "height": u.get("height"),
+            }
+        )
+    return total_sats / 1e8, unspents
+
+
+@app.route("/api/wallet/balance")
+@app.route("/mining/api/wallet/balance")
+def api_wallet_balance():
+    """On-chain spendable balance (ElectrumX) + pool pending/paid for an address."""
+    import pool_db
+
+    address = (request.args.get("address") or "").strip()
+    if not _is_valid_stone_address(address):
+        return jsonify({"error": "valid STONE address required"}), 400
+
+    pool = pool_db.get_miner_balance(address)
+    chain_balance = None
+    utxo_count = 0
+    confirmed = None
+    unconfirmed = None
+    chain_error = None
+    try:
+        sh = _address_to_scripthash(address)
+        bal = _electrumx_call("blockchain.scripthash.get_balance", [sh]) or {}
+        confirmed_sats = int(bal.get("confirmed") or 0)
+        unconfirmed_sats = int(bal.get("unconfirmed") or 0)
+        confirmed = confirmed_sats / 1e8
+        unconfirmed = unconfirmed_sats / 1e8
+        # Spendable ≈ confirmed + positive unconfirmed (mempool credits)
+        chain_balance = (confirmed_sats + max(unconfirmed_sats, 0)) / 1e8
+        try:
+            utxos = _electrumx_call("blockchain.scripthash.listunspent", [sh]) or []
+            utxo_count = len(utxos)
+        except Exception:
+            utxo_count = 0
+    except Exception as exc:
+        chain_error = _safe_err(exc, public='chain lookup failed')
+
+    return jsonify(
+        {
+            "ok": True,
+            "address": address,
+            "chain_balance": chain_balance,
+            "confirmed": confirmed,
+            "unconfirmed": unconfirmed,
+            "utxo_count": utxo_count,
+            "pending_stone": float(pool.get("pending_stone") or 0),
+            "paid_stone": float(pool.get("paid_stone") or 0),
+            "chain_error": chain_error,
+            "source": "electrumx",
+        }
+    )
+
+
+@app.route("/api/wallet/utxos")
+@app.route("/mining/api/wallet/utxos")
+def api_wallet_utxos():
+    """List UTXOs for an address (for client-side signing on the APK)."""
+    address = (request.args.get("address") or "").strip()
+    if not _is_valid_stone_address(address):
+        return jsonify({"error": "valid STONE address required"}), 400
+    try:
+        total, unspents = _electrum_address_utxos(address)
+    except Exception as exc:
+        return _api_error(exc, 503)
+    return jsonify(
+        {
+            "ok": True,
+            "address": address,
+            "total_amount": total,
+            "utxos": unspents,
+            "source": "electrumx",
+        }
+    )
+
+
+@app.route("/api/wallet/broadcast", methods=["POST"])
+@app.route("/mining/api/wallet/broadcast", methods=["POST"])
+def api_wallet_broadcast():
+    """Broadcast a fully signed raw transaction (hex). Private keys never leave the phone."""
+    payload = request.get_json(silent=True) or {}
+    raw = (payload.get("hex") or payload.get("tx") or payload.get("rawtx") or "").strip()
+    if not raw or not re.fullmatch(r"[0-9a-fA-F]+", raw) or len(raw) < 20 or len(raw) % 2:
+        return jsonify({"ok": False, "error": "valid hex raw transaction required"}), 400
+    if len(raw) > 200000:
+        return jsonify({"ok": False, "error": "transaction too large"}), 400
+    try:
+        txid = _wallet_rpc("sendrawtransaction", [raw])
+    except Exception as exc:
+        return _api_error(exc, 400)
+    try:
+        import bloodstone_broadcast as bb
+
+        bb.ensure_tx_broadcasted(str(txid))
+    except Exception:
+        pass
+    # Also push to ElectrumX for faster relay when available.
+    try:
+        _electrumx_call("blockchain.transaction.broadcast", [raw], timeout=30)
+    except Exception:
+        pass
+    return jsonify({"ok": True, "txid": txid})
 
 
 @app.route("/api/mining/yespower-stats")
@@ -4934,7 +5246,7 @@ def admin_ssh_authorize():
             "success",
         )
     except ValueError as exc:
-        flash(str(exc), "error")
+        flash(_safe_err(exc), "error")
     return redirect(url_for("admin"))
 
 
@@ -4945,7 +5257,7 @@ def admin_ssh_revoke():
         ssh_keys.revoke_authorized_key(request.form.get("fingerprint", ""))
         flash("Authorized key removed from this server.", "success")
     except ValueError as exc:
-        flash(str(exc), "error")
+        flash(_safe_err(exc), "error")
     return redirect(url_for("admin"))
 
 
@@ -4955,7 +5267,7 @@ def admin_ssh_download_pub(name: str):
     try:
         pub = ssh_keys.read_public_key_file(name)
     except (ValueError, FileNotFoundError) as exc:
-        flash(str(exc), "error")
+        flash(_safe_err(exc), "error")
         return redirect(url_for("admin"))
     safe = re.sub(r"[^a-zA-Z0-9._-]+", "-", name).strip("-") or "key"
     return Response(
@@ -4987,11 +5299,14 @@ def _installer_icon_preview_url():
 @admin_required
 def admin_master_creator_unlock():
     code = (request.form.get("master_creator_code") or "").strip()
+    next_url = (request.form.get("next") or request.args.get("next") or "").strip()
     if verify_master_creator_code(code):
         session["master_creator"] = True
         flash("Master Creator access enabled.", "success")
     else:
         flash("Invalid Master Creator access code.", "error")
+    if next_url.startswith("/"):
+        return redirect(next_url)
     return redirect(url_for("admin"))
 
 
@@ -5000,6 +5315,9 @@ def admin_master_creator_unlock():
 def admin_master_creator_logout():
     session.pop("master_creator", None)
     flash("Master Creator edit access ended.", "success")
+    next_url = (request.form.get("next") or "").strip()
+    if next_url.startswith("/"):
+        return redirect(next_url)
     return redirect(url_for("admin"))
 
 
@@ -5036,19 +5354,32 @@ def admin_fleet_device_save():
 def admin_generate_beta_code():
     payload = request.get_json(silent=True) or {}
     label = (payload.get("label") or request.form.get("label") or "").strip()
+    code_type = (
+        payload.get("code_type") or request.form.get("code_type") or "single"
+    ).strip()
     try:
         count = int(payload.get("count") or request.form.get("count") or 1)
     except (TypeError, ValueError):
         count = 1
     count = max(1, min(count, 20))
     codes = []
+    code_rows = []
     for _ in range(count):
         row = bloodstone_beta_codes.generate_code(
             label=label,
             created_by="master-creator",
+            code_type=code_type,
         )
         codes.append(row["code"])
-    return jsonify({"ok": True, "count": len(codes), "codes": codes})
+        code_rows.append(row)
+    return jsonify(
+        {
+            "ok": True,
+            "count": len(codes),
+            "codes": codes,
+            "code_type": code_rows[0]["code_type"] if code_rows else "single",
+        }
+    )
 
 
 @app.route("/admin/api/beta-codes")
@@ -5064,12 +5395,69 @@ def admin_list_beta_codes():
     return jsonify({"ok": True, "codes": rows})
 
 
+@app.route("/admin/api/beta-codes/<int:code_id>/revoke", methods=["POST"])
+@admin_required
+@master_creator_required
+def admin_revoke_beta_code(code_id: int):
+    result = bloodstone_beta_codes.revoke_code_access(code_id)
+    return jsonify(result)
+
+
+@app.route("/admin/api/beta-tokens")
+@admin_required
+@master_creator_required
+def admin_list_beta_tokens():
+    active_only = (request.args.get("active_only") or "1").strip() not in (
+        "0",
+        "false",
+        "no",
+    )
+    rows = bloodstone_beta_codes.list_access_tokens(active_only=active_only)
+    return jsonify({"ok": True, "tokens": rows})
+
+
 @app.route("/admin/api/lan-validations")
 @admin_required
 @master_creator_required
 def admin_list_lan_validations():
     rows = bloodstone_beta_codes.list_lan_validations()
     return jsonify({"ok": True, "validations": rows})
+
+
+@app.route("/admin/api/release-channels")
+@admin_required
+@master_creator_required
+def admin_release_channels():
+    public_root = (
+        os.environ.get("BLOODSTONE_PUBLIC_ROOT")
+        or request.url_root.rstrip("/")
+    )
+    # strip /mining if admin is under mining prefix
+    if public_root.endswith("/mining"):
+        public_root = public_root[: -len("/mining")]
+    status = bloodstone_downloads.release_channel_status(public_root)
+    return jsonify(status)
+
+
+@app.route("/admin/api/release-channels/promote", methods=["POST"])
+@admin_required
+@master_creator_required
+def admin_release_channels_promote():
+    """Promote beta artifacts to main/live (stable) global baseline."""
+    result = bloodstone_downloads.promote_beta_to_stable()
+    return jsonify(result), (200 if result.get("ok") else 500)
+
+
+@app.route("/admin/releases")
+@app.route("/admin/beta")
+@admin_required
+def admin_releases():
+    """Dedicated portal: promote beta → live + create beta codes."""
+    ensure_master_creator_configured()
+    return render_template(
+        "admin_releases.html",
+        master_creator=master_creator_active(),
+    )
 
 
 @app.route("/admin/fleet/settings", methods=["POST"])
@@ -5262,7 +5650,7 @@ def admin_node_patch_apply():
             }
         )
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/admin/api/node-patch/publish", methods=["POST"])
@@ -5298,7 +5686,7 @@ def admin_node_patch_publish():
             }
         )
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/admin/api/node-patch/auto-apply", methods=["POST"])
@@ -5314,7 +5702,7 @@ def admin_node_patch_auto_apply():
         result = nlp.maybe_auto_apply(public_root=public_root)
         return jsonify(result)
     except Exception as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
+        return _api_error(exc, 400)
 
 
 @app.route("/admin/x-settings", methods=["POST"])
@@ -5645,7 +6033,7 @@ def admin_restart_service(service_id):
         unit = server_services.restart_service(service_id)
         flash(f"Restart triggered for {unit}.", "success")
     except ValueError as exc:
-        flash(str(exc), "error")
+        flash(_safe_err(exc), "error")
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or "").strip() or str(exc)
         flash(f"Restart failed for {service_id}: {detail}", "error")
@@ -5665,7 +6053,7 @@ def admin_restart_service_group(group_id):
             "success",
         )
     except ValueError as exc:
-        flash(str(exc), "error")
+        flash(_safe_err(exc), "error")
     except subprocess.CalledProcessError as exc:
         detail = (exc.stderr or "").strip() or str(exc)
         flash(f"Group restart failed: {detail}", "error")

@@ -32,6 +32,7 @@ class NetworkStyle;
 class Notificator;
 class OptionsModel;
 class PlatformStyle;
+class QuasarWitnessService;
 class RPCConsole;
 class SendCoinsRecipient;
 class UnitDisplayStatusBarControl;
@@ -176,6 +177,7 @@ private:
     RPCConsole* rpcConsole = nullptr;
     HelpMessageDialog* helpMessageDialog = nullptr;
     ModalOverlay* modalOverlay = nullptr;
+    QuasarWitnessService* m_quasar_witness = nullptr;
 
     QMenu* m_network_context_menu = new QMenu(this);
 

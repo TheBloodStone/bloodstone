@@ -25,7 +25,7 @@ def _normalize_author(value: str = "") -> str:
 def resolve_job_inference_spec(job: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import tenant_npu_models as tnpu
 
-    author = _normalize_author(str(job.get("blurt_author") or ""))
+    author = _normalize_author(str(job.get("blurt_account") or ""))
     tid = str(job.get("tenant_id") or _default_tenant()).strip()[:64] or _default_tenant()
     ai_spec = job.get("ai_spec")
     if isinstance(ai_spec, str):
@@ -38,7 +38,7 @@ def resolve_job_inference_spec(job: Dict[str, Any]) -> Dict[str, Any]:
     runtime_hint = str(ai_spec.get("runtime") or "")
     tenant_spec = (
         tnpu.resolve_inference_spec(
-            blurt_author=author,
+            blurt_account=author,
             tenant_id=tid,
             runtime_hint=runtime_hint,
         )
@@ -50,7 +50,7 @@ def resolve_job_inference_spec(job: Dict[str, Any]) -> Dict[str, Any]:
         "ok": True,
         "format": ROUTE_FORMAT,
         "tenant_id": tid,
-        "blurt_author": author,
+        "blurt_account": author,
         "runtime": merged_runtime,
         "model_path": str(tenant_spec.get("model_path") or ""),
         "hardware_kind": str(tenant_spec.get("hardware_kind") or "cpu"),
@@ -93,9 +93,9 @@ def build_dispatch_payload(
 ) -> Dict[str, Any]:
     resolved = spec or resolve_job_inference_spec(job)
     payload = dict(base_payload or {})
-    author = _normalize_author(str(job.get("blurt_author") or resolved.get("blurt_author") or ""))
+    author = _normalize_author(str(job.get("blurt_account") or resolved.get("blurt_account") or ""))
     tid = str(job.get("tenant_id") or resolved.get("tenant_id") or _default_tenant())
-    payload.setdefault("blurt_author", author)
+    payload.setdefault("blurt_account", author)
     payload.setdefault("tenant_id", tid)
     payload.setdefault("runtime", resolved.get("runtime") or payload.get("runtime"))
     if resolved.get("model_path"):
@@ -106,12 +106,12 @@ def build_dispatch_payload(
 def route_status_for_job(job: Dict[str, Any]) -> Dict[str, Any]:
     from chain_mesh import tenant_submit_gate as tgate
 
-    author = _normalize_author(str(job.get("blurt_author") or ""))
+    author = _normalize_author(str(job.get("blurt_account") or ""))
     tid = str(job.get("tenant_id") or _default_tenant())
     spec = resolve_job_inference_spec(job)
     gate = tgate.check_submit_allowed(
         tenant_id=tid,
-        blurt_author=author,
+        blurt_account=author,
         stone_address=str(job.get("stone_address") or ""),
     )
     return {

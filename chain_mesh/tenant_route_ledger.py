@@ -47,7 +47,7 @@ def init_route_ledger_db() -> None:
             CREATE TABLE IF NOT EXISTS tenant_route_assignments (
                 assignment_id TEXT PRIMARY KEY,
                 tenant_id TEXT NOT NULL,
-                blurt_author TEXT NOT NULL DEFAULT '',
+                blurt_account TEXT NOT NULL DEFAULT '',
                 job_id TEXT NOT NULL DEFAULT '',
                 provider_id TEXT NOT NULL DEFAULT '',
                 runtime TEXT NOT NULL DEFAULT '',
@@ -58,7 +58,7 @@ def init_route_ledger_db() -> None:
                 updated_at INTEGER NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_tenant_route_author
-                ON tenant_route_assignments(tenant_id, blurt_author, updated_at DESC);
+                ON tenant_route_assignments(tenant_id, blurt_account, updated_at DESC);
             CREATE INDEX IF NOT EXISTS idx_tenant_route_job
                 ON tenant_route_assignments(job_id, updated_at DESC);
             """
@@ -76,7 +76,7 @@ def record_assignment(
     if not LEDGER_ENABLE:
         return {"ok": True, "skipped": True, "reason": "TENANT_ROUTE_LEDGER_ENABLE off"}
     init_route_ledger_db()
-    author = _normalize_author(str(job.get("blurt_author") or ""))
+    author = _normalize_author(str(job.get("blurt_account") or ""))
     tid = str(job.get("tenant_id") or _default_tenant()).strip()[:64] or _default_tenant()
     jid = str(job.get("job_id") or "").strip()
     pid = str(provider.get("provider_id") or "").strip()
@@ -89,7 +89,7 @@ def record_assignment(
         conn.execute(
             """
             INSERT INTO tenant_route_assignments (
-                assignment_id, tenant_id, blurt_author, job_id, provider_id,
+                assignment_id, tenant_id, blurt_account, job_id, provider_id,
                 runtime, hardware_kind, route_status, score, node_id, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
@@ -111,7 +111,7 @@ def record_assignment(
         "ok": True,
         "assignment_id": aid,
         "tenant_id": tid,
-        "blurt_author": author,
+        "blurt_account": author,
         "job_id": jid,
         "provider_id": pid,
         "runtime": runtime,
@@ -121,19 +121,19 @@ def record_assignment(
 def list_assignments(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     limit: int = 20,
 ) -> Dict[str, Any]:
     init_route_ledger_db()
     tid = (tenant_id or _default_tenant()).strip()[:64] or _default_tenant()
-    author = _normalize_author(blurt_author)
+    author = _normalize_author(blurt_account)
     lim = max(1, min(100, int(limit)))
     with _conn() as conn:
         if author:
             rows = conn.execute(
                 """
                 SELECT * FROM tenant_route_assignments
-                WHERE tenant_id = ? AND blurt_author = ?
+                WHERE tenant_id = ? AND blurt_account = ?
                 ORDER BY updated_at DESC
                 LIMIT ?
                 """,
@@ -153,7 +153,7 @@ def list_assignments(
         "ok": True,
         "format": LEDGER_FORMAT,
         "tenant_id": tid,
-        "blurt_author": author,
+        "blurt_account": author,
         "count": len(rows),
         "assignments": [dict(r) for r in rows],
     }
@@ -167,7 +167,7 @@ def build_route_gossip_snapshots(*, limit: int = 0) -> List[Dict[str, Any]]:
     with _conn() as conn:
         rows = conn.execute(
             """
-            SELECT tenant_id, blurt_author, job_id, provider_id, runtime,
+            SELECT tenant_id, blurt_account, job_id, provider_id, runtime,
                    hardware_kind, route_status, score, node_id, updated_at
             FROM tenant_route_assignments
             ORDER BY updated_at DESC
@@ -208,7 +208,7 @@ def ingest_route_snapshots(snapshots: List[Dict[str, Any]]) -> Dict[str, Any]:
                 job={
                     "job_id": jid,
                     "tenant_id": snap.get("tenant_id"),
-                    "blurt_author": snap.get("blurt_author"),
+                    "blurt_account": snap.get("blurt_account"),
                 },
                 provider={"provider_id": snap.get("provider_id")},
                 tenant_spec={

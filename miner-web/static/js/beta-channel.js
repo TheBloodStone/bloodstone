@@ -1,11 +1,13 @@
 /**
- * Beta release channel — one-time LAN-gated invite codes unlock beta OTA.
+ * Beta release channel — LAN-gated invite codes unlock beta OTA.
+ * Lifetime codes stay on the beta channel across every future pre-release build.
  */
 
 import { getLocalNodeStatus } from "./local-node.js";
 import { whenCapacitorReady } from "./capacitor-ready.js";
 
 export const BETA_TOKEN_KEY = "bloodstone-beta-access-token";
+export const BETA_LIFETIME_KEY = "bloodstone-beta-lifetime-unlock";
 
 function apiBase() {
   const fromBody = document.body?.dataset?.updateBase || document.body?.dataset?.publicRoot;
@@ -44,7 +46,29 @@ export function setBetaAccessToken(token) {
 }
 
 export function clearBetaAccessToken() {
+  setBetaLifetimeUnlock(false);
   return setBetaAccessToken("");
+}
+
+export function setBetaLifetimeUnlock(enabled) {
+  try {
+    if (!enabled) {
+      localStorage.removeItem(BETA_LIFETIME_KEY);
+      return false;
+    }
+    localStorage.setItem(BETA_LIFETIME_KEY, "1");
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+export function isBetaLifetimeUnlock() {
+  try {
+    return localStorage.getItem(BETA_LIFETIME_KEY) === "1";
+  } catch (_) {
+    return false;
+  }
 }
 
 export function isBetaChannelEnabled() {
@@ -157,6 +181,7 @@ export async function redeemBetaCode(code) {
   });
   if (data?.ok && data?.token) {
     setBetaAccessToken(data.token);
+    setBetaLifetimeUnlock(Boolean(data.lifetime_unlock));
   }
   return data;
 }
@@ -198,11 +223,17 @@ export async function initBetaChannelOptions() {
 
   const onLan = await isOnLan();
   let betaActive = isBetaChannelEnabled();
+  let lifetimeUnlock = isBetaLifetimeUnlock();
   if (betaActive) {
     try {
       const status = await refreshBetaStatus();
       betaActive = Boolean(status?.beta_active);
-      if (!betaActive) clearBetaAccessToken();
+      lifetimeUnlock = Boolean(status?.lifetime_unlock);
+      if (betaActive) {
+        setBetaLifetimeUnlock(lifetimeUnlock);
+      } else if (!lifetimeUnlock) {
+        clearBetaAccessToken();
+      }
     } catch (_) {
       /* keep cached token */
     }
@@ -211,7 +242,9 @@ export async function initBetaChannelOptions() {
   updateBetaPanelVisibility(onLan, betaActive);
   if (betaActive) {
     setBetaPanelStatus(
-      "Beta channel active — test the build, then approve it for everyone on this LAN.",
+      lifetimeUnlock
+        ? "Lifetime beta unlock — pull down to get the newest pre-release build."
+        : "Beta channel active — test the build, then approve it for everyone on this LAN.",
       "success",
     );
   } else if (onLan) {

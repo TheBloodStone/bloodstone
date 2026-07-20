@@ -19,7 +19,7 @@ def _normalize_author(value: str = "") -> str:
 def dashboard_payload(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     stone_address: str = "",
 ) -> Dict[str, Any]:
     from chain_mesh import bandwidth_tenant_quota as bw
@@ -27,16 +27,16 @@ def dashboard_payload(
     from chain_mesh import storage_tenant_quota as storage
 
     tid = (tenant_id or _default_tenant()).strip()[:64] or _default_tenant()
-    author = _normalize_author(blurt_author)
+    author = _normalize_author(blurt_account)
     addr = (stone_address or "").strip()
     compute_q = compute.tenant_quota(
-        tenant_id=tid, blurt_author=author, stone_address=addr
+        tenant_id=tid, blurt_account=author, stone_address=addr
     )
     bandwidth_q = bw.tenant_quota(
-        tenant_id=tid, blurt_author=author, stone_address=addr
+        tenant_id=tid, blurt_account=author, stone_address=addr
     )
     storage_q = storage.tenant_quota(
-        tenant_id=tid, blurt_author=author, stone_address=addr
+        tenant_id=tid, blurt_account=author, stone_address=addr
     )
     from chain_mesh import tenant_ai_route as troute
     from chain_mesh import tenant_npu_models as tnpu
@@ -44,12 +44,12 @@ def dashboard_payload(
     from chain_mesh import tenant_sovereign as tsov
     from chain_mesh import tenant_submit_gate as tgate
 
-    quorum = tgate.quorum_for_author(tenant_id=tid, blurt_author=author) if author else {}
-    npu_models = tnpu.list_npu_models(tenant_id=tid, blurt_author=author) if author else []
+    quorum = tgate.quorum_for_author(tenant_id=tid, blurt_account=author) if author else {}
+    npu_models = tnpu.list_npu_models(tenant_id=tid, blurt_account=author) if author else []
     submit_gate = (
         tgate.check_submit_allowed(
             tenant_id=tid,
-            blurt_author=author,
+            blurt_account=author,
             stone_address=addr,
         )
         if author
@@ -57,13 +57,13 @@ def dashboard_payload(
     )
     ai_route = (
         troute.resolve_job_inference_spec(
-            {"blurt_author": author, "tenant_id": tid, "ai_spec": {}}
+            {"blurt_account": author, "tenant_id": tid, "ai_spec": {}}
         )
         if author
         else {}
     )
     route_history = (
-        tledger.list_assignments(tenant_id=tid, blurt_author=author, limit=3)
+        tledger.list_assignments(tenant_id=tid, blurt_account=author, limit=3)
         if author
         else {}
     )
@@ -72,7 +72,7 @@ def dashboard_payload(
         "ok": True,
         "format": DASHBOARD_FORMAT,
         "tenant_id": tid,
-        "blurt_author": author,
+        "blurt_account": author,
         "stone_address": addr,
         "rails": {
             "compute": compute_q,
@@ -96,7 +96,7 @@ def dashboard_payload(
 def bind_all_rails(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     stone_address: str = "",
     flops_cap: int = 0,
     bandwidth_bytes_cap: int = 0,
@@ -107,30 +107,30 @@ def bind_all_rails(
     from chain_mesh import storage_tenant_quota as storage
 
     tid = (tenant_id or _default_tenant()).strip()[:64] or _default_tenant()
-    author = _normalize_author(blurt_author)
+    author = _normalize_author(blurt_account)
     if not author:
-        raise ValueError("blurt_author required")
+        raise ValueError("blurt_account required")
     addr = (stone_address or "").strip()
     return {
         "ok": True,
         "tenant_id": tid,
-        "blurt_author": author,
+        "blurt_account": author,
         "stone_address": addr,
         "compute": compute.bind_tenant_author(
             tenant_id=tid,
-            blurt_author=author,
+            blurt_account=author,
             stone_address=addr,
             flops_cap=int(flops_cap or 0),
         ),
         "bandwidth": bw.bind_tenant_author(
             tenant_id=tid,
-            blurt_author=author,
+            blurt_account=author,
             stone_address=addr,
             bytes_cap=int(bandwidth_bytes_cap or 0),
         ),
         "storage": storage.bind_tenant_author(
             tenant_id=tid,
-            blurt_author=author,
+            blurt_account=author,
             stone_address=addr,
             bytes_cap=int(storage_bytes_cap or 0),
         ),
@@ -139,14 +139,14 @@ def bind_all_rails(
 
 def resolve_tenant_context(
     *,
-    blurt_author: str = "",
+    blurt_account: str = "",
     tenant_id: str = "",
     stone_address: str = "",
 ) -> Dict[str, str]:
     from chain_mesh import tenant_fleet_sync as fleet
 
     return fleet.resolve_tenant_context(
-        blurt_author=blurt_author,
+        blurt_account=blurt_account,
         tenant_id=tenant_id,
         stone_address=stone_address,
     )
@@ -206,12 +206,12 @@ def dashboard_page_html() -> str:
       const author = document.getElementById('author').value.trim();
       const stone = document.getElementById('stone').value.trim();
       if (!author) {{ document.getElementById('status').textContent = 'Author required'; return; }}
-      let url = '/api/convergence/tenant/dashboard?blurt_author=' + encodeURIComponent(author);
+      let url = '/api/convergence/tenant/dashboard?blurt_account=' + encodeURIComponent(author);
       if (stone) url += '&stone_address=' + encodeURIComponent(stone);
       document.getElementById('status').textContent = 'Loading…';
       fetch(url).then(r => r.json()).then(data => {{
         if (!data.ok) {{ document.getElementById('status').textContent = data.error || 'Error'; return; }}
-        document.getElementById('status').textContent = '@' + data.blurt_author + ' · tenant ' + data.tenant_id;
+        document.getElementById('status').textContent = '@' + data.blurt_account + ' · tenant ' + data.tenant_id;
         const rails = data.rails || {{}};
         const grid = document.getElementById('rails');
         grid.innerHTML = '';
@@ -228,7 +228,7 @@ def dashboard_page_html() -> str:
         }}
         const q = data.quorum || {{}};
         const qEl = document.getElementById('quorum');
-        if (q.blurt_author) {{
+        if (q.blurt_account) {{
           qEl.style.display = 'block';
           qEl.innerHTML = '<h2>fleet quorum</h2><div>' + (q.quorum || '?') +
             ' · votes ' + (q.votes_found || 0) + ' · ' +
@@ -244,7 +244,7 @@ def dashboard_page_html() -> str:
         }} else {{ nEl.style.display = 'none'; }}
         const sg = data.submit_gate || {{}};
         const sEl = document.getElementById('submit');
-        if (sg.blurt_author) {{
+        if (sg.blurt_account) {{
           sEl.style.display = 'block';
           sEl.innerHTML = '<h2>submit gate</h2><div>' +
             (sg.allowed ? 'allowed ✓' : 'blocked') + ' · ' + (sg.reason || '') + '</div>';

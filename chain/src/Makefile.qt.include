@@ -69,6 +69,7 @@ QT_MOC_CPP = \
   qt/moc_peertablesortproxy.cpp \
   qt/moc_paymentserver.cpp \
   qt/moc_psbtoperationsdialog.cpp \
+  qt/moc_quasarwitness.cpp \
   qt/moc_qrimagewidget.cpp \
   qt/moc_qvalidatedlineedit.cpp \
   qt/moc_qvaluecombobox.cpp \
@@ -146,6 +147,7 @@ BITCOIN_QT_H = \
   qt/peertablesortproxy.h \
   qt/platformstyle.h \
   qt/psbtoperationsdialog.h \
+  qt/quasarwitness.h \
   qt/qrimagewidget.h \
   qt/qvalidatedlineedit.h \
   qt/qvaluecombobox.h \
@@ -245,6 +247,7 @@ BITCOIN_QT_BASE_CPP = \
   qt/peertablemodel.cpp \
   qt/peertablesortproxy.cpp \
   qt/platformstyle.cpp \
+  qt/quasarwitness.cpp \
   qt/qvalidatedlineedit.cpp \
   qt/qvaluecombobox.cpp \
   qt/rpcconsole.cpp \

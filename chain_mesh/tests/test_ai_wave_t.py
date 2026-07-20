@@ -16,7 +16,7 @@ class TestAiWaveT(unittest.TestCase):
 
         tdash.bind_all_rails(
             tenant_id="fleet-a",
-            blurt_author="fleetuser",
+            blurt_account="fleetuser",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             flops_cap=500_000,
             bandwidth_bytes_cap=600_000,
@@ -24,7 +24,7 @@ class TestAiWaveT(unittest.TestCase):
         )
         snaps = tfleet.collect_tenant_snapshots(tenant_id="fleet-a")
         self.assertGreaterEqual(len(snaps), 1)
-        match = [s for s in snaps if s.get("blurt_author") == "fleetuser"]
+        match = [s for s in snaps if s.get("blurt_account") == "fleetuser"]
         self.assertTrue(match)
         rails = match[0].get("rails") or {}
         self.assertEqual(rails.get("compute", {}).get("flops_cap"), 500_000)
@@ -46,7 +46,7 @@ class TestAiWaveT(unittest.TestCase):
         os.environ["TENANT_FLEET_SYNC_ENABLE"] = "1"
         tdash.bind_all_rails(
             tenant_id="bloodstone",
-            blurt_author="dtnuser",
+            blurt_account="dtnuser",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             flops_cap=1000,
             bandwidth_bytes_cap=2000,
@@ -86,7 +86,7 @@ class TestAiWaveT(unittest.TestCase):
         result = cjobs.submit_payload(
             {
                 "stone_address": "STONE1abcdefghijklmnopqrstuvwxyz12",
-                "blurt_author": "autosubmit",
+                "blurt_account": "autosubmit",
                 "job_type": "inference",
                 "flops_budget": 100,
                 "ai_spec": {"runtime": "cpu-inference"},

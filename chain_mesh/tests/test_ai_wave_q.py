@@ -14,13 +14,13 @@ class TestAiWaveQ(unittest.TestCase):
 
         tenant.bind_tenant_author(
             tenant_id="bw-test",
-            blurt_author="uploader1",
+            blurt_account="uploader1",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             bytes_cap=1_000_000,
         )
         q = tenant.tenant_quota(
             tenant_id="bw-test",
-            blurt_author="uploader1",
+            blurt_account="uploader1",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
         )
         self.assertEqual(q.get("bytes_cap"), 1_000_000)
@@ -34,20 +34,20 @@ class TestAiWaveQ(unittest.TestCase):
         os.environ["BANDWIDTH_CREDIT_ENFORCE"] = "0"
         tenant.bind_tenant_author(
             tenant_id="bw-cap",
-            blurt_author="heavy",
+            blurt_account="heavy",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             bytes_cap=1000,
         )
         tenant.record_tenant_bandwidth_usage(
             tenant_id="bw-cap",
-            blurt_author="heavy",
+            blurt_account="heavy",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             delta_bytes=900,
         )
         result = depin.check_bandwidth_allowed(
             "STONE1abcdefghijklmnopqrstuvwxyz12",
             200,
-            blurt_author="heavy",
+            blurt_account="heavy",
             tenant_id="bw-cap",
         )
         self.assertFalse(result.get("allowed"))

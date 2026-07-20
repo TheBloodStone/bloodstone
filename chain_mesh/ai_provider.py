@@ -412,7 +412,7 @@ def sync_registry_providers() -> Dict[str, Any]:
 def build_provider_broadcast_manifest(
     *,
     provider_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     body: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Layer 3 — Blurt custom_json payload for AI provider broadcast."""
@@ -458,7 +458,7 @@ def build_provider_broadcast_manifest(
     if not parsed:
         raise ValueError("invalid provider manifest body")
     parsed["updated_at"] = _now()
-    auth = (blurt_author or parsed.get("blurt_author") or "").lstrip("@").lower()
+    auth = (blurt_account or parsed.get("blurt_account") or "").lstrip("@").lower()
     posting = [auth] if auth else []
     return {
         "id": AI_PROVIDER_ID,
@@ -473,7 +473,7 @@ def broadcast_provider_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     pid = str(payload.get("provider_id") or "").strip()
     manifest = build_provider_broadcast_manifest(
         provider_id=pid,
-        blurt_author=str(payload.get("blurt_author") or payload.get("author") or ""),
+        blurt_account=str(payload.get("blurt_account") or payload.get("blurt_author") or payload.get("author") or ""),
         body=payload if payload.get("provider_id") or payload.get("runtimes") else None,
     )
     body = manifest["body"]

@@ -52,6 +52,12 @@ MAX_ASSET_PUBLISH_CHUNKS = int(
     os.environ.get("CHAIN_MESH_MAX_ASSET_CHUNKS", str(BLURT_MAX_ASSET_CHUNKS))
 )
 PUBLISH_TOKEN = os.environ.get("CHAIN_MESH_PUBLISH_TOKEN", "").strip()
+# Write API token (preferred for peer/AI/agent/compute). Falls back to PUBLISH_TOKEN in security.py.
+API_TOKEN = (
+    os.environ.get("CHAIN_MESH_API_TOKEN")
+    or os.environ.get("BLOODSTONE_API_TOKEN")
+    or PUBLISH_TOKEN
+).strip()
 # Each node independently backs up this percentage of manifest chunks (hash of node ID).
 CHAIN_MESH_BACKUP_PCT = int(os.environ.get("CHAIN_MESH_BACKUP_PCT", "10"))
 

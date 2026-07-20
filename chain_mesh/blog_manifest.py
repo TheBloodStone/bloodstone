@@ -73,8 +73,10 @@ def embed_playback_url(asset_key: str, public_root: Optional[str] = None) -> str
 
 
 def condenser_embed_html(asset_key: str, *, mime_type: str = "", public_root: Optional[str] = None) -> str:
-    url = embed_playback_url(asset_key, public_root)
-    mime = (mime_type or "").lower()
+    import html as _html
+
+    url = _html.escape(embed_playback_url(asset_key, public_root), quote=True)
+    mime = _html.escape((mime_type or "").lower(), quote=True)
     if mime.startswith("video/"):
         return (
             f'<video controls preload="metadata" style="max-width:100%">'

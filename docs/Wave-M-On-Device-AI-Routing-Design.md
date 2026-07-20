@@ -1067,7 +1067,7 @@ Combined submit + route (primary UX):
 ```json
 {
   "stone_address": "STONE1abc...xyz",
-  "blurt_author": "megadrive",
+  "blurt_account": "megadrive",
   "agent_id": "shed-agent",
   "job_id": "",
   "flops_budget": 500000000,

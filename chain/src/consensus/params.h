@@ -122,7 +122,9 @@ public:
         switch (type)
         {
             case Fork::POST_ICO:
-                return height >= 55560;   /* Set to end at 12:00 01.07.22 */
+                /* Bloodstone relaunch: activate full PoW subsidy schedule now,
+                   not legacy SpaceXpanse block 55560. */
+                return height >= 9910;
             case Fork::YESPOWER:
                 return height >= 1;
             case Fork::MULTI_ALGO:

@@ -71,6 +71,7 @@ static UniValue GetNetworkHashPS(int lookup, int height, const CChain& active_ch
        result later, even if the number of hashes is zero.  */
     proofPerAlgo[PowAlgo::SHA256D] = 0;
     proofPerAlgo[PowAlgo::NEOSCRYPT] = 0;
+    proofPerAlgo[PowAlgo::YESPOWER] = 0;
 
     const CBlockIndex* pb0 = pb;
     int64_t minTime = pb0->GetBlockTime();
@@ -169,6 +170,7 @@ static bool GenerateBlock(ChainstateManager& chainman, CBlock& block, uint64_t& 
         pfakeHeader = &block.pow.initAuxpow (block);
         break;
     case PowAlgo::NEOSCRYPT:
+    case PowAlgo::YESPOWER:
         pfakeHeader = &block.pow.initFakeHeader (block);
         break;
     default:
@@ -1392,6 +1394,7 @@ static RPCHelpMan creatework()
         "\nCreates a new block and returns information required to mine it stand-alone.\n",
         {
             {"address", RPCArg::Type::STR, RPCArg::Optional::NO, "Payout address for the coinbase transaction"},
+            {"algo", RPCArg::Type::STR, RPCArg::Optional::OMITTED_NAMED_ARG, "Which mining algorithm to use (neoscrypt or yespower)."},
         },
         RPCResult{
             RPCResult::Type::OBJ, "", "",

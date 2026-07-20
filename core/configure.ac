@@ -1,14 +1,14 @@
 AC_PREREQ([2.69])
 define(_CLIENT_VERSION_MAJOR, 0)
-define(_CLIENT_VERSION_MINOR, 6)
-define(_CLIENT_VERSION_REVISION, 8)
-define(_CLIENT_VERSION_BUILD, 9)
+define(_CLIENT_VERSION_MINOR, 7)
+define(_CLIENT_VERSION_REVISION, 6)
+define(_CLIENT_VERSION_BUILD, 0)
 define(_CLIENT_VERSION_RC, 0)
 define(_CLIENT_VERSION_IS_RELEASE, true)
 define(_COPYRIGHT_YEAR, 2023)
 define(_COPYRIGHT_HOLDERS,[The %s developers])
-define(_COPYRIGHT_HOLDERS_SUBSTITUTION,[[Bitcoin Core, Namecoin, Xaya and SpaceXpanse]])
-AC_INIT([SpaceXpanse],m4_join([.], _CLIENT_VERSION_MAJOR, _CLIENT_VERSION_MINOR, _CLIENT_VERSION_REVISION, m4_if(_CLIENT_VERSION_BUILD, [0], [], _CLIENT_VERSION_BUILD))m4_if(_CLIENT_VERSION_RC, [0], [], [rc]_CLIENT_VERSION_RC),[https://github.com/spacexpanse/rod-core-wallet/issues],[spacexpanse],[https://spacexpanse.org/])
+define(_COPYRIGHT_HOLDERS_SUBSTITUTION,[[Bitcoin Core, Namecoin, Xaya and Bloodstone]])
+AC_INIT([Bloodstone],m4_join([.], _CLIENT_VERSION_MAJOR, _CLIENT_VERSION_MINOR, _CLIENT_VERSION_REVISION, m4_if(_CLIENT_VERSION_BUILD, [0], [], _CLIENT_VERSION_BUILD))m4_if(_CLIENT_VERSION_RC, [0], [], [rc]_CLIENT_VERSION_RC),[https://github.com/bloodstone/rod-core-wallet/issues],[bloodstone],[https://bloodstone.org/])
 AC_CONFIG_SRCDIR([src/validation.cpp])
 AC_CONFIG_HEADERS([src/config/bitcoin-config.h])
 AC_CONFIG_AUX_DIR([build-aux])
@@ -20,15 +20,15 @@ if test "x$PKG_CONFIG" = x; then
   AC_MSG_ERROR([pkg-config not found])
 fi
 
-BITCOIN_DAEMON_NAME=spacexpansed
-BITCOIN_GUI_NAME=spacexpanse-qt
-BITCOIN_CLI_NAME=spacexpanse-cli
-BITCOIN_TX_NAME=spacexpanse-tx
-BITCOIN_UTIL_NAME=spacexpanse-util
-BITCOIN_WALLET_TOOL_NAME=spacexpanse-wallet
+BITCOIN_DAEMON_NAME=bloodstoned
+BITCOIN_GUI_NAME=bloodstone-qt
+BITCOIN_CLI_NAME=bloodstone-cli
+BITCOIN_TX_NAME=bloodstone-tx
+BITCOIN_UTIL_NAME=bloodstone-util
+BITCOIN_WALLET_TOOL_NAME=bloodstone-wallet
 dnl Multi Process
-BITCOIN_MP_NODE_NAME=spacexpanse-node
-BITCOIN_MP_GUI_NAME=spacexpanse-gui
+BITCOIN_MP_NODE_NAME=bloodstone-node
+BITCOIN_MP_GUI_NAME=bloodstone-gui
 
 dnl Unless the user specified ARFLAGS, force it to be cr
 AC_ARG_VAR(ARFLAGS, [Flags for the archiver, defaults to <cr> if not set])

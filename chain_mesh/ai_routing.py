@@ -402,6 +402,17 @@ def register_local_provider(
         eps["health_url"] = f"http://{host}:{lan_port}/api/convergence/ai/provider/health"
     if not eps.get("inference_url") and AI_INFERENCE_PORT:
         eps["inference_url"] = f"http://{host}:{AI_INFERENCE_PORT}/v1/completions"
+    # C-02: never register non-LAN inference endpoints (SSRF).
+    try:
+        from chain_mesh.security import validate_url_ssrf
+
+        for key in ("inference_url", "health_url", "callback_url"):
+            if eps.get(key):
+                eps[key] = validate_url_ssrf(str(eps[key]), mode="lan_only")
+    except ValueError:
+        raise
+    except Exception:
+        pass
 
     manifest = aip.build_ai_provider_manifest(
         provider_id=pid,
@@ -664,7 +675,7 @@ def debit_compute_job(*, job_id: str, stone_address: str, flops_budget: int) -> 
         depin.record_compute_usage(
             addr,
             delta_flops=flops,
-            blurt_author=str((job or {}).get("blurt_author") or ""),
+            blurt_account=str((job or {}).get("blurt_account") or ""),
         )
     return {"ok": True, "job_id": jid, "flops_debited": flops}
 
@@ -1019,7 +1030,7 @@ def coordinator_dispatch_job(
         tenant_route = troute.resolve_job_inference_spec(job)
     gate = tgate.check_submit_allowed(
         tenant_id=str(job.get("tenant_id") or ""),
-        blurt_author=str(job.get("blurt_author") or ""),
+        blurt_account=str(job.get("blurt_account") or ""),
         stone_address=str(job.get("stone_address") or ""),
     )
     if not gate.get("allowed"):
@@ -1285,7 +1296,7 @@ def route_inference_job(*, job_id: str, force: bool = False) -> Dict[str, Any]:
         str(job.get("stone_address") or ""),
         flops_budget=int(job.get("flops_budget") or 0),
         job_id=str(job.get("job_id") or ""),
-        blurt_author=str(job.get("blurt_author") or ""),
+        blurt_account=str(job.get("blurt_account") or ""),
     )
     if not quota.get("allowed"):
         raise PermissionError(quota.get("reason") or "compute quota exceeded")

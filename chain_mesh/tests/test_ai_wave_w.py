@@ -14,7 +14,7 @@ class TestAiWaveW(unittest.TestCase):
         os.environ.pop("TENANT_SUBMIT_QUORUM_REQUIRE", None)
         gate = tgate.check_submit_allowed(
             tenant_id="bloodstone",
-            blurt_author="gateuser",
+            blurt_account="gateuser",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
         )
         self.assertTrue(gate.get("allowed"))
@@ -26,7 +26,7 @@ class TestAiWaveW(unittest.TestCase):
         os.environ["TENANT_SUBMIT_QUORUM_REQUIRE"] = "1"
         gate = tgate.check_submit_allowed(
             tenant_id="strict-test",
-            blurt_author="unquorumuser",
+            blurt_account="unquorumuser",
         )
         self.assertFalse(gate.get("allowed"))
         os.environ.pop("TENANT_SUBMIT_QUORUM_REQUIRE", None)
@@ -39,7 +39,7 @@ class TestAiWaveW(unittest.TestCase):
 
         tdash.bind_all_rails(
             tenant_id="author-q",
-            blurt_author="authorq",
+            blurt_account="authorq",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             flops_cap=1000,
             bandwidth_bytes_cap=2000,
@@ -49,7 +49,7 @@ class TestAiWaveW(unittest.TestCase):
         tquorum.record_snapshot_votes(snaps, reporter_node_id="node-a")
         tquorum.record_snapshot_votes(snaps, reporter_node_id="node-b")
         tquorum.update_quorum_state()
-        q = tgate.quorum_for_author(tenant_id="author-q", blurt_author="authorq")
+        q = tgate.quorum_for_author(tenant_id="author-q", blurt_account="authorq")
         self.assertTrue(q.get("satisfied"))
 
     def test_tenant_npu_bind_and_resolve(self):
@@ -57,14 +57,14 @@ class TestAiWaveW(unittest.TestCase):
 
         tnpu.bind_npu_model(
             tenant_id="npu-w",
-            blurt_author="npuuser",
+            blurt_account="npuuser",
             runtime="onnx",
             model_path="/tmp/wave-w-model.onnx",
             hardware_kind="hailo",
         )
         spec = tnpu.resolve_inference_spec(
             tenant_id="npu-w",
-            blurt_author="npuuser",
+            blurt_account="npuuser",
         )
         self.assertEqual(spec.get("runtime"), "onnx")
         self.assertEqual(spec.get("model_path"), "/tmp/wave-w-model.onnx")
@@ -76,7 +76,7 @@ class TestAiWaveW(unittest.TestCase):
 
         tdash.bind_all_rails(
             tenant_id="dash-w",
-            blurt_author="dashw",
+            blurt_account="dashw",
             stone_address="STONE1abcdefghijklmnopqrstuvwxyz12",
             flops_cap=5000,
             bandwidth_bytes_cap=6000,
@@ -84,12 +84,12 @@ class TestAiWaveW(unittest.TestCase):
         )
         tnpu.bind_npu_model(
             tenant_id="dash-w",
-            blurt_author="dashw",
+            blurt_account="dashw",
             runtime="tflite",
             model_path="/tmp/edge.tflite",
             hardware_kind="coral",
         )
-        dash = tdash.dashboard_payload(tenant_id="dash-w", blurt_author="dashw")
+        dash = tdash.dashboard_payload(tenant_id="dash-w", blurt_account="dashw")
         self.assertIn("quorum", dash)
         self.assertGreaterEqual(len(dash.get("npu_models") or []), 1)
         html = tdash.dashboard_page_html()
@@ -102,14 +102,14 @@ class TestAiWaveW(unittest.TestCase):
 
         tnpu.bind_npu_model(
             tenant_id="manifest-w",
-            blurt_author="manifestw",
+            blurt_account="manifestw",
             runtime="onnx",
             model_path="/tmp/manifest.onnx",
             hardware_kind="hailo",
         )
         manifest = tb.build_tenant_broadcast_manifest(
             tenant_id="manifest-w",
-            blurt_author="manifestw",
+            blurt_account="manifestw",
         )
         body = manifest.get("body") or {}
         self.assertGreaterEqual(len(body.get("npu_models") or []), 1)
@@ -122,7 +122,7 @@ class TestAiWaveW(unittest.TestCase):
         result = cjobs.submit_payload(
             {
                 "stone_address": "STONE1abcdefghijklmnopqrstuvwxyz12",
-                "blurt_author": "submitw",
+                "blurt_account": "submitw",
                 "job_type": "inference",
                 "flops_budget": 100,
                 "ai_spec": {"runtime": "cpu-inference"},
@@ -141,12 +141,12 @@ class TestAiWaveW(unittest.TestCase):
         spec.loader.exec_module(mod)
         tnpu.bind_npu_model(
             tenant_id="shim-w",
-            blurt_author="shimuser",
+            blurt_account="shimuser",
             runtime="onnx",
             model_path="/tmp/shim.onnx",
             hardware_kind="hailo",
         )
-        hint = mod._tenant_inference_hint({"blurt_author": "shimuser", "tenant_id": "shim-w"})
+        hint = mod._tenant_inference_hint({"blurt_account": "shimuser", "tenant_id": "shim-w"})
         self.assertEqual(hint.get("runtime"), "onnx")
 
     def test_api_submit_and_npu_payloads(self):

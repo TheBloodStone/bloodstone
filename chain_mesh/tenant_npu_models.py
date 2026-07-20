@@ -36,16 +36,16 @@ def init_tenant_npu_db() -> None:
             """
             CREATE TABLE IF NOT EXISTS tenant_npu_bindings (
                 tenant_id TEXT NOT NULL,
-                blurt_author TEXT NOT NULL,
+                blurt_account TEXT NOT NULL,
                 runtime TEXT NOT NULL,
                 model_path TEXT NOT NULL DEFAULT '',
                 hardware_kind TEXT NOT NULL DEFAULT 'cpu',
                 preferred INTEGER NOT NULL DEFAULT 1,
                 updated_at INTEGER NOT NULL,
-                PRIMARY KEY (tenant_id, blurt_author, runtime)
+                PRIMARY KEY (tenant_id, blurt_account, runtime)
             );
             CREATE INDEX IF NOT EXISTS idx_tenant_npu_author
-                ON tenant_npu_bindings(blurt_author, preferred DESC);
+                ON tenant_npu_bindings(blurt_account, preferred DESC);
             """
         )
 
@@ -53,7 +53,7 @@ def init_tenant_npu_db() -> None:
 def bind_npu_model(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
     runtime: str = "",
     model_path: str = "",
     hardware_kind: str = "",
@@ -61,9 +61,9 @@ def bind_npu_model(
 ) -> Dict[str, Any]:
     init_tenant_npu_db()
     tid = (tenant_id or _default_tenant()).strip()[:64] or _default_tenant()
-    author = _normalize_author(blurt_author)
+    author = _normalize_author(blurt_account)
     if not author:
-        raise ValueError("blurt_author required")
+        raise ValueError("blurt_account required")
     rt = (runtime or "").strip().lower()
     if rt not in VALID_RUNTIMES:
         raise ValueError(f"runtime must be one of: {sorted(VALID_RUNTIMES)}")
@@ -83,10 +83,10 @@ def bind_npu_model(
         conn.execute(
             """
             INSERT INTO tenant_npu_bindings (
-                tenant_id, blurt_author, runtime, model_path, hardware_kind,
+                tenant_id, blurt_account, runtime, model_path, hardware_kind,
                 preferred, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(tenant_id, blurt_author, runtime) DO UPDATE SET
+            ON CONFLICT(tenant_id, blurt_account, runtime) DO UPDATE SET
                 model_path = CASE WHEN excluded.model_path != ''
                     THEN excluded.model_path ELSE model_path END,
                 hardware_kind = excluded.hardware_kind,
@@ -99,7 +99,7 @@ def bind_npu_model(
         "ok": True,
         "format": NPU_FORMAT,
         "tenant_id": tid,
-        "blurt_author": author,
+        "blurt_account": author,
         "runtime": rt,
         "model_path": path,
         "hardware_kind": hw,
@@ -110,17 +110,17 @@ def bind_npu_model(
 def list_npu_models(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
 ) -> List[Dict[str, Any]]:
     init_tenant_npu_db()
     tid = (tenant_id or _default_tenant()).strip()[:64] or _default_tenant()
-    author = _normalize_author(blurt_author)
+    author = _normalize_author(blurt_account)
     with _conn() as conn:
         if author:
             rows = conn.execute(
                 """
                 SELECT * FROM tenant_npu_bindings
-                WHERE tenant_id = ? AND blurt_author = ?
+                WHERE tenant_id = ? AND blurt_account = ?
                 ORDER BY preferred DESC, updated_at DESC
                 """,
                 (tid, author),
@@ -140,14 +140,14 @@ def list_npu_models(
 
 def resolve_inference_spec(
     *,
-    blurt_author: str = "",
+    blurt_account: str = "",
     tenant_id: str = "",
     runtime_hint: str = "",
 ) -> Dict[str, Any]:
     init_tenant_npu_db()
     tid = (tenant_id or _default_tenant()).strip()[:64] or _default_tenant()
-    author = _normalize_author(blurt_author)
-    models = list_npu_models(tenant_id=tid, blurt_author=author) if author else []
+    author = _normalize_author(blurt_account)
+    models = list_npu_models(tenant_id=tid, blurt_account=author) if author else []
     hint = (runtime_hint or "").strip().lower()
     chosen: Optional[Dict[str, Any]] = None
     if hint:
@@ -188,16 +188,16 @@ def resolve_inference_spec(
         "hardware_kind": str(chosen.get("hardware_kind") or "cpu"),
         "source": "tenant_binding",
         "tenant_id": tid,
-        "blurt_author": author,
+        "blurt_account": author,
     }
 
 
 def npu_models_for_manifest(
     *,
     tenant_id: str = "",
-    blurt_author: str = "",
+    blurt_account: str = "",
 ) -> List[Dict[str, Any]]:
-    rows = list_npu_models(tenant_id=tenant_id, blurt_author=blurt_author)
+    rows = list_npu_models(tenant_id=tenant_id, blurt_account=blurt_account)
     return [
         {
             "runtime": str(r.get("runtime") or ""),

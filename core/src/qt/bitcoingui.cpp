@@ -17,6 +17,7 @@
 #include <qt/optionsdialog.h>
 #include <qt/optionsmodel.h>
 #include <qt/platformstyle.h>
+#include <qt/quasarwitness.h>
 #include <qt/rpcconsole.h>
 #include <qt/utilitydialog.h>
 
@@ -251,7 +252,7 @@ void BitcoinGUI::createActions()
     tabGroup->addAction(overviewAction);
 
     sendCoinsAction = new QAction(platformStyle->SingleColorIcon(":/icons/send"), tr("&Send"), this);
-    sendCoinsAction->setStatusTip(tr("Send coins to a SpaceXpanse address"));
+    sendCoinsAction->setStatusTip(tr("Send coins to a Bloodstone address"));
     sendCoinsAction->setToolTip(sendCoinsAction->statusTip());
     sendCoinsAction->setCheckable(true);
     sendCoinsAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_2));
@@ -262,7 +263,7 @@ void BitcoinGUI::createActions()
     sendCoinsMenuAction->setToolTip(sendCoinsMenuAction->statusTip());
 
     receiveCoinsAction = new QAction(platformStyle->SingleColorIcon(":/icons/receiving_addresses"), tr("&Receive"), this);
-    receiveCoinsAction->setStatusTip(tr("Request payments (generates QR codes and spacexpanse: URIs)"));
+    receiveCoinsAction->setStatusTip(tr("Request payments (generates QR codes and bloodstone: URIs)"));
     receiveCoinsAction->setToolTip(receiveCoinsAction->statusTip());
     receiveCoinsAction->setCheckable(true);
     receiveCoinsAction->setShortcut(QKeySequence(Qt::ALT + Qt::Key_3));
@@ -355,7 +356,7 @@ void BitcoinGUI::createActions()
     usedReceivingAddressesAction->setStatusTip(tr("Show the list of used receiving addresses and labels"));
 
     openAction = new QAction(tr("Open &URI…"), this);
-    openAction->setStatusTip(tr("Open a spacexpanse: URI"));
+    openAction->setStatusTip(tr("Open a bloodstone: URI"));
 
     m_open_wallet_action = new QAction(tr("Open Wallet"), this);
     m_open_wallet_action->setEnabled(false);
@@ -374,7 +375,7 @@ void BitcoinGUI::createActions()
 
     showHelpMessageAction = new QAction(tr("&Command-line options"), this);
     showHelpMessageAction->setMenuRole(QAction::NoRole);
-    showHelpMessageAction->setStatusTip(tr("Show the %1 help message to get a list with possible SpaceXpanse command-line options").arg(PACKAGE_NAME));
+    showHelpMessageAction->setStatusTip(tr("Show the %1 help message to get a list with possible Bloodstone command-line options").arg(PACKAGE_NAME));
 
     m_mask_values_action = new QAction(tr("&Mask values"), this);
     m_mask_values_action->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_M));
@@ -638,6 +639,15 @@ void BitcoinGUI::setClientModel(ClientModel *_clientModel, interfaces::BlockAndH
             // initialize the disable state of the tray icon with the current value in the model.
             trayIcon->setVisible(optionsModel->getShowTrayIcon());
         }
+
+        // QUASAR peer witness: while the pure Qt wallet is open/idle with a
+        // synced node, submit mesh witness capsules (same role as phone peers).
+        if (!m_quasar_witness) {
+            m_quasar_witness = new QuasarWitnessService(_clientModel, this);
+            // Catch UI activity app-wide so same-tip re-emit waits for idle.
+            qApp->installEventFilter(this);
+            m_quasar_witness->start();
+        }
     } else {
         // Disable possibility to show main window via action
         toggleHideAction->setEnabled(false);
@@ -655,6 +665,12 @@ void BitcoinGUI::setClientModel(ClientModel *_clientModel, interfaces::BlockAndH
         }
 #endif // ENABLE_WALLET
         unitDisplayControl->setOptionsModel(nullptr);
+        if (m_quasar_witness) {
+            qApp->removeEventFilter(this);
+            m_quasar_witness->stop();
+            m_quasar_witness->deleteLater();
+            m_quasar_witness = nullptr;
+        }
     }
 }
 
@@ -955,7 +971,7 @@ void BitcoinGUI::updateNetworkState()
 
     if (m_node.getNetworkActive()) {
         //: A substring of the tooltip.
-        tooltip = tr("%n active connection(s) to SpaceXpanse network.", "", count);
+        tooltip = tr("%n active connection(s) to Bloodstone network.", "", count);
     } else {
         //: A substring of the tooltip.
         tooltip = tr("Network activity disabled.");
@@ -1303,6 +1319,21 @@ bool BitcoinGUI::eventFilter(QObject *object, QEvent *event)
         // Prevent adding text from setStatusTip(), if we currently use the status bar for displaying other stuff
         if (progressBarLabel->isVisible() || progressBar->isVisible())
             return true;
+    }
+    // Track input/focus so same-tip QUASAR re-witness waits for idle windows.
+    switch (event->type()) {
+    case QEvent::KeyPress:
+    case QEvent::MouseButtonPress:
+    case QEvent::MouseMove:
+    case QEvent::Wheel:
+    case QEvent::TouchBegin:
+    case QEvent::WindowActivate:
+        if (m_quasar_witness) {
+            m_quasar_witness->noteUserActivity();
+        }
+        break;
+    default:
+        break;
     }
     return QMainWindow::eventFilter(object, event);
 }

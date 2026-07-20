@@ -33,12 +33,12 @@ void auxMiningCheck(const JSONRPCRequest& request)
   if (connman.GetNodeCount (ConnectionDirection::Both) == 0
         && !Params ().MineBlocksOnDemand ())
     throw JSONRPCError (RPC_CLIENT_NOT_CONNECTED,
-                        "SpaceXpanse is not connected!");
+                        "Bloodstone is not connected!");
 
   if (chainman.ActiveChainstate ().IsInitialBlockDownload ()
         && !Params ().MineBlocksOnDemand ())
     throw JSONRPCError (RPC_CLIENT_IN_INITIAL_DOWNLOAD,
-                        "SpaceXpanse is downloading blocks...");
+                        "Bloodstone is downloading blocks...");
 }
 
 }  // anonymous namespace
@@ -179,6 +179,33 @@ FormatHashBlocks(void* pbuffer, unsigned int len)
 
 }  // anonymous namespace
 
+static PowAlgo
+powAlgoFromCreateWorkRequest (const JSONRPCRequest& request)
+{
+  PowAlgo algo = PowAlgo::NEOSCRYPT;
+  if (request.params.size() > 1 && !request.params[1].isNull ()) {
+    try {
+      algo = PowAlgoFromString (request.params[1].get_str ());
+    } catch (const std::invalid_argument& exc) {
+      throw JSONRPCError (RPC_INVALID_PARAMETER, exc.what ());
+    }
+  }
+
+  const int nextHeight = [&request]() {
+    const auto& node = EnsureAnyNodeContext (request.context);
+    const auto& chainman = EnsureChainman (node);
+    LOCK (cs_main);
+    return chainman.ActiveChain ().Height () + 1;
+  }();
+
+  if (algo == PowAlgo::YESPOWER
+      && !Params ().GetConsensus ().rules->ForkInEffect (
+             Consensus::Fork::YESPOWER, nextHeight))
+    throw JSONRPCError (RPC_INVALID_REQUEST, "yespower blocks are not yet active");
+
+  return algo;
+}
+
 UniValue
 AuxpowMiner::createWork (const JSONRPCRequest& request,
                          const CScript& scriptPubKey)
@@ -189,10 +216,11 @@ AuxpowMiner::createWork (const JSONRPCRequest& request,
   LOCK (cs);
 
   const auto& mempool = EnsureMemPool (node);
+  const PowAlgo algo = powAlgoFromCreateWorkRequest (request);
 
   uint256 target;
   const CBlock* pblock = getCurrentBlock (chainman, mempool,
-                                          PowAlgo::NEOSCRYPT,
+                                          algo,
                                           scriptPubKey, target);
 
   CPureBlockHeader fakeHeader;

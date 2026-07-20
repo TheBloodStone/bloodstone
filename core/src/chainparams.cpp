@@ -208,10 +208,14 @@ public:
         strNetworkID = CBaseChainParams::MAIN;
         consensus.signet_blocks = false;
         consensus.signet_challenge.clear();
-        consensus.nSubsidyHalvingInterval = 1054080; // 4216320;
-        consensus.initialSubsidy = 100 * COIN; // Bloodstone relaunch PoW era-0 reward
-        consensus.nIncreasedSubsidyHeight = 12000; // subsidy fork: 1000 STONE from here
-        consensus.increasedInitialSubsidy = 1000 * COIN;
+        consensus.nSubsidyHalvingInterval = 1054080; // legacy field; stepped schedule uses nBlocksPerYear
+        consensus.initialSubsidy = 100 * COIN; // Year-1 base (stepped issuance)
+        // Jul 2026 policy: no mid-year-1 jump at 12000 — full year at 100, then Y2–3 at 1000.
+        consensus.nIncreasedSubsidyHeight = 0;
+        consensus.increasedInitialSubsidy = 0;
+        // ~80 s mean block time → ~394470 blocks/calendar year
+        consensus.nBlocksPerYear = 394470;
+        consensus.qseBaseSubsidy = 200 * COIN; // QUASAR Security Emission tail (Y8+)
         consensus.BIP16Height = 0;
         consensus.BIP34Height = 1;
         consensus.BIP65Height = 0;
@@ -248,6 +252,11 @@ public:
         consensus.defaultAssumeValid = uint256S("0x0000000000000000000000000000000000000000000000000000000000000000");
 
         consensus.nAuxpowChainId = 1899;
+
+        /* Phase H1 timewarp flag-day: FROZEN 2026-07-20.
+         * tip_at_freeze ≈ 13858 → H = 17000 (~3.3 days @ ~960 blocks/day).
+         * Window-min + MAX_FUTURE 1800 apply only for nHeight >= H. */
+        consensus.nH1TimewarpActivationHeight = 17000;
 
         consensus.rules.reset(new Consensus::MainNetConsensus());
 
@@ -327,6 +336,8 @@ public:
         consensus.initialSubsidy = 800 * COIN; //10 * COIN;
         consensus.nIncreasedSubsidyHeight = 0;
         consensus.increasedInitialSubsidy = 0;
+        consensus.nBlocksPerYear = 0; // legacy halving path
+        consensus.qseBaseSubsidy = 0;
         consensus.BIP16Height = 0;
         consensus.BIP34Height = 1;
         consensus.BIP65Height = 0;
@@ -363,6 +374,8 @@ public:
         consensus.defaultAssumeValid = uint256S("0x0"); // 110'000
 
         consensus.nAuxpowChainId = 1899;
+        /* H1 always-on for testnet (no mainnet grandfather history to protect). */
+        consensus.nH1TimewarpActivationHeight = 0;
 
         consensus.rules.reset(new Consensus::TestNetConsensus());
 
@@ -508,6 +521,11 @@ public:
         consensus.signet_blocks = true;
         consensus.signet_challenge.assign(bin.begin(), bin.end());
         consensus.nSubsidyHalvingInterval = 2880; // 2880;
+        consensus.initialSubsidy = 50 * COIN;
+        consensus.nIncreasedSubsidyHeight = 0;
+        consensus.increasedInitialSubsidy = 0;
+        consensus.nBlocksPerYear = 0;
+        consensus.qseBaseSubsidy = 0;
         consensus.BIP16Height = 1;
         consensus.BIP34Height = 1;
         consensus.BIP65Height = 1;
@@ -536,6 +554,7 @@ public:
         consensus.vDeployments[Consensus::DEPLOYMENT_QUASAR_BRAID].min_activation_height = 0;
 
         consensus.nAuxpowChainId = 1899;
+        consensus.nH1TimewarpActivationHeight = 0;
 
         consensus.rules.reset(new Consensus::TestNetConsensus());
 
@@ -610,11 +629,13 @@ public:
         strNetworkID =  CBaseChainParams::REGTEST;
         consensus.signet_blocks = false;
         consensus.signet_challenge.clear();
-        // Research fork: first halving interval 1000 blocks (was 150/360 for legacy tests).
+        // Research fork: compressed stepped schedule (100 blocks/year) for regtest.
         consensus.nSubsidyHalvingInterval = 1000;
         consensus.initialSubsidy = 100 * COIN;
-        consensus.nIncreasedSubsidyHeight = 1000; // mirrors mainnet 12000 fork at shorter scale
-        consensus.increasedInitialSubsidy = 1000 * COIN;
+        consensus.nIncreasedSubsidyHeight = 0;
+        consensus.increasedInitialSubsidy = 0;
+        consensus.nBlocksPerYear = 100; // Y1=100, Y2–3=1000, … Y8+=200 at short scale
+        consensus.qseBaseSubsidy = 200 * COIN;
         consensus.BIP16Height = 0;
         consensus.BIP34Height = 500; // BIP34 activated on regtest (Used in functional tests)
         consensus.BIP65Height = 1351; // BIP65 activated on regtest (Used in functional tests)
@@ -646,6 +667,8 @@ public:
         consensus.defaultAssumeValid = uint256{};
 
         consensus.nAuxpowChainId = 1899;
+        /* Regtest: H1 active from genesis so unit/functional tests exercise rules. */
+        consensus.nH1TimewarpActivationHeight = 0;
 
         consensus.rules.reset(new Consensus::RegTestConsensus());
 

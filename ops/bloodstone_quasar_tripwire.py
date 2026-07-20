@@ -144,6 +144,44 @@ def evaluate_tripwires(rpc: Callable) -> Dict[str, Any]:
     except Exception:
         pass
 
+    # Mesh witnesses disagree on tip height — AI-reviewed advisory + tripwire.
+    try:
+        import bloodstone_witness as bw
+
+        info = rpc("getblockchaininfo")
+        tip_hash = str(info.get("bestblockhash") or "")
+        tip_h = int(info.get("blocks") or 0)
+        reviewed = bw.ensure_tip_height_ai_review(tip_hash, tip_h)
+        disagreement = reviewed.get("disagreement") or {}
+        review = reviewed.get("review") or {}
+        if disagreement.get("disagreement"):
+            sev = str(review.get("severity") or "high").lower()
+            if sev not in ("low", "medium", "high", "critical"):
+                sev = "high"
+            alerts.append(
+                {
+                    "code": "QUASAR_ALERT_WITNESS_TIP_HEIGHT",
+                    "severity": sev if sev in ("high", "critical") else "high",
+                    "message": (
+                        "Mesh witnesses disagree on tip height "
+                        f"(spread={disagreement.get('height_spread')}, "
+                        f"heights={disagreement.get('distinct_heights')}). "
+                        f"AI action={review.get('action')}: "
+                        f"{str(review.get('rationale') or '')[:180]}"
+                    ),
+                    "height_spread": disagreement.get("height_spread"),
+                    "distinct_heights": disagreement.get("distinct_heights"),
+                    "ai_review_id": reviewed.get("review_id"),
+                    "ai_action": review.get("action"),
+                    "ai_confidence": review.get("confidence"),
+                    "ai_reviewer": review.get("reviewer"),
+                    "recommended_height": review.get("recommended_height"),
+                    "operator_decision": reviewed.get("operator_decision") or "",
+                }
+            )
+    except Exception:
+        pass
+
     active = any(a.get("severity") in ("high", "critical") for a in alerts)
     payload = {
         "ok": True,
