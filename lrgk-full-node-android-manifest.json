@@ -1,0 +1,10 @@
+{
+  "app_label": "LRGK Full Node",
+  "version": "1.0.32",
+  "version_code": 10032,
+  "filename": "lrgk-full-node-android-1.0.32.apk",
+  "sha256": "8f22ba862cd08cf5318ebe9364c4d853abefb3fd2ef1871742a33c054e518602",
+  "size_bytes": 25141489,
+  "url": "https://bloodstonewallet.mytunnel.org/downloads/lrgk-full-node-android-1.0.32.apk",
+  "latest_url": "https://bloodstonewallet.mytunnel.org/downloads/lrgk-full-node-android-latest.apk"
+}

@@ -1,0 +1,31 @@
+**How do I become a Bloodstone witness?**
+
+Bloodstone “witness” is NOT like Hive/Blurt (no election, no stake vote, no paid office).
+A witness = a node that **verifies the chain** and attests to the tip it sees (QUASAR mesh defense).
+
+**Phone (exact in-app names)**
+1. Install the miner APK → https://bloodstonewallet.mytunnel.org/downloads/
+2. Set your **STONE payout address** (wallet you control)
+3. On the miner screen open **Local node mode**
+4. Pick one:
+   • `Consensus — validate chain + P2P witness (~550 MiB, no stratum)`  → tap **Start consensus node**
+   • `Consensus witness — lightweight witness only (no stratum, no inbound P2P)`  → tap **Start witness node**
+   • `Full chain — host for household (needs ~2 GB free)`  → tap **Start full node** (strongest)
+5. Wi‑Fi · plugged in · battery saver off · wait for **chain sync**
+6. Stay online when you can. Optional mining: use **Pool mode** (consensus modes do not host LAN stratum)
+
+**Cheat sheet**
+• Old/low-RAM phone → **Consensus witness** / **Start witness node**
+• Help the network + peer → **Consensus** / **Start consensus node**
+• Home hub → **Full chain** / **Start full node**
+• Only mine, no chain download → **LAN client**
+
+**Desktop**
+Qt or node package from Downloads + tip **bootstrap** if stuck mid-sync · open TCP **17333**
+
+**You do NOT need**
+Stake, votes, “vote for me”, special admin key, or paying for a title.
+
+**FAQ (full):** https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-Become-A-Witness-FAQ.md
+**How the network works:** https://bloodstonewallet.mytunnel.org/downloads/Bloodstone-How-The-Network-Works.md
+**QUASAR:** https://bloodstonewallet.mytunnel.org/quasar/

@@ -1,0 +1,17 @@
+{
+  "network": "lrgk",
+  "magic": "cab95753",
+  "p2p_port": 33685,
+  "rpc_public": false,
+  "seeds": [
+    {
+      "host": "64.188.22.190",
+      "port": 33685,
+      "addnode": "64.188.22.190:33685",
+      "role": "ops-public-seed",
+      "notes": "Official LRGK bootstrap peer on Bloodstone ops VPS. Not a Bloodstone peer."
+    }
+  ],
+  "updated_at": "2026-07-19T06:15:00Z",
+  "docs": "https://bloodstonewallet.mytunnel.org/downloads/LRGK-Public-Peer.md"
+}

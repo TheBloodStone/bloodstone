@@ -1,0 +1,17 @@
+{
+  "chain": "lrgk",
+  "updated_unix": 1784594821,
+  "updated_iso": "2026-07-21T00:47:01Z",
+  "height": 3,
+  "headers": 3,
+  "bestblockhash": "4e6b55e380b2e88ab654b515e5929645165d7561c841b48f9572411ad8a185f2",
+  "initialblockdownload": false,
+  "connections": 0,
+  "difficulty": {
+    "sha256d": 6.732915580143369e-07,
+    "neoscrypt": 1.862617615686817e-09,
+    "yespower": 9.31308585802033e-10
+  },
+  "public_p2p": "64.188.22.190:33685",
+  "notes": "APK should addnode public_p2p and not mine until local height >= height (or user overrides)."
+}
