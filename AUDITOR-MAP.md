@@ -15,6 +15,8 @@
 | [`packages/linux-node/start-node.sh`](packages/linux-node/start-node.sh) | Conf, seeds, bootstrap hook, exec daemon |
 | [`packages/linux-node/install-chain-bootstrap.sh`](packages/linux-node/install-chain-bootstrap.sh) | Download / SHA256 / safe tar extract |
 | [`packages/linux-node/bloodstone.conf.example`](packages/linux-node/bloodstone.conf.example) | Default ports, RPC bind, seeds |
+| [`packages/linux-node/install-from-source.sh`](packages/linux-node/install-from-source.sh) | **Clone monorepo + compile** (transparency path) |
+| [`packages/linux-node/verify-release.sh`](packages/linux-node/verify-release.sh) | SHA-256 (+ optional PGP) for prebuilt tarballs |
 
 **Security remediation notes:** `docs/Bloodstone-Node-0.7.6-Security-Audit-Remediation.md` (also on downloads).
 

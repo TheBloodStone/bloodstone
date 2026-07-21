@@ -7,8 +7,11 @@ Use this when auditing the **installer**, not the whole monorepo.
 ```
 packages/linux-node/start-node.sh
 packages/linux-node/install-chain-bootstrap.sh
+packages/linux-node/install-from-source.sh    # clone GitHub monorepo + compile
+packages/linux-node/verify-release.sh         # SHA-256 (+ optional PGP)
 packages/linux-node/bloodstone.conf.example
 packages/linux-node/README.md
+packages/linux-node/MANIFEST.md
 ```
 
 ## Section B — Packagers (how A is assembled)
