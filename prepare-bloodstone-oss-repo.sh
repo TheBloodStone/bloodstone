@@ -33,6 +33,9 @@ RSYNC_EXCLUDES=(
   --exclude 'keystore.properties'
   --exclude '.env'
   --exclude '.env.*'
+  --exclude 'chain_mesh.db'
+  --exclude 'dtn_forward_queue'
+  --exclude '__pycache__'
 )
 
 copy_tree() {
@@ -91,6 +94,17 @@ copy_tree support "$SRC_ROOT/bloodstone-support"
 copy_tree electrumx "$SRC_ROOT/bloodstone-electrumx"
 copy_tree docs "$SRC_ROOT/bloodstone-docs"
 
+# Installer packages (auditable surfaces — not the flat ops dump)
+mkdir -p "$OUT/packages/linux-node"
+if [[ -d "$SRC_ROOT/packages/linux-node" ]]; then
+  rsync -a "$SRC_ROOT/packages/linux-node/" "$OUT/packages/linux-node/"
+  [[ -f "$SRC_ROOT/packages/README.md" ]] && cp -f "$SRC_ROOT/packages/README.md" "$OUT/packages/"
+  [[ -f "$SRC_ROOT/AUDITOR-MAP.md" ]] && cp -f "$SRC_ROOT/AUDITOR-MAP.md" "$OUT/"
+  log "packages/linux-node + AUDITOR-MAP.md"
+fi
+copy_tree chain_mesh "$SRC_ROOT/chain_mesh"
+copy_tree ops/bloodstone-pi-fleet "$SRC_ROOT/ops/bloodstone-pi-fleet"
+
 # Shared ops scripts (VPS pool, stratum, builds, watchdogs)
 for f in \
   bloodstone_downloads.py \
@@ -107,6 +121,23 @@ for f in \
   submit-bloodstone-gitlab-release.sh \
   generate-beta-tester-code.sh \
   publish-quasar-docs.sh \
+  sync-quasar-braid-index.py \
+  rehearse-quasar-fork.py \
+  sync-blurt-convergence.py \
+  emit-quasar-witness-capsule.py \
+  bloodstone_quasar.py \
+  bloodstone_quasar_api.py \
+  bloodstone_quasar_enforcement.py \
+  bloodstone_quasar_signaling.py \
+  bloodstone_quasar_fork.py \
+  bloodstone_quasar_tripwire.py \
+  bloodstone_braid_index.py \
+  bloodstone_witness.py \
+  bloodstone_lan_echo.py \
+  bloodstone-dtn-mdns.py \
+  bloodstone-dtn-tls-proxy.py \
+  setup-dtn-pi-tls.sh \
+  build-bloodstone-pi-fleet-convergence-package.sh \
   sync-bloodstone-downloads-to-worker.sh \
   bloodstone-stratum.py \
   bloodstone-stratum-yespower.py \

@@ -23,6 +23,8 @@ This monorepo reflects the project layout as deployed in July 2026. Component tr
 | `docs/` | White papers, FAQ generators, network documentation sources |
 | `ops/` | VPS scripts — stratum workers, watchdogs, APK/web publish, downloads metadata |
 | `downloads/` | Downloads page template |
+| **`packages/linux-node/`** | **Linux node installer scripts** (what ships in `bloodstone-node-*-linux-*.tar.gz`) — start here for installer audits |
+| **`AUDITOR-MAP.md`** | **Sectioned map of the monorepo** (installer vs pool ops vs Android vs portal) |
 
 ## Raspberry Pi fleet — Blurt convergence bundle
 
@@ -117,3 +119,19 @@ Prebuilt packages (Qt, CLI/node, Raspberry Pi ARM64, Android miner, Pi miner):
 
 Upgrade full nodes **before** chain height **17000**. See `docs/h1/` or `releases/v0.7.6-h1/Phase-H1-Who-Must-Upgrade.md`.
 
+
+
+## Linux node installer (auditable surface)
+
+The headless node tarball (`bloodstone-node-*-linux-*.tar.gz`) is **not** the whole monorepo.
+
+| | |
+|--|--|
+| Scripts + conf | [`packages/linux-node/`](packages/linux-node/) |
+| File map | [`packages/linux-node/MANIFEST.md`](packages/linux-node/MANIFEST.md) |
+| Monorepo sections | [`AUDITOR-MAP.md`](AUDITOR-MAP.md) |
+
+```bash
+# After unpacking the tarball on a Pi:
+./start-node.sh
+```

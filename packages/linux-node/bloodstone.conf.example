@@ -1,0 +1,15 @@
+# Bloodstone node example config (headless)
+# Packaged with bloodstone-node-*-linux-*.tar.gz
+server=1
+daemon=1
+listen=1
+port=17333
+rpcport=18332
+rpcbind=127.0.0.1
+rpcallowip=127.0.0.1
+rpcuser=bloodstone
+rpcpassword=CHANGE_ME
+# Default seeds (overridable via BLOODSTONE_SEEDS when using start-node.sh)
+addnode=64.188.22.190:17333
+addnode=192.119.82.145:17333
+allowminingwhennotconnected=1
