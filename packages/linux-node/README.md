@@ -66,13 +66,18 @@ Do **not** expose RPC to the internet without a firewall and strong credentials.
 
 ---
 
-## PGP signatures
+## PGP signatures (release authenticity)
 
-| Status | Detail |
-|--------|--------|
-| **Today** | Every release artifact should have a **`.sha256` sidecar** — use `verify-release.sh` |
-| **PGP** | If a `.asc` / `.sig` is published next to the file, `verify-release.sh` runs `gpg --verify` |
-| **Not yet universal** | Signed releases may not exist for every artifact; from-source install remains the strongest transparency path |
+| Item | Detail |
+|------|--------|
+| **Public key** | [`bloodstone-release-key.asc`](bloodstone-release-key.asc) — also https://bloodstone.rocks/downloads/bloodstone-release-key.asc |
+| **Fingerprint** | `326795FA0B4E7C975276AB9FF6255B970D6642AD` |
+| **What we sign** | The **`.sha256` checksum file** → produces **`.sha256.asc`** (Bitcoin-style) |
+| **Verify** | `./verify-release.sh artifact.tar.gz` (PGP then SHA-256) |
+| **Strict fleet** | `BLOODSTONE_REQUIRE_PGP=1 ./verify-release.sh …` |
+| **Docs** | `docs/Bloodstone-PGP-Release-Signing.md` |
+
+SHA-256 alone is not enough if the download server is compromised. PGP on the checksum closes that gap.
 
 ---
 
