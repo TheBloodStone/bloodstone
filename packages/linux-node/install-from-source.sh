@@ -136,35 +136,39 @@ verify_git_ref() {
   log "WARN: ref $ref has no verified signature (set BLOODSTONE_REQUIRE_SIGNED_REF=1 to enforce later)"
 }
 
+# Set by clone_or_update — do NOT use $(clone_or_update); git prints to stdout.
+CLONE_SRC_ROOT=""
+
 clone_or_update() {
   local dest="$1"
+  CLONE_SRC_ROOT=""
   if [[ -n "${BLOODSTONE_SRC_DIR:-}" ]]; then
     [[ -d "$BLOODSTONE_SRC_DIR" ]] || die "BLOODSTONE_SRC_DIR not a directory: $BLOODSTONE_SRC_DIR"
     log "Using existing source: $BLOODSTONE_SRC_DIR"
     verify_git_ref "$BLOODSTONE_SRC_DIR" "$REPO_REF"
-    echo "$BLOODSTONE_SRC_DIR"
+    CLONE_SRC_ROOT="$BLOODSTONE_SRC_DIR"
     return 0
   fi
   if [[ -d "$dest/.git" ]]; then
     log "Updating existing clone $dest (ref $REPO_REF)…"
-    # Prefer tags/branches with enough history for verify-tag when possible
-    git -C "$dest" fetch --tags origin "$REPO_REF" 2>/dev/null \
-      || git -C "$dest" fetch --depth 1 origin "$REPO_REF" \
-      || git -C "$dest" fetch origin \
+    # All git chatter must NOT go to stdout (callers must not capture this function).
+    git -C "$dest" fetch --tags origin "$REPO_REF" >/dev/null 2>&1 \
+      || git -C "$dest" fetch --depth 1 origin "$REPO_REF" >/dev/null 2>&1 \
+      || git -C "$dest" fetch origin >/dev/null 2>&1 \
       || die "git fetch failed for $dest"
     # Detached / diverged local commits are common on Pi experiments — hard-reset
     # to origin for a clean tree (local-only edits under the work clone are discarded).
     if git -C "$dest" rev-parse --verify "origin/${REPO_REF}" >/dev/null 2>&1; then
-      git -C "$dest" checkout -B "$REPO_REF" "origin/${REPO_REF}" \
+      git -C "$dest" checkout -B "$REPO_REF" "origin/${REPO_REF}" >/dev/null 2>&1 \
         || die "Could not checkout origin/${REPO_REF}"
-      git -C "$dest" reset --hard "origin/${REPO_REF}" \
+      git -C "$dest" reset --hard "origin/${REPO_REF}" >/dev/null 2>&1 \
         || die "Could not reset to origin/${REPO_REF}"
     else
-      git -C "$dest" checkout "$REPO_REF" 2>/dev/null \
-        || git -C "$dest" checkout -B "$REPO_REF" "FETCH_HEAD" \
+      git -C "$dest" checkout "$REPO_REF" >/dev/null 2>&1 \
+        || git -C "$dest" checkout -B "$REPO_REF" "FETCH_HEAD" >/dev/null 2>&1 \
         || die "Could not checkout ref $REPO_REF"
-      git -C "$dest" pull --ff-only 2>/dev/null \
-        || git -C "$dest" reset --hard "FETCH_HEAD" 2>/dev/null \
+      git -C "$dest" pull --ff-only >/dev/null 2>&1 \
+        || git -C "$dest" reset --hard "FETCH_HEAD" >/dev/null 2>&1 \
         || true
     fi
     log "Source HEAD: $(git -C "$dest" rev-parse --short HEAD 2>/dev/null || echo unknown) ($(git -C "$dest" describe --tags --always 2>/dev/null || true))"
@@ -172,14 +176,15 @@ clone_or_update() {
     log "Cloning public monorepo (immutable ref preferred for reproducibility):"
     log "  $REPO_URL  @ $REPO_REF"
     mkdir -p "$(dirname "$dest")"
-    if ! git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$dest"; then
+    if ! git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$dest" >/dev/null 2>&1; then
       log "Branch/tag shallow clone failed — full clone then checkout $REPO_REF"
-      git clone "$REPO_URL" "$dest"
-      git -C "$dest" checkout "$REPO_REF" || die "Could not checkout $REPO_REF after clone"
+      git clone "$REPO_URL" "$dest" >/dev/null 2>&1 || die "git clone failed"
+      git -C "$dest" checkout "$REPO_REF" >/dev/null 2>&1 || die "Could not checkout $REPO_REF after clone"
     fi
   fi
   verify_git_ref "$dest" "$REPO_REF"
-  echo "$dest"
+  [[ -d "$dest" ]] || die "clone path missing: $dest"
+  CLONE_SRC_ROOT="$dest"
 }
 
 build_core() {
@@ -300,9 +305,13 @@ main() {
 
   local work src_root core_dir
   work="${BLOODSTONE_BUILD_WORK:-$HOME/bloodstone-src-build}"
-  src_root="$(clone_or_update "$work/bloodstone")"
+  # Never capture clone_or_update with $() — git/log must not pollute the path.
+  clone_or_update "$work/bloodstone"
+  src_root="$CLONE_SRC_ROOT"
+  [[ -n "$src_root" && -d "$src_root" ]] || die "clone_or_update did not set a valid source dir"
   SRC_ROOT="$src_root"
   core_dir="$(resolve_core_dir "$src_root")"
+  log "Source tree: $src_root"
   log "Core tree: $core_dir"
 
   build_core "$core_dir"

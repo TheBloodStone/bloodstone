@@ -44,7 +44,7 @@ cd packages/linux-node
 ```
 
 
-**If you see** `No core/ or Bitcoin-style tree under [install-from-source] Updating…` — fixed on latest `main` (logs polluted the source path). `git pull` this package and re-run. If git says branches have **diverged**, the updated script hard-resets the work clone under `~/bloodstone-src-build` to `origin/<ref>` (safe for that throwaway build tree).
+**If you see** `No core/ under 'HEAD is now at…'` or similar — that was git/log stdout captured into the source path (fixed on latest `main`). Pull again and re-run `./install-from-source.sh`. Diverged work clones under `~/bloodstone-src-build` are hard-reset to `origin/<ref>`.
 
 **If you see** `bin/bloodstoned: No such file or directory` — the compile/install step did not finish (or failed). `start-node.sh` does **not** build the node; run `./install-from-source.sh` again and confirm `ls -la bin/bloodstoned` before starting. On a Pi this can take hours.
 
