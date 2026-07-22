@@ -11,8 +11,8 @@
 #   BLOODSTONE_SRC_DIR=/path ./install-from-source.sh   # use existing checkout
 #   PREFIX=$HOME/bloodstone-node ./install-from-source.sh
 #
-# After success:
-#   cd "$PREFIX" && ./start-node.sh
+# After success (default PREFIX = this package directory):
+#   ./start-node.sh
 #
 # Notes:
 #   - On Raspberry Pi 4/5 this can take a long time (often 1–4+ hours).
@@ -24,13 +24,23 @@ IFS=$'\n\t'
 umask 077
 
 REPO_URL="${BLOODSTONE_GIT_URL:-https://github.com/TheBloodStone/bloodstone.git}"
-REPO_REF="${BLOODSTONE_GIT_REF:-main}"
+# Prefer immutable release tags (audit: do not default to floating main).
+# Override: BLOODSTONE_GIT_REF=main or a commit SHA.
+REPO_REF="${BLOODSTONE_GIT_REF:-v0.7.6-h1}"
+# When 1 (default), attempt git verify-tag / verify-commit after checkout.
+REQUIRE_SIGNED_REF="${BLOODSTONE_REQUIRE_SIGNED_REF:-0}"
+VERIFY_TAG="${BLOODSTONE_VERIFY_TAG:-1}"
 PREFIX="${PREFIX:-}"
 MAKE_JOBS="${MAKE_JOBS:-$(nproc 2>/dev/null || echo 2)}"
 SKIP_DEPS="${BLOODSTONE_SKIP_DEPS:-0}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+INSTALL_LOG_DIR="${BLOODSTONE_LOG_DIR:-${HOME}/.bloodstone/logs}"
 
-log() { echo "[install-from-source] $*"; }
+log() {
+  echo "[install-from-source] $*"
+  mkdir -p "$INSTALL_LOG_DIR" 2>/dev/null || true
+  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*" >> "$INSTALL_LOG_DIR/install-from-source.log" 2>/dev/null || true
+}
 die() { echo "[install-from-source] ERROR: $*" >&2; exit 1; }
 
 arch_triple() {
@@ -88,26 +98,67 @@ resolve_core_dir() {
   fi
 }
 
+verify_git_ref() {
+  local dest="$1"
+  local ref="$2"
+  [[ "$VERIFY_TAG" == "1" || "$REQUIRE_SIGNED_REF" == "1" ]] || return 0
+  if ! command -v git >/dev/null 2>&1; then
+    return 0
+  fi
+  # Signed annotated tags
+  if git -C "$dest" rev-parse "refs/tags/${ref}" >/dev/null 2>&1 \
+    || git -C "$dest" rev-parse "refs/tags/${ref}^{}" >/dev/null 2>&1; then
+    if git -C "$dest" verify-tag "$ref" 2>/dev/null; then
+      log "git verify-tag OK for $ref"
+      return 0
+    fi
+    if [[ "$REQUIRE_SIGNED_REF" == "1" ]]; then
+      die "BLOODSTONE_REQUIRE_SIGNED_REF=1 but git verify-tag failed for $ref (import release key / use signed tags)"
+    fi
+    log "WARN: tag $ref is not cryptographically verified (import Bloodstone release key and use signed tags when available)"
+    return 0
+  fi
+  # Optional commit signature
+  if git -C "$dest" verify-commit HEAD 2>/dev/null; then
+    log "git verify-commit OK for HEAD"
+    return 0
+  fi
+  if [[ "$REQUIRE_SIGNED_REF" == "1" ]]; then
+    die "BLOODSTONE_REQUIRE_SIGNED_REF=1 but neither tag nor commit signature verified for $ref"
+  fi
+  log "WARN: ref $ref has no verified signature (set BLOODSTONE_REQUIRE_SIGNED_REF=1 to enforce later)"
+}
+
 clone_or_update() {
   local dest="$1"
   if [[ -n "${BLOODSTONE_SRC_DIR:-}" ]]; then
     [[ -d "$BLOODSTONE_SRC_DIR" ]] || die "BLOODSTONE_SRC_DIR not a directory: $BLOODSTONE_SRC_DIR"
     log "Using existing source: $BLOODSTONE_SRC_DIR"
+    verify_git_ref "$BLOODSTONE_SRC_DIR" "$REPO_REF"
     echo "$BLOODSTONE_SRC_DIR"
     return 0
   fi
   if [[ -d "$dest/.git" ]]; then
     log "Updating existing clone $dest (ref $REPO_REF)…"
-    git -C "$dest" fetch --depth 1 origin "$REPO_REF" || git -C "$dest" fetch origin
-    git -C "$dest" checkout "$REPO_REF" 2>/dev/null || git -C "$dest" checkout -B "$REPO_REF" "origin/$REPO_REF"
+    # Prefer tags/branches with enough history for verify-tag when possible
+    git -C "$dest" fetch --tags origin "$REPO_REF" 2>/dev/null \
+      || git -C "$dest" fetch --depth 1 origin "$REPO_REF" \
+      || git -C "$dest" fetch origin
+    git -C "$dest" checkout "$REPO_REF" 2>/dev/null \
+      || git -C "$dest" checkout -B "$REPO_REF" "origin/$REPO_REF" \
+      || die "Could not checkout ref $REPO_REF"
     git -C "$dest" pull --ff-only 2>/dev/null || true
   else
-    log "Cloning public monorepo (this is intentional — you can watch git fetch the OSS tree):"
+    log "Cloning public monorepo (immutable ref preferred for reproducibility):"
     log "  $REPO_URL  @ $REPO_REF"
     mkdir -p "$(dirname "$dest")"
-    git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$dest" \
-      || git clone --depth 1 "$REPO_URL" "$dest"
+    if ! git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$dest"; then
+      log "Branch/tag shallow clone failed — full clone then checkout $REPO_REF"
+      git clone "$REPO_URL" "$dest"
+      git -C "$dest" checkout "$REPO_REF" || die "Could not checkout $REPO_REF after clone"
+    fi
   fi
+  verify_git_ref "$dest" "$REPO_REF"
   echo "$dest"
 }
 
@@ -154,26 +205,44 @@ install_layout() {
   fi
 
   # Installer scripts from this package tree (or next to this script)
-  for f in start-node.sh install-chain-bootstrap.sh bloodstone.conf.example; do
+  for f in start-node.sh install-chain-bootstrap.sh bloodstone.conf.example \
+           bloodstone-health.sh bloodstone-node.service install-systemd.sh verify-release.sh; do
     if [[ -f "$SCRIPT_DIR/$f" ]]; then
       cp -a "$SCRIPT_DIR/$f" "$dest/$f"
     fi
   done
   chmod 755 "$dest/start-node.sh" "$dest/install-chain-bootstrap.sh" 2>/dev/null || true
+  chmod 755 "$dest/bloodstone-health.sh" "$dest/install-systemd.sh" 2>/dev/null || true
 
-  # Record provenance for auditors
+  local git_commit="" git_describe="" cc_ver="" openssl_ver="" boost_hint=""
+  if [[ -d "${SRC_ROOT:-}/.git" ]]; then
+    git_commit="$(git -C "$SRC_ROOT" rev-parse HEAD 2>/dev/null || true)"
+    git_describe="$(git -C "$SRC_ROOT" describe --tags --always 2>/dev/null || true)"
+  fi
+  cc_ver="$(${CC:-c++} --version 2>/dev/null | head -1 || true)"
+  openssl_ver="$(openssl version 2>/dev/null || true)"
+  boost_hint="$(dpkg -l 'libboost*' 2>/dev/null | awk '/^ii/ {print $2, $3}' | head -3 | tr '\n' '; ' || true)"
+
+  # Record provenance for auditors (BUILD-INFO.txt is the audit-recommended name)
   {
     echo "built_from_source=1"
     echo "repo_url=${REPO_URL}"
     echo "repo_ref=${REPO_REF}"
+    echo "git_commit=${git_commit}"
+    echo "git_describe=${git_describe}"
     echo "built_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "host=$(uname -a)"
-    if [[ -d "${SRC_ROOT:-}/.git" ]]; then
-      echo "git_commit=$(git -C "$SRC_ROOT" rev-parse HEAD 2>/dev/null || true)"
-    fi
+    echo "arch=$(uname -m)"
+    echo "compiler=${cc_ver}"
+    echo "openssl=${openssl_ver}"
+    echo "boost_packages=${boost_hint}"
     echo "daemon_sha256=$(sha256sum "$dest/bin/bloodstoned" | awk '{print $1}')"
-  } > "$dest/BUILD-PROVENANCE.txt"
-  chmod 644 "$dest/BUILD-PROVENANCE.txt"
+    if [[ -x "$dest/bin/bloodstone-cli" ]]; then
+      echo "cli_sha256=$(sha256sum "$dest/bin/bloodstone-cli" | awk '{print $1}')"
+    fi
+  } > "$dest/BUILD-INFO.txt"
+  cp -a "$dest/BUILD-INFO.txt" "$dest/BUILD-PROVENANCE.txt"
+  chmod 644 "$dest/BUILD-INFO.txt" "$dest/BUILD-PROVENANCE.txt"
 
   cat > "$dest/README-FROM-SOURCE.txt" <<EOF
 Bloodstone node — built from public source
@@ -201,7 +270,7 @@ EOF
   log "  bin/bloodstoned"
   [[ -x "$dest/bin/bloodstone-cli" ]] && log "  bin/bloodstone-cli"
   log "  start-node.sh / install-chain-bootstrap.sh"
-  log "  BUILD-PROVENANCE.txt (git + binary hash)"
+  log "  BUILD-INFO.txt / BUILD-PROVENANCE.txt (git + binary hash + toolchain)"
 }
 
 main() {
@@ -218,17 +287,19 @@ main() {
 
   build_core "$core_dir"
 
+  # Default: install into packages/linux-node itself (start-node.sh already lives here).
+  # Override with PREFIX=/path if you want a separate run directory.
   if [[ -z "$PREFIX" ]]; then
-    PREFIX="${SCRIPT_DIR}/bloodstone-node-from-source-$(arch_triple)"
+    PREFIX="$SCRIPT_DIR"
   fi
   install_layout "$core_dir" "$PREFIX"
 
   log ""
-  log "Done. Next:"
-  log "  cd \"$PREFIX\""
+  log "Done. Next (from $PREFIX):"
   log "  ./start-node.sh"
   log ""
   log "Optional seed override: BLOODSTONE_SEEDS=\"ip:17333\" ./start-node.sh"
+  log "Optional separate install dir: PREFIX=\$HOME/bloodstone-node ./install-from-source.sh"
 }
 
 main "$@"
