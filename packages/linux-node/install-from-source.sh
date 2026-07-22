@@ -37,7 +37,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_LOG_DIR="${BLOODSTONE_LOG_DIR:-${HOME}/.bloodstone/logs}"
 
 log() {
-  echo "[install-from-source] $*"
+  # IMPORTANT: logs must go to stderr. clone_or_update / resolve_core_dir are
+  # captured via $(...) — stdout pollution becomes a bogus source path and
+  # produces: "No core/ under [install-from-source] Updating existing clone…"
+  echo "[install-from-source] $*" >&2
   mkdir -p "$INSTALL_LOG_DIR" 2>/dev/null || true
   echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*" >> "$INSTALL_LOG_DIR/install-from-source.log" 2>/dev/null || true
 }
@@ -89,12 +92,16 @@ ensure_deps() {
 
 resolve_core_dir() {
   local root="$1"
+  # Trim accidental whitespace/newlines from $(clone_or_update)
+  root="$(printf '%s' "$root" | head -1 | tr -d '\r')"
   if [[ -f "$root/core/configure.ac" ]]; then
     echo "$root/core"
   elif [[ -f "$root/configure.ac" && -f "$root/src/chainparams.cpp" ]]; then
     echo "$root"
+  elif [[ -f "$root/chain/configure.ac" ]]; then
+    echo "$root/chain"
   else
-    die "No core/ or Bitcoin-style tree under $root"
+    die "No core/ or Bitcoin-style tree under '$root' (need core/configure.ac). ls: $(ls -la "$root" 2>/dev/null | head -20 | tr '\n' ' ')"
   fi
 }
 
@@ -143,11 +150,24 @@ clone_or_update() {
     # Prefer tags/branches with enough history for verify-tag when possible
     git -C "$dest" fetch --tags origin "$REPO_REF" 2>/dev/null \
       || git -C "$dest" fetch --depth 1 origin "$REPO_REF" \
-      || git -C "$dest" fetch origin
-    git -C "$dest" checkout "$REPO_REF" 2>/dev/null \
-      || git -C "$dest" checkout -B "$REPO_REF" "origin/$REPO_REF" \
-      || die "Could not checkout ref $REPO_REF"
-    git -C "$dest" pull --ff-only 2>/dev/null || true
+      || git -C "$dest" fetch origin \
+      || die "git fetch failed for $dest"
+    # Detached / diverged local commits are common on Pi experiments — hard-reset
+    # to origin for a clean tree (local-only edits under the work clone are discarded).
+    if git -C "$dest" rev-parse --verify "origin/${REPO_REF}" >/dev/null 2>&1; then
+      git -C "$dest" checkout -B "$REPO_REF" "origin/${REPO_REF}" \
+        || die "Could not checkout origin/${REPO_REF}"
+      git -C "$dest" reset --hard "origin/${REPO_REF}" \
+        || die "Could not reset to origin/${REPO_REF}"
+    else
+      git -C "$dest" checkout "$REPO_REF" 2>/dev/null \
+        || git -C "$dest" checkout -B "$REPO_REF" "FETCH_HEAD" \
+        || die "Could not checkout ref $REPO_REF"
+      git -C "$dest" pull --ff-only 2>/dev/null \
+        || git -C "$dest" reset --hard "FETCH_HEAD" 2>/dev/null \
+        || true
+    fi
+    log "Source HEAD: $(git -C "$dest" rev-parse --short HEAD 2>/dev/null || echo unknown) ($(git -C "$dest" describe --tags --always 2>/dev/null || true))"
   else
     log "Cloning public monorepo (immutable ref preferred for reproducibility):"
     log "  $REPO_URL  @ $REPO_REF"

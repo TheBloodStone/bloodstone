@@ -43,6 +43,9 @@ cd packages/linux-node
 ./start-node.sh
 ```
 
+
+**If you see** `No core/ or Bitcoin-style tree under [install-from-source] Updating…` — fixed on latest `main` (logs polluted the source path). `git pull` this package and re-run. If git says branches have **diverged**, the updated script hard-resets the work clone under `~/bloodstone-src-build` to `origin/<ref>` (safe for that throwaway build tree).
+
 **If you see** `bin/bloodstoned: No such file or directory` — the compile/install step did not finish (or failed). `start-node.sh` does **not** build the node; run `./install-from-source.sh` again and confirm `ls -la bin/bloodstoned` before starting. On a Pi this can take hours.
 
 `install-from-source.sh` installs `bin/bloodstoned` (and CLI) **into this package directory** by default, next to the existing `start-node.sh`. There is **no** `bloodstone-node-from-source-linux-aarch64` (or `…-x86_64`) folder unless you set one yourself:
