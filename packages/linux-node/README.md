@@ -38,9 +38,12 @@ cd bloodstone-node-0.7.6-linux-aarch64
 cd packages/linux-node
 ./install-from-source.sh
 
+# Wait until install-from-source finishes successfully (creates bin/bloodstoned).
 # Then (stay in packages/linux-node — do not cd into a missing subfolder):
 ./start-node.sh
 ```
+
+**If you see** `bin/bloodstoned: No such file or directory` — the compile/install step did not finish (or failed). `start-node.sh` does **not** build the node; run `./install-from-source.sh` again and confirm `ls -la bin/bloodstoned` before starting. On a Pi this can take hours.
 
 `install-from-source.sh` installs `bin/bloodstoned` (and CLI) **into this package directory** by default, next to the existing `start-node.sh`. There is **no** `bloodstone-node-from-source-linux-aarch64` (or `…-x86_64`) folder unless you set one yourself:
 
