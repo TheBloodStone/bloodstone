@@ -6,6 +6,7 @@
 #define BITCOIN_UTIL_HASHER_H
 
 #include <crypto/siphash.h>
+#include <cstdint>
 #include <primitives/transaction.h>
 #include <uint256.h>
 

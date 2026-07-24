@@ -11,6 +11,7 @@
 
 #include <chrono>
 #include <string>
+#include <cstdint>
 
 /**
  * Maximum time to wait for I/O readiness.
