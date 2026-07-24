@@ -1,0 +1,71 @@
+# Bloodstone full node — hardened systemd unit (first-party).
+#
+# Install (from extracted package directory):
+#   sudo ./install-systemd.sh
+# Or manually:
+#   sudo install -m 644 bloodstone-node.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now bloodstone-node
+#
+# Override user/paths with a drop-in:
+#   sudo systemctl edit bloodstone-node
+#
+# Notes:
+#   - Runs as a dedicated system user by default (bloodstone).
+#   - ProtectHome=true: datadir must live under /var/lib/bloodstone (or edit unit).
+#   - Does not ship RPC credentials; conf is created mode 600 by start-node.sh.
+
+[Unit]
+Description=Bloodstone full node (bloodstoned)
+Documentation=https://bloodstone.rocks/downloads/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+User=bloodstone
+Group=bloodstone
+# Package install path — install-systemd.sh rewrites these.
+Environment=BLOODSTONE_DATADIR=/var/lib/bloodstone
+Environment=BLOODSTONE_HOME=/opt/bloodstone-node
+WorkingDirectory=/opt/bloodstone-node
+PIDFile=/var/lib/bloodstone/bloodstoned.pid
+ExecStart=/opt/bloodstone-node/start-node.sh
+ExecStop=/opt/bloodstone-node/bin/bloodstone-cli -conf=/var/lib/bloodstone/bloodstone.conf stop
+Restart=on-failure
+RestartSec=15
+TimeoutStartSec=600
+TimeoutStopSec=120
+# Optional: enable after bloodstoned supports systemd watchdog
+# WatchdogSec=120
+
+# --- Hardening (audit recommendation) ---
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/var/lib/bloodstone
+# Allow binding if operator later enables privileged ports (not required for 17333)
+# AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bloodstoned
+
+[Install]
+WantedBy=multi-user.target
