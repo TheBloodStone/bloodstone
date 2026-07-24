@@ -1860,11 +1860,26 @@ static inline void v128_bswap32_intrlv80_2x64( void *d, const void *src )
   v128u64_t s3 = casti_v128u64( src,3 );
   v128u64_t s4 = casti_v128u64( src,4 );
 
+  /* GCC 14+ NEON: cannot assign uint32x4_t into v128u64_t (uint64x2_t). */
+#if defined(__ARM_NEON) && defined(v128_bswap32_u64)
+  s0 = v128_bswap32_u64( s0 );
+  s1 = v128_bswap32_u64( s1 );
+  s2 = v128_bswap32_u64( s2 );
+  s3 = v128_bswap32_u64( s3 );
+  s4 = v128_bswap32_u64( s4 );
+#elif defined(__ARM_NEON)
+  s0 = vreinterpretq_u64_u8(vrev32q_u8((uint8x16_t)s0));
+  s1 = vreinterpretq_u64_u8(vrev32q_u8((uint8x16_t)s1));
+  s2 = vreinterpretq_u64_u8(vrev32q_u8((uint8x16_t)s2));
+  s3 = vreinterpretq_u64_u8(vrev32q_u8((uint8x16_t)s3));
+  s4 = vreinterpretq_u64_u8(vrev32q_u8((uint8x16_t)s4));
+#else
   s0 = v128_bswap32( s0 );
   s1 = v128_bswap32( s1 );
   s2 = v128_bswap32( s2 );
   s3 = v128_bswap32( s3 );
   s4 = v128_bswap32( s4 );
+#endif
 
   casti_v128u64( d,0 ) = v128_duplane64( s0, 0 );
   casti_v128u64( d,1 ) = v128_duplane64( s0, 1 );

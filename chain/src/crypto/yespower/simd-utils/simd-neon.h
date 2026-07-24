@@ -437,9 +437,13 @@ static inline uint32x4_t v128_shufll32( uint32x4_t v )
 */
 
 // reverse byte order
-#define v128_bswap16(v)        (uint16x8_t)vrev16q_u8( (uint8x16_t)(v) )
-#define v128_bswap32(v)        (uint32x4_t)vrev32q_u8( (uint8x16_t)(v) )
-#define v128_bswap64(v)        (uint64x2_t)vrev64q_u8( (uint8x16_t)(v) )
+// GCC 14+ forbids C assignment between distinct NEON poly types (u32 vs u64).
+// Always reinterpreting through u8 avoids -flax-vector-conversions reliance.
+#define v128_bswap16(v)        vreinterpretq_u16_u8(vrev16q_u8((uint8x16_t)(v)))
+#define v128_bswap32(v)        vreinterpretq_u32_u8(vrev32q_u8((uint8x16_t)(v)))
+/* Same byte-swap as v128_bswap32 but typed as u64x2 for v128u64_t lvalues */
+#define v128_bswap32_u64(v)    vreinterpretq_u64_u8(vrev32q_u8((uint8x16_t)(v)))
+#define v128_bswap64(v)        vreinterpretq_u64_u8(vrev64q_u8((uint8x16_t)(v)))
 #define v128_bswap128(v)       (uint32x4_t)v128_rev64( v128_bswap64(v) )
 
 #define v128_block_bswap32( dst, src ) \
