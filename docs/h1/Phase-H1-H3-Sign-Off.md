@@ -29,6 +29,8 @@ H1/H3 signed off. Single-binary green on both suites verified (linked 07:05:28, 
 
 **§15.1 vault gate:** signed off ≠ discharged. Discharge only when H1 is **merged and active** on the network (see `vault-threat-model.md` v1.2). Spec reference for §15.1 is **Build Spec v1.2**.
 
+**Ops 2026-07-24:** Cexius main-chain alignment **closed**; LRGK **0.7.6** resolved; intend **GO on 26 Jul** after LRGK NTP receipt — see `Phase-H1-GO-Register-2026-07-26.md`. Flip §15.1 to **discharged** only after flag-day activation + post-crossing check-in (not at GO decision).
+
 ---
 
 ## Test evidence (single binary)

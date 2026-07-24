@@ -38,20 +38,20 @@ This is an **ops inventory**, not a complete census of every wallet user. Re-run
 
 | Addr / role | Subver | Notes |
 |-------------|--------|-------|
-| **Primary VPS** `64.188.22.190` (this host) | `/Bloodstone:0.7.6/` | Running `/root/bloodstone-core/src/bloodstoned`; SHA256 `58d0f35ba9f9e10c34acf9c2e651199b6a7593859dd8762f9e81e89472ef4fe9`; strings include `nH1TimewarpActivationHeight` / `timewarp-dgw-window` |
-| **LRGK worker** `192.119.82.145` | `/Bloodstone:0.7.2/` | Federation status peer; **stratum ports advertised** on status API — **must upgrade template node before H** |
-| `185.190.56.235` | `0.7.4` | Outbound + inbound — identify operator |
-| `107.205.210.9` | `0.7.0` | Lagging start height ~12070 historically — **old** |
+| **Primary VPS** `64.188.22.190` (this host) | `/Bloodstone:0.7.6/` | Running `/root/bloodstone-core/src/bloodstoned`; SHA256 `58d0f35ba9f9e10c34acf9c2e651199b6a7593859dd8762f9e81e89472ef4fe9`; H1 markers present |
+| **LRGK worker** `192.119.82.145` | `/Bloodstone:0.7.6/` | **RESOLVED 2026-07-23** — upgraded; binary SHA **matches primary**; strata restarted. Ricardo: **no miners on LRGK yet** (template path theoretical) |
+| `185.190.56.235` | `0.7.4` | Soft residual only — full-relay peer; **no public STONE stratum**; possible offline solo-GBT (low impact @ ~250 s/block) |
+| `107.205.210.9` | `0.7.0` | **Pool-client** — mines to **our** stratum (primary templates); own version irrelevant to validity |
 | `97.149.216.154` | `0.7.6` | Also mining to pool (stratum ESTAB) |
 | `185.32.162.191` | `0.7.6` | |
-| `207.177.142.232` | mix **0.7.6 + 0.7.4** | Multiple connections; **mixed** — clean to 0.7.6 only |
+| `207.177.142.232` | mix **0.7.6 + 0.7.4** | **Pool-client** — hashrate to our pool; residual 0.7.4 process not a public template host |
 
 **Federation roster (coordinators):**
 
 | ID | Base | P2P | Roles |
 |----|------|-----|-------|
 | coord-a-primary | bloodstonewallet.mytunnel.org | 64.188.22.190:17333 | witness, status, downloads, catalog, pool, electrumx |
-| coord-b-lrgk-01 | LRGK.mytunnel.org | 192.119.82.145:17333 | witness, status (**node still 0.7.2**) |
+| coord-b-lrgk-01 | LRGK.mytunnel.org | 192.119.82.145:17333 | witness, status (**bloodstoned 0.7.6** — upgraded) |
 | coord-lab-witness-01 | (lab) | — | witness |
 
 ---
@@ -60,7 +60,7 @@ This is an **ops inventory**, not a complete census of every wallet user. Re-run
 
 | Lane | Algo | Port | Connected (TCP ESTAB @ snap) | Template host risk |
 |------|------|-----:|-----------------------------:|--------------------|
-| **SHA256d** (Bitaxe / aux) | sha256d | **3429** | 3 | Primary pool node = 0.7.6 OK; LRGK also lists 3429 — upgrade LRGK |
+| **SHA256d** (Bitaxe / aux) | sha256d | **3429** | 3 | Primary + LRGK both **0.7.6**; live finds on **primary** path |
 | **Neoscrypt** | neoscrypt-xaya | **3437** | 3 | same |
 | **Yespower R16** | yespower | **3438** | 5 | same |
 
@@ -133,38 +133,55 @@ Tarball SHA256: `48c1c394d9c4bc239a535079a40bbde8fdfea98fadb9d72511be421c334e746
 
 ---
 
-## 6. Go / no-go on H=17000 (decision frame)
+## 6. Go / no-go on H=17000 (updated 2026-07-24)
 
-**H cannot move without a new tag + everyone re-upgrading.** Decide now.
+**Canonical register:** [Phase-H1-GO-Register-2026-07-26.md](Phase-H1-GO-Register-2026-07-26.md)
 
-| Signal | Observation | Implication |
-|--------|-------------|-------------|
-| Block production today | Almost all via **primary pool** on **0.7.6** | Soft-fork safer **if** that stays true at H |
-| P2P still mixed | **9/20 peers < 0.7.6** | Validation diversity OK-ish; **hashrate producers** matter more |
-| LRGK `192.119.82.145` | **0.7.2** + advertises stratum | **NO-GO item** until upgraded or stratum disabled |
-| Solo / unknown 0.7.0–0.7.4 | Present | Risk of post-H invalid templates if they mine |
-| Cexius | **Main-chain tip hash verified** (2026-07-24; conf=21 @ h=15133) | Exchange still separate from miner-template risk |
-| Window left | **~5.5 days** | Possible to upgrade fleet; tight for ~20 operators if unresponsive |
+| Signal | Observation | Status |
+|--------|-------------|--------|
+| Block production | Almost all via **primary pool** on **0.7.6** | GREEN |
+| LRGK `192.119.82.145` | **0.7.6**, SHA matches primary, strata restarted; **no miners yet** | **RESOLVED** (not a live blocker) |
+| Sub-0.7.6 peers | Of remaining lag IPs: **two mine to our pool** (templates = primary 0.7.6); **185.190** soft residual only | **Not a re-tag trigger** |
+| Cexius | Tip hash on main chain (conf=21 @ h=15133) | **CLOSED** |
+| NTP / clock | Primary **verified synchronized** (offset ~ms); LRGK NTP **receipt still required** | **Only open ops item before 26th** |
 
-### Recommendation (as of this snapshot + Cexius close)
+### Four criteria for the 26th
 
-**CONDITIONAL HOLD on riding 17000 under-covered:**
+| # | Criterion | Status |
+|---|-----------|--------|
+| 1 | Primary template host 0.7.6-h1 | **GREEN** |
+| 2 | LRGK bloodstoned 0.7.6-h1 | **GREEN** |
+| 3 | Cexius same main chain | **GREEN** |
+| 4 | No live foreign STONE templates &lt; H1 | **GREEN** |
 
-1. ~~Cexius chain tip~~ — **closed** (same main chain; see §5.1).  
-2. **Upgrade or disconnect template mining** on **LRGK (0.7.2)** within 24–48h.  
-3. Push **0.7.6-h1** to every peer still on 0.7.0/0.7.2/0.7.4 that can mine or serve GBT.  
-4. If by **~2026-07-26 00:00 UTC** (≈3 days before ETA) we still lack:
-   - LRGK on 0.7.6-h1 (or mining off), **and**
-   - clear contact/upgrade from any non-pool hashrate / mixed hosts,  
-   then **re-tag with a later H now** (e.g. +7–14 days of buffer) while tip is still ~15k — cheaper than a split.
+**Live blockers: none.** One small unquantified residual (185.190 offline solo-GBT) — low impact (window rule cannot fire at ~250 s/block; stray block orphans).
 
-If LRGK + primary stay 0.7.6-h1 and effectively **all block finds** remain on upgraded templates, **GO on H=17000** is defensible even if some non-mining peers lag.
+### Recommendation (ops correction)
+
+**Intend GO on H=17000 at the 26 Jul checkpoint** after **LRGK NTP/clock receipt** is logged (primary NTP already closed 2026-07-24).  
+Do **not** re-open LRGK or “lagging miners” as no-go items — that framing is **stale**.
+
+**Crossing (staffed):** ~**20:42 NZST 29 Jul** through ~**04:00 NZST 30 Jul** (use live ETA from `h1-boundary-status.json`).  
+**+24–48 h post-activation:** health check-in.  
+**§15.1 vault gate:** discharge **only after** H1 is active on the network (not at GO-decision; see GO register).
 
 ---
 
-## 7. Watcher
+## 7. NTP / clock (honest failure mode)
+
+Post-H future bound **1800 s** — a **&gt;30 min fast** clock on a template host is the most plausible honest failure at the boundary.
+
+| Host | Check (2026-07-24) | Result |
+|------|--------------------|--------|
+| **Primary** | `timedatectl`: NTP=yes, **NTPSynchronized=yes**; timesyncd → ntp.ubuntu.com; offset **~+1.4 ms** | **CLOSED** |
+| **LRGK** | Needs Ricardo/ops: `timedatectl status` / `chronyc tracking` showing synchronized | **OPEN — close before 26 Jul** |
+
+---
+
+## 8. Watcher + crossing watch
 
 - Service: `bloodstone-h1-boundary-watch.timer` (every 2 min)  
 - Log: `/var/log/bloodstone/h1-boundary-watch.log`  
 - State: `/var/lib/bloodstone/h1-watch/status.json` + `ALERT` when ≤500 blocks  
-- Public: https://bloodstonewallet.mytunnel.org/downloads/h1-boundary-status.json
+- Public: https://bloodstonewallet.mytunnel.org/downloads/h1-boundary-status.json  
+- **Staffed window:** NZ evening 29 Jul → early 30 Jul (align to rolling UTC ETA)
