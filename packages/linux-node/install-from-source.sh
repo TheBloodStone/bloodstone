@@ -26,13 +26,18 @@ umask 077
 REPO_URL="${BLOODSTONE_GIT_URL:-https://github.com/TheBloodStone/bloodstone.git}"
 # Prefer immutable release tags (audit: do not default to floating main).
 # Override: BLOODSTONE_GIT_REF=main or a commit SHA.
+# If the preferred tag is missing locally/remotely, checkout falls back to HEAD.
 REPO_REF="${BLOODSTONE_GIT_REF:-v0.7.6-h1}"
-# When 1 (default), attempt git verify-tag / verify-commit after checkout.
+# When 1, attempt git verify-tag / verify-commit after checkout.
 REQUIRE_SIGNED_REF="${BLOODSTONE_REQUIRE_SIGNED_REF:-0}"
 VERIFY_TAG="${BLOODSTONE_VERIFY_TAG:-1}"
 PREFIX="${PREFIX:-}"
 MAKE_JOBS="${MAKE_JOBS:-$(nproc 2>/dev/null || echo 2)}"
 SKIP_DEPS="${BLOODSTONE_SKIP_DEPS:-0}"
+# Extra ./configure flags (space-separated). --with-incompatible-bdb is ALWAYS
+# added in build_core (system Berkeley DB on Debian/Ubuntu/Pi OS is never 4.8).
+# Append more with BLOODSTONE_CONFIGURE_ARGS or CONFIGURE_FLAGS, e.g.:
+#   CONFIGURE_FLAGS="--without-miniupnpc" ./install-from-source.sh
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INSTALL_LOG_DIR="${BLOODSTONE_LOG_DIR:-${HOME}/.bloodstone/logs}"
 
@@ -136,8 +141,70 @@ verify_git_ref() {
   log "WARN: ref $ref has no verified signature (set BLOODSTONE_REQUIRE_SIGNED_REF=1 to enforce later)"
 }
 
-# Set by clone_or_update — do NOT use $(clone_or_update); git prints to stdout.
+# Set by clone_or_update — do NOT use $(clone_or_update); git prints to stdout
+# (e.g. "HEAD is now at …" from reset --hard) and must never become a path.
 CLONE_SRC_ROOT=""
+
+# Resolve a ref that may be a tag, branch, remote branch, or commit.
+# Prints nothing; returns 0 if the ref can be resolved to a commit object.
+ref_exists() {
+  local dest="$1"
+  local ref="$2"
+  git -C "$dest" rev-parse --verify "${ref}^{commit}" >/dev/null 2>&1 \
+    || git -C "$dest" rev-parse --verify "refs/tags/${ref}^{commit}" >/dev/null 2>&1 \
+    || git -C "$dest" rev-parse --verify "refs/tags/${ref}" >/dev/null 2>&1 \
+    || git -C "$dest" rev-parse --verify "refs/remotes/origin/${ref}" >/dev/null 2>&1 \
+    || git -C "$dest" rev-parse --verify "origin/${ref}" >/dev/null 2>&1
+}
+
+# Checkout preferred ref; fall back to current HEAD if missing.
+# All git stdout/stderr is redirected — never pollute caller capture paths.
+safe_checkout_ref() {
+  local dest="$1"
+  local ref="$2"
+  [[ -n "$ref" ]] || return 0
+
+  # Best-effort: pull tags + the named ref (tag or branch).
+  git -C "$dest" fetch origin --tags >/dev/null 2>&1 || true
+  git -C "$dest" fetch origin "refs/tags/${ref}:refs/tags/${ref}" >/dev/null 2>&1 || true
+  git -C "$dest" fetch origin "${ref}" >/dev/null 2>&1 || true
+  git -C "$dest" fetch --depth 1 origin "${ref}" >/dev/null 2>&1 || true
+
+  if ! ref_exists "$dest" "$ref"; then
+    log "WARN: Ref '$ref' not found (tag/branch/commit); building from current HEAD"
+    log "      Override with BLOODSTONE_GIT_REF=main (or a known tag/SHA) if needed"
+    return 0
+  fi
+
+  # Prefer remote-tracking branch when the ref is a branch name.
+  if git -C "$dest" rev-parse --verify "refs/remotes/origin/${ref}" >/dev/null 2>&1; then
+    git -C "$dest" checkout -B "$ref" "origin/${ref}" >/dev/null 2>&1 \
+      || die "Could not checkout origin/${ref}"
+    # Silenced: reset prints "HEAD is now at …" which must not be captured as a path.
+    git -C "$dest" reset --hard "origin/${ref}" >/dev/null 2>&1 \
+      || die "Could not reset to origin/${ref}"
+    return 0
+  fi
+
+  # Annotated/lightweight tags and bare SHAs.
+  if git -C "$dest" rev-parse --verify "refs/tags/${ref}" >/dev/null 2>&1 \
+    || git -C "$dest" rev-parse --verify "refs/tags/${ref}^{}" >/dev/null 2>&1; then
+    git -C "$dest" checkout --detach "refs/tags/${ref}" >/dev/null 2>&1 \
+      || git -C "$dest" checkout --detach "$ref" >/dev/null 2>&1 \
+      || die "Could not checkout tag $ref"
+    return 0
+  fi
+
+  if git -C "$dest" checkout "$ref" >/dev/null 2>&1; then
+    return 0
+  fi
+  if git -C "$dest" checkout -B "$ref" "FETCH_HEAD" >/dev/null 2>&1; then
+    git -C "$dest" reset --hard "FETCH_HEAD" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  log "WARN: Could not checkout ref '$ref'; continuing with current HEAD"
+}
 
 clone_or_update() {
   local dest="$1"
@@ -145,32 +212,21 @@ clone_or_update() {
   if [[ -n "${BLOODSTONE_SRC_DIR:-}" ]]; then
     [[ -d "$BLOODSTONE_SRC_DIR" ]] || die "BLOODSTONE_SRC_DIR not a directory: $BLOODSTONE_SRC_DIR"
     log "Using existing source: $BLOODSTONE_SRC_DIR"
-    verify_git_ref "$BLOODSTONE_SRC_DIR" "$REPO_REF"
-    CLONE_SRC_ROOT="$BLOODSTONE_SRC_DIR"
+    # Absolute path — never assign from git stdout.
+    CLONE_SRC_ROOT="$(cd "$BLOODSTONE_SRC_DIR" && pwd -P)"
+    if [[ -d "$CLONE_SRC_ROOT/.git" ]]; then
+      safe_checkout_ref "$CLONE_SRC_ROOT" "$REPO_REF"
+    fi
+    verify_git_ref "$CLONE_SRC_ROOT" "$REPO_REF"
     return 0
   fi
   if [[ -d "$dest/.git" ]]; then
     log "Updating existing clone $dest (ref $REPO_REF)…"
     # All git chatter must NOT go to stdout (callers must not capture this function).
-    git -C "$dest" fetch --tags origin "$REPO_REF" >/dev/null 2>&1 \
-      || git -C "$dest" fetch --depth 1 origin "$REPO_REF" >/dev/null 2>&1 \
+    git -C "$dest" fetch --tags origin >/dev/null 2>&1 \
       || git -C "$dest" fetch origin >/dev/null 2>&1 \
-      || die "git fetch failed for $dest"
-    # Detached / diverged local commits are common on Pi experiments — hard-reset
-    # to origin for a clean tree (local-only edits under the work clone are discarded).
-    if git -C "$dest" rev-parse --verify "origin/${REPO_REF}" >/dev/null 2>&1; then
-      git -C "$dest" checkout -B "$REPO_REF" "origin/${REPO_REF}" >/dev/null 2>&1 \
-        || die "Could not checkout origin/${REPO_REF}"
-      git -C "$dest" reset --hard "origin/${REPO_REF}" >/dev/null 2>&1 \
-        || die "Could not reset to origin/${REPO_REF}"
-    else
-      git -C "$dest" checkout "$REPO_REF" >/dev/null 2>&1 \
-        || git -C "$dest" checkout -B "$REPO_REF" "FETCH_HEAD" >/dev/null 2>&1 \
-        || die "Could not checkout ref $REPO_REF"
-      git -C "$dest" pull --ff-only >/dev/null 2>&1 \
-        || git -C "$dest" reset --hard "FETCH_HEAD" >/dev/null 2>&1 \
-        || true
-    fi
+      || log "WARN: git fetch failed for $dest — trying local refs only"
+    safe_checkout_ref "$dest" "$REPO_REF"
     log "Source HEAD: $(git -C "$dest" rev-parse --short HEAD 2>/dev/null || echo unknown) ($(git -C "$dest" describe --tags --always 2>/dev/null || true))"
   else
     log "Cloning public monorepo (immutable ref preferred for reproducibility):"
@@ -179,16 +235,39 @@ clone_or_update() {
     if ! git clone --depth 1 --branch "$REPO_REF" "$REPO_URL" "$dest" >/dev/null 2>&1; then
       log "Branch/tag shallow clone failed — full clone then checkout $REPO_REF"
       git clone "$REPO_URL" "$dest" >/dev/null 2>&1 || die "git clone failed"
-      git -C "$dest" checkout "$REPO_REF" >/dev/null 2>&1 || die "Could not checkout $REPO_REF after clone"
+      safe_checkout_ref "$dest" "$REPO_REF"
     fi
   fi
   verify_git_ref "$dest" "$REPO_REF"
   [[ -d "$dest" ]] || die "clone path missing: $dest"
-  CLONE_SRC_ROOT="$dest"
+  # Real path only — never git/log stdout.
+  CLONE_SRC_ROOT="$(cd "$dest" && pwd -P)"
 }
 
 build_core() {
   local core="$1"
+  # ALWAYS pass --with-incompatible-bdb: modern Debian/Ubuntu/Pi OS ship BDB ≠ 4.8.
+  # User extras via BLOODSTONE_CONFIGURE_ARGS or CONFIGURE_FLAGS (appended).
+  # Use an array so flags are never lost to word-splitting / empty env.
+  local -a conf_args=(
+    --prefix=/usr/local
+    --with-incompatible-bdb
+    --without-gui
+    --disable-tests
+    --disable-bench
+  )
+  # shellcheck disable=SC2206
+  local -a extras=( ${BLOODSTONE_CONFIGURE_ARGS:-} ${CONFIGURE_FLAGS:-} )
+  local e
+  for e in "${extras[@]}"; do
+    [[ -n "$e" ]] || continue
+    # Skip duplicate bdb flags if the operator already set them.
+    case "$e" in
+      --with-incompatible-bdb|--without-bdb) continue ;;
+    esac
+    conf_args+=("$e")
+  done
+
   log "Building in $core (jobs=$MAKE_JOBS)…"
   cd "$core"
   if [[ ! -f configure && -f autogen.sh ]]; then
@@ -196,10 +275,29 @@ build_core() {
   elif [[ ! -f configure ]]; then
     die "No autogen.sh/configure in $core"
   fi
-  # Prefer clean out-of-tree if build/ exists from a prior failed run
-  ./configure --prefix=/usr/local --without-gui --disable-tests --disable-bench \
-    ${BLOODSTONE_CONFIGURE_ARGS:-} \
-    || ./configure --without-gui --disable-tests --disable-bench ${BLOODSTONE_CONFIGURE_ARGS:-}
+
+  # Stale cache from a prior failed configure can re-fail confusingly — clear it.
+  rm -f config.cache config.status config.log 2>/dev/null || true
+
+  log "configure flags: ${conf_args[*]}"
+  if ! ./configure "${conf_args[@]}"; then
+    log "configure with --prefix failed — retrying without --prefix=/usr/local"
+    local -a retry_args=()
+    for e in "${conf_args[@]}"; do
+      [[ "$e" == --prefix=/usr/local ]] && continue
+      retry_args+=("$e")
+    done
+    ./configure "${retry_args[@]}" \
+      || die "configure failed. On Debian/Pi you need --with-incompatible-bdb (this script always adds it). Last 40 lines of config.log:"$'\n'"$(tail -40 config.log 2>/dev/null || true)"
+  fi
+  # Prove the flag was accepted (BDB wallet enabled despite non-4.8 system lib).
+  if [[ -f config.log ]] && grep -q "Found Berkeley DB other than 4.8" config.log 2>/dev/null; then
+    if ! grep -qiE "incompatible.bdb|BDB.*enable|with.bdb" config.log 2>/dev/null; then
+      log "WARN: config.log still mentions non-4.8 BDB — check wallet support"
+    else
+      log "OK: configure accepted system Berkeley DB via --with-incompatible-bdb"
+    fi
+  fi
   make -j"$MAKE_JOBS"
   [[ -x src/bloodstoned ]] || [[ -x src/spacexpansed ]] || die "bloodstoned binary not produced"
 }

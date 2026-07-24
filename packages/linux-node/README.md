@@ -44,7 +44,46 @@ cd packages/linux-node
 ```
 
 
-**If you see** `No core/ under 'HEAD is now at…'` or similar — that was git/log stdout captured into the source path (fixed on latest `main`). Pull again and re-run `./install-from-source.sh`. Diverged work clones under `~/bloodstone-src-build` are hard-reset to `origin/<ref>`.
+**If you see** `No core/ under 'HEAD is now at…'` or similar — that was git/log stdout captured into the source path (fixed on latest `main`). Pull again and re-run `./install-from-source.sh`. Git reset/checkout output is silenced; the source path is always a real directory (`pwd -P`).
+
+**If you see** `Could not checkout ref v0.7.6-h1` — the preferred tag was missing locally/remotely. Latest `install-from-source.sh` **warns and continues from HEAD** instead of dying. Force a known ref with `BLOODSTONE_GIT_REF=main ./install-from-source.sh`.
+
+**If you see** `Found Berkeley DB other than 4.8` / configure error about portable BDB wallets — modern Debian/Ubuntu/Pi OS ship BDB ≠ 4.8. Latest script passes **`--with-incompatible-bdb`** by default. Append more flags with `CONFIGURE_FLAGS=…` or `BLOODSTONE_CONFIGURE_ARGS=…`.
+
+
+
+**If you see** `simd-neon.h: incompatible types ... uint64x2_t ... uint32x4_t` / `v128_bswap32` — GCC 14+ on Raspberry Pi OS is strict about NEON vector types. Fixed on `main` (`317629c`). Pull latest `main` (not tag `v0.7.6-h1` alone) and rebuild:
+```bash
+cd ~/bloodstone-src-build/bloodstone   # or your clone
+git pull origin main
+cd core && make -j$(nproc)
+```
+
+**If you see** `Found Berkeley DB other than 4.8` / `required for portable BDB wallets` — modern Debian/Ubuntu/Pi OS ship BDB ≠ 4.8. **Current `install-from-source.sh` always passes `--with-incompatible-bdb`** (pull latest `main`). Manual configure must include the flag:
+
+```bash
+# Preferred: re-run the fixed installer from monorepo main
+cd ~/bloodstone-src-build/bloodstone   # your monorepo clone
+git pull origin main
+cd packages/linux-node
+BLOODSTONE_GIT_REF=main BLOODSTONE_SRC_DIR=$HOME/bloodstone-src-build/bloodstone \
+  ./install-from-source.sh
+
+# Or configure by hand in core/:
+cd ~/bloodstone-src-build/bloodstone/core
+rm -f config.cache config.status
+./configure --with-incompatible-bdb --without-gui --disable-tests --disable-bench
+make -j$(nproc)
+```
+
+Do **not** only set `CONFIGURE_FLAGS=--with-incompatible-bdb` on an **old** installer that never forwarded flags — pull the fixed script first.
+
+**If you see** `mapport.cpp: too few arguments to function UPNP_GetValidIGD` — your distro ships miniupnpc **API ≥ 18** (common on modern Raspberry Pi OS / Debian 13). Fixed in current monorepo `core/src/mapport.cpp` (and `chain/`). Pull latest source and rebuild, **or** configure without UPnP:
+```bash
+CONFIGURE_FLAGS="--without-miniupnpc" ./install-from-source.sh
+# or in the core build tree:
+./configure --with-incompatible-bdb --without-gui --disable-tests --disable-bench --without-miniupnpc
+```
 
 **If you see** `bin/bloodstoned: No such file or directory` — the compile/install step did not finish (or failed). `start-node.sh` does **not** build the node; run `./install-from-source.sh` again and confirm `ls -la bin/bloodstoned` before starting. On a Pi this can take hours.
 
@@ -161,7 +200,8 @@ Logs: `$BLOODSTONE_DATADIR/logs/install.log` and `bootstrap.log`.
 | `BLOODSTONE_SKIP_BOOTSTRAP` | Skip tip snapshot (full IBD) |
 | `BLOODSTONE_FORCE_BOOTSTRAP` | Re-download tip snapshot |
 | `BLOODSTONE_PUBLIC_ROOT` | Base URL for bootstrap download |
-| `BLOODSTONE_GIT_URL` / `BLOODSTONE_GIT_REF` | Override monorepo URL/ref for from-source (default tag **`v0.7.6-h1`**) |
+| `BLOODSTONE_GIT_URL` / `BLOODSTONE_GIT_REF` | Override monorepo URL/ref for from-source (default tag **`v0.7.6-h1`**; missing ref → HEAD + warn) |
+| `BLOODSTONE_CONFIGURE_ARGS` / `CONFIGURE_FLAGS` | Extra `./configure` flags (default already has **`--with-incompatible-bdb --without-gui --disable-tests --disable-bench`**) |
 | `BLOODSTONE_VERIFY_TAG` | Attempt `git verify-tag` after checkout (default `1`) |
 | `BLOODSTONE_REQUIRE_SIGNED_REF` | Fail from-source if tag/commit not signed (`1` = strict) |
 | `PREFIX` | Install prefix for from-source layout |
