@@ -9,6 +9,7 @@
 #include <threadsafety.h>
 
 #include <cassert>
+#include <cstdint>
 
 /** Epoch: RAII-style guard for using epoch-based graph traversal algorithms.
  *     When walking ancestors or descendants, we generally want to avoid
