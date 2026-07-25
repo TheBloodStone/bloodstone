@@ -143,7 +143,7 @@ Tarball SHA256: `48c1c394d9c4bc239a535079a40bbde8fdfea98fadb9d72511be421c334e746
 | LRGK `192.119.82.145` | **0.7.6**, SHA matches primary, strata restarted; **no miners yet** | **RESOLVED** (not a live blocker) |
 | Sub-0.7.6 peers | Of remaining lag IPs: **two mine to our pool** (templates = primary 0.7.6); **185.190** soft residual only | **Not a re-tag trigger** |
 | Cexius | Tip hash on main chain (conf=21 @ h=15133) | **CLOSED** |
-| NTP / clock | Primary **verified synchronized** (offset ~ms); LRGK NTP **receipt still required** | **Only open ops item before 26th** |
+| NTP / clock | Primary **closed** (2026-07-24); LRGK **closed** (2026-07-26: NTPSynchronized=yes, timeoffset=0) | **CLOSED** |
 
 ### Four criteria for the 26th
 
@@ -173,8 +173,8 @@ Post-H future bound **1800 s** — a **&gt;30 min fast** clock on a template hos
 
 | Host | Check (2026-07-24) | Result |
 |------|--------------------|--------|
-| **Primary** | `timedatectl`: NTP=yes, **NTPSynchronized=yes**; timesyncd → ntp.ubuntu.com; offset **~+1.4 ms** | **CLOSED** |
-| **LRGK** | Needs Ricardo/ops: `timedatectl status` / `chronyc tracking` showing synchronized | **OPEN — close before 26 Jul** |
+| **Primary** | `timedatectl`: NTP=yes, **NTPSynchronized=yes**; timesyncd → ntp.ubuntu.com; offset **~+1.4 ms** | **CLOSED 2026-07-24** |
+| **LRGK** | SSH `timedatectl`: **System clock synchronized: yes**, NTPSynchronized=yes; UTC matched primary; P2P `timeoffset=0` | **CLOSED 2026-07-26** |
 
 ---
 

@@ -1,6 +1,6 @@
 # Phase H1 — GO register (checkpoint 2026-07-26)
 
-**Status as of 2026-07-24 (ops update):** ready for **GO on 26th** once **NTP/clock on LRGK** is receipted.  
+**Status as of 2026-07-26:** **GO confirmed** — four criteria green; **primary + LRGK NTP closed**.  
 **H:** 17000 · **path:** flag-day (not re-tag)  
 **Crossing band (staffed):** ~**20:42 NZST 29 Jul** through ~**04:00 NZST 30 Jul** (see live `h1-boundary-status.json` for rolling ETA UTC).
 
@@ -27,9 +27,9 @@ Post-H `MAX_FUTURE_BLOCK_TIME` = **1800 s**. A template host **&gt; ~30 min fast
 | Host | NTP / clock | Status |
 |------|-------------|--------|
 | **Primary** `64.188.22.190` | `System clock synchronized: yes`; NTP service active (systemd-timesyncd → ntp.ubuntu.com); offset ~**+1.4 ms**; stratum 2 | **CLOSED 2026-07-24** |
-| **LRGK** `192.119.82.145` | Needs operator receipt: `timedatectl status` / `chronyc tracking` (or equivalent) showing **NTPSynchronized=yes** and offset ≪ 30 min | **OPEN — close before 26 Jul UTC** |
+| **LRGK** `192.119.82.145` (`racknerd-e35078d`) | SSH 2026-07-25/26: `System clock synchronized: yes`; **NTP=yes**; **NTPSynchronized=yes**; UTC matched primary to the second; P2P `timeoffset=0` on both LRGK peer conns | **CLOSED 2026-07-26** |
 
-Do **not** treat LRGK as clock-verified until that receipt is logged here or in inventory §8.
+Both template-host clocks verified. **No open NTP item.**
 
 ---
 
@@ -37,7 +37,7 @@ Do **not** treat LRGK as clock-verified until that receipt is logged here or in 
 
 | When | Action |
 |------|--------|
-| **By 2026-07-26 00:00 UTC** | Close LRGK NTP receipt → **confirm GO on H=17000** (no re-tag) |
+| **2026-07-26** | LRGK NTP closed → **GO on H=17000 confirmed** (no re-tag) |
 | **Crossing** | Staffed watch ~**20:42 NZST 29 Jul → ~04:00 NZST 30 Jul** (align to live ETA); monitor rejects, tip, pool templates, peer subvers |
 | **+24–48 h post-activation** | Check-in: tip healthy, no sustained invalid-template spam, Cexius/ops quiet |
 | **§15.1 vault gate** | Remains **signed off ≠ discharged** until H1 rules are **merged and active on the network**; then flip `vault-threat-model.md` §15.1 row to **discharged** |
