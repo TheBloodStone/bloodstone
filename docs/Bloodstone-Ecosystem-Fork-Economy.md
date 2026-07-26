@@ -22,8 +22,8 @@ Sister coins and Fork Lab launches must **boost Bloodstone**, not cannibalise it
 |---|------|--------|
 | **1** | **Merge-mine surface grows** | Miners can merge-mine the new coin. **Forks MUST merge-mine Bloodstone (STONE)** on SHA256d/AuxPoW. Sister links are **optional** checkboxes. Bloodstone may **optionally** enable each child (default **off**). CPU lanes stay local per chain. |
 | **2** | **Mesh providers earn from the new coin’s mining** | A locked **bps of that coin’s block subsidy / pool payout** is paid to mesh providers **in the new ticker** (default **1000 bps = 10%**). This is **additive** income. |
-| **3** | **Resource demand stays in STONE** | End users pay for storage, bandwidth, compute, catalog SKUs in **STONE**. Fork coins do not replace that demand. |
-| **4** | **Reseller path** | Resellers may accept fork coins / USDT from customers, but **bulk resource purchase from Bloodstone rails settles in STONE**. |
+| **3** | **Protocol services settle in STONE** | **All native Bloodstone protocol services are settled exclusively in STONE.** That includes storage, compute, bandwidth, mesh networking, content cataloguing, identity services, and **future core protocol capabilities** — so the rule need not be re-amended for each new native capability. Fork coins do not reprice or replace protocol settlement. |
+| **4** | **Reseller path** | Resellers may accept fork coins / USDT from customers, but **bulk purchase of native protocol services settles in STONE**. |
 
 ### Default block split (per 10 000 bps)
 
@@ -42,15 +42,33 @@ Env overrides:
 
 ---
 
+## Constitutional settlement (durable wording)
+
+> **All native Bloodstone protocol services are settled exclusively in STONE.**
+
+**Protocol services** (illustrative, not a closed list):
+
+- Storage  
+- Compute  
+- Bandwidth  
+- Mesh networking  
+- Content cataloguing  
+- Identity services  
+- Future core protocol capabilities  
+
+This keeps the rule **simple, durable, and extensible** — the same architectural discipline as the Edge Presence Proof RFC: constitutional language stays stable while implementations evolve.
+
+---
+
 ## Non-cannibalisation (LRGK & friends)
 
 | Layer | Currency | Role |
 |-------|----------|------|
-| Mesh **products** (what users buy) | **STONE** | Always |
+| **Native protocol services** (what users buy on Bloodstone rails) | **STONE** | Always / exclusive |
 | Mesh **hash bonus** from coin X | **X** | Extra stream when X is mined / merge-mined |
-| Companion chain (e.g. LRGK) | Own ticker | Same formula; optional sister of STONE forks; must not reprice mesh SKUs off STONE |
+| Companion chain (e.g. LRGK) | Own ticker | Same formula; optional sister; must not divert protocol settlement off STONE |
 
-**One-line test:** *Does this coin increase STONE demand for resources and give mesh more optional reward streams?* If yes → ship. If it tries to replace STONE settlement → reject.
+**One-line test:** *Does this coin increase STONE demand for protocol services and give mesh more optional reward streams?* If yes → ship. If it tries to replace STONE protocol settlement → reject.
 
 ---
 

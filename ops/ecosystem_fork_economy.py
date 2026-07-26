@@ -38,17 +38,31 @@ def _miner_bps() -> int:
     return max(0, 10000 - MESH_PROVIDER_REWARD_BPS - FORK_LAB_RESERVE_BPS)
 
 
-# Resource settlement: always STONE for bulk/mesh product SKUs on Bloodstone rails.
+# Constitutional settlement: all *native Bloodstone protocol services* → STONE only.
+# Keep this list descriptive, not exhaustive — new core capabilities inherit the rule
+# without amending the economy formula (same discipline as Edge Presence Proof RFC).
 RESOURCE_PAYMENT_TICKER = "STONE"
-RESOURCE_PAYMENT_NOTE = (
-    "Mesh storage, bandwidth, compute, and coordinator resources are priced and "
-    "settled in STONE on Bloodstone rails. Fork coins do not replace STONE demand."
+PROTOCOL_SERVICES = [
+    "storage",
+    "compute",
+    "bandwidth",
+    "mesh_networking",
+    "content_cataloguing",
+    "identity_services",
+    "future_core_protocol_capabilities",
+]
+PROTOCOL_SERVICES_NOTE = (
+    "All native Bloodstone protocol services are settled exclusively in STONE. "
+    "That includes storage, compute, bandwidth, mesh networking, content cataloguing, "
+    "identity services, and future core protocol capabilities. "
+    "Fork coins do not reprice or replace protocol settlement."
 )
+RESOURCE_PAYMENT_NOTE = PROTOCOL_SERVICES_NOTE
 
-# Reseller path: customer may pay in fork coin; reseller buys bulk resources in STONE.
+# Reseller path: customer may pay in fork coin; reseller buys bulk protocol services in STONE.
 RESELLER_NOTE = (
-    "Resellers may accept fork coins (or USDT) from end customers, but bulk "
-    "resource purchase from the Bloodstone mesh/catalog settles in STONE."
+    "Resellers may accept fork coins (or USDT) from end customers, but bulk purchase of "
+    "native Bloodstone protocol services always settles in STONE."
 )
 
 SCHEMA = "bloodstone/ecosystem-fork-economy/v1"
@@ -114,8 +128,8 @@ def economy_for_fork(
             "additive_to_bloodstone",
             "merge_mine_parent_mandatory",
             "mesh_providers_earn_fork_coin_from_hash",
-            "resource_demand_stays_in_stone",
-            "resellers_settle_bulk_in_stone",
+            "protocol_services_settle_in_stone",
+            "resellers_settle_bulk_protocol_services_in_stone",
         ],
         "merge_mine": {
             "parent": "STONE (Bloodstone) — mandatory for ecosystem forks",
