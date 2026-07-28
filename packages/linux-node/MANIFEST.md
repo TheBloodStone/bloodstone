@@ -7,12 +7,17 @@ Use this when auditing the **installer**, not the whole monorepo.
 ```
 packages/linux-node/start-node.sh
 packages/linux-node/install-chain-bootstrap.sh
-packages/linux-node/install-from-source.sh    # clone GitHub monorepo + compile
+packages/linux-node/install-from-source.sh    # clone + compile (default immutable tag)
 packages/linux-node/verify-release.sh         # SHA-256 (+ optional PGP)
+packages/linux-node/bloodstone-health.sh      # operational health utility
+packages/linux-node/bloodstone-node.service   # hardened systemd unit
+packages/linux-node/install-systemd.sh        # install unit as system service
 packages/linux-node/bloodstone.conf.example
 packages/linux-node/README.md
 packages/linux-node/MANIFEST.md
 ```
+
+Tarball also includes packager-generated `BUILD-INFO.txt` (commit, arch, toolchain, binary hashes).
 
 ## Section B — Packagers (how A is assembled)
 

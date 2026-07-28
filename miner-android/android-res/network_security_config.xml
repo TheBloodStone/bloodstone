@@ -1,9 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- RFC-001 §4.4: no global cleartext. HTTPS for public hosts; cleartext only for LAN private ranges. -->
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">bloodstone.rocks</domain>
+        <domain includeSubdomains="true">www.bloodstone.rocks</domain>
         <domain includeSubdomains="true">bloodstonewallet.mytunnel.org</domain>
         <domain includeSubdomains="true">rodcoinwallet.duckdns.org</domain>
-        <domain includeSubdomains="true">64.188.22.190</domain>
     </domain-config>
-    <base-config cleartextTrafficPermitted="true" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">64.188.22.190</domain>
+    </domain-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.0.0.0</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="false" />
 </network-security-config>

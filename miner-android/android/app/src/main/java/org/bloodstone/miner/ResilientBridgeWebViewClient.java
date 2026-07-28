@@ -149,8 +149,19 @@ public class ResilientBridgeWebViewClient extends BridgeWebViewClient {
         super.onPageFinished(view, url);
     }
 
+    /**
+     * RFC-001 §4.1: do not drive-by install arbitrary .apk navigations.
+     * Only allowlisted hosts; signature verified inside downloadApk/promptInstall.
+     * On failure, open the URL in the system browser (download only) — never silent install.
+     */
     private void startApkInstall(WebView view, String apkUrl) {
         Context context = view.getContext();
+        if (!ApkUpdateInstaller.isAllowedApkUrl(apkUrl)) {
+            Log.w(TAG, "blocked non-allowlisted APK URL: " + apkUrl);
+            // Do not auto-install; optional external open for user inspection only
+            openApkExternally(context, apkUrl);
+            return;
+        }
         if (!ApkUpdateInstaller.canInstallPackages(context)) {
             ApkUpdateInstaller.openInstallPermissionSettings(context);
             return;
@@ -158,19 +169,20 @@ public class ResilientBridgeWebViewClient extends BridgeWebViewClient {
         downloadExecutor.execute(() -> {
             try {
                 File apkFile = ApkUpdateInstaller.downloadApk(context, apkUrl);
+                // Signature already verified in downloadApk; promptInstall re-checks
                 view.post(() -> {
                     Activity activity = bridge.getActivity();
                     Context launchContext = activity != null ? activity : context;
                     try {
                         ApkUpdateInstaller.promptInstall(launchContext, apkFile);
                     } catch (Exception exc) {
-                        Log.w(TAG, "apk prompt failed: " + exc.getMessage());
-                        openApkExternally(launchContext, apkUrl);
+                        Log.w(TAG, "apk install refused: " + exc.getMessage());
+                        // Do not fall back to unsigned external install of local file
                     }
                 });
             } catch (Exception exc) {
-                Log.w(TAG, "apk download failed: " + exc.getMessage());
-                view.post(() -> openApkExternally(context, apkUrl));
+                Log.w(TAG, "apk download/verify failed: " + exc.getMessage());
+                // No auto external install of untrusted content
             }
         });
     }
@@ -338,7 +350,8 @@ public class ResilientBridgeWebViewClient extends BridgeWebViewClient {
             return false;
         }
         if ("https".equalsIgnoreCase(uri.getScheme())) {
-            return host.contains("bloodstonewallet")
+            return host.contains("bloodstone.rocks")
+                || host.contains("bloodstonewallet")
                 || host.contains("mytunnel.org")
                 || host.contains("duckdns.org");
         }

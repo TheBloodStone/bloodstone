@@ -126,6 +126,12 @@ export function tlsStreamComplete(bytes) {
   return recs.length > 0 && consumed === bytes.length;
 }
 
+/**
+ * RFC-001 §4.2 residual: parse ServerHello for key_share only.
+ * Full Certificate / CertificateVerify / server Finished authentication is
+ * still incomplete for BSM4 mesh tunnel — do not treat this as authenticated TLS.
+ * Callers MUST only use this path for LAN discovery until cert pinning is wired.
+ */
 export function parseServerHello(serverFlight) {
   for (const rec of parseTlsRecords(serverFlight)) {
     if (rec[0] !== 0x16 || rec.length < 6 || rec[5] !== 0x02) continue;

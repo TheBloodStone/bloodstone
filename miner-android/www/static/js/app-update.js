@@ -24,7 +24,7 @@ import {
 const AUTO_UPDATE_KEY = "bloodstone-android-auto-update";
 const UPDATE_SESSION_KEY = "bloodstone-android-update-session";
 const WEB_BUNDLE_SESSION_KEY = "bloodstone-android-web-bundle-session";
-const DEFAULT_UPDATE_BASE = "https://bloodstonewallet.mytunnel.org";
+const DEFAULT_UPDATE_BASE = "https://bloodstone.rocks";
 
 let optionsHooked = false;
 let updateInFlight = false;
@@ -39,7 +39,20 @@ function hasCurrentUiLayout() {
 }
 
 export function needsUiLayoutUpgrade() {
-  return isAndroidAppContext() && !hasCurrentUiLayout();
+  if (!isAndroidAppContext()) return false;
+  if (!hasCurrentUiLayout()) return true;
+  // Force OTA when an old hardcoded wallet UI stamp is still on screen / in HTML.
+  try {
+    const html = document.documentElement?.innerHTML || "";
+    if (/UI 1\.3\.88-wallet|1\.3\.88-wallet-send/i.test(html)) return true;
+    const webAttr = String(document.body?.dataset?.webUiVersion || "").trim();
+    if (webAttr && versionIsOlder(webAttr.replace(/-web$/i, ""), "1.3.147")) {
+      return true;
+    }
+  } catch (_) {
+    /* ignore */
+  }
+  return false;
 }
 
 function clearStaleWebBundleVersion() {
@@ -166,24 +179,19 @@ export function setAndroidAutoUpdateEnabled(enabled) {
   return true;
 }
 
+/**
+ * RFC-001 §4.5: OTA base is locked to a hardcoded constant.
+ * Never trust document.body.dataset — a compromised web bundle must not
+ * repoint future APK/web-bundle updates to an attacker domain.
+ */
 function updateApiBase() {
-  const fromBody = document.body?.dataset?.updateBase || document.body?.dataset?.publicRoot;
-  if (fromBody) return String(fromBody).replace(/\/$/, "");
-  const prefix = document.body?.dataset?.urlPrefix || "";
-  if (prefix) {
-    try {
-      return `${window.location.origin}${prefix}`.replace(/\/$/, "");
-    } catch (_) {
-      /* ignore */
-    }
-  }
-  return DEFAULT_UPDATE_BASE;
+  return DEFAULT_UPDATE_BASE.replace(/\/$/, "");
 }
 
 export function compareAppVersions(localVersion, remoteVersion) {
   const parse = (value) =>
     String(value || "0")
-      .split(".")
+      .split(/[.\-_]+/)
       .map((part) => parseInt(part, 10) || 0);
   const left = parse(localVersion);
   const right = parse(remoteVersion);
@@ -197,13 +205,29 @@ export function compareAppVersions(localVersion, remoteVersion) {
   return 0;
 }
 
+/** YYYYMMDD or YYYYMMDD.HHMMSS OTA stamps (not comparable to 1.3.x semver). */
+function isDateStampVersion(value) {
+  return /^\d{8}([._-]\d+)?$/.test(String(value || "").trim());
+}
+
+function isSemverishVersion(value) {
+  const v = String(value || "").trim();
+  return /^\d+\.\d+/.test(v) && !isDateStampVersion(v);
+}
+
 export function versionIsOlder(localVersion, remoteVersion) {
   const local = String(localVersion || "").trim();
   const remote = String(remoteVersion || "").trim();
   if (!remote) return false;
   if (!local) return true;
   if (local === remote) return false;
-  const semver = compareAppVersions(local, remote);
+  // Date-stamp beta OTAs (20260711.011038) always lose to real semver releases.
+  if (isDateStampVersion(local) && isSemverishVersion(remote)) return true;
+  if (isSemverishVersion(local) && isDateStampVersion(remote)) return false;
+  // Strip marketing suffixes for compare: 1.3.88-wallet → 1.3.88
+  const localCore = local.replace(/-wallet.*$/i, "").replace(/-web$/i, "");
+  const remoteCore = remote.replace(/-wallet.*$/i, "").replace(/-web$/i, "");
+  const semver = compareAppVersions(localCore, remoteCore);
   if (semver !== 0) return semver < 0;
   return local < remote;
 }
@@ -855,6 +879,8 @@ export function initAndroidUpdateOptions() {
   );
 
   if (panel) panel.hidden = false;
+  const betaSection = document.getElementById("android-beta-section");
+  if (betaSection) betaSection.hidden = false;
   if (strip) {
     strip.hidden = false;
     strip.style.display = "";

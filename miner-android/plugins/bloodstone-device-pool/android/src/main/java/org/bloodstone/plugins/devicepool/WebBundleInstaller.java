@@ -90,8 +90,9 @@ final class WebBundleInstaller {
     }
 
     static void verifySha256(File file, String expectedSha256) throws Exception {
+        // Require integrity hash — empty expected is a security failure (RFC-001 §4.3)
         if (expectedSha256 == null || expectedSha256.trim().isEmpty()) {
-            return;
+            throw new IllegalStateException("Web bundle SHA-256 is required");
         }
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         try (FileInputStream input = new FileInputStream(file)) {
@@ -113,6 +114,27 @@ final class WebBundleInstaller {
         }
     }
 
+    /** Reject Zip-Slip: absolute paths, .. segments, and escapes of targetDir. */
+    static boolean isSafeZipEntryName(String name) {
+        if (name == null || name.isEmpty()) {
+            return false;
+        }
+        if (name.contains("..")) {
+            return false;
+        }
+        if (name.startsWith("/") || name.startsWith("\\")) {
+            return false;
+        }
+        // Windows drive / UNC style
+        if (name.length() >= 2 && name.charAt(1) == ':') {
+            return false;
+        }
+        if (name.startsWith("\\\\") || name.contains("\0")) {
+            return false;
+        }
+        return true;
+    }
+
     static File extractBundle(Context context, File zipFile, String version) throws Exception {
         String safeVersion = version == null ? "unknown" : version.replaceAll("[^a-zA-Z0-9._-]", "_");
         File targetDir = new File(bundleRoot(context), safeVersion);
@@ -122,21 +144,30 @@ final class WebBundleInstaller {
         if (!targetDir.mkdirs()) {
             throw new IllegalStateException("Could not create bundle directory");
         }
+        final String canonicalRoot = targetDir.getCanonicalPath();
 
         try (
             FileInputStream raw = new FileInputStream(zipFile);
             ZipInputStream zip = new ZipInputStream(new BufferedInputStream(raw))
         ) {
             ZipEntry entry;
+            long totalUncompressed = 0;
+            final long maxTotal = 80L * 1024L * 1024L; // 80 MiB uncompressed cap
             while ((entry = zip.getNextEntry()) != null) {
                 String name = entry.getName();
-                if (name == null || name.contains("..")) {
+                if (!isSafeZipEntryName(name)) {
+                    Log.w(TAG, "rejecting unsafe zip entry: " + name);
                     zip.closeEntry();
                     continue;
                 }
                 File out = new File(targetDir, name);
+                String canonicalOut = out.getCanonicalPath();
+                if (!canonicalOut.equals(canonicalRoot)
+                    && !canonicalOut.startsWith(canonicalRoot + File.separator)) {
+                    throw new IllegalStateException("Zip entry escapes target dir: " + name);
+                }
                 if (entry.isDirectory()) {
-                    if (!out.mkdirs()) {
+                    if (!out.exists() && !out.mkdirs()) {
                         throw new IllegalStateException("Could not create directory " + name);
                     }
                 } else {
@@ -148,6 +179,10 @@ final class WebBundleInstaller {
                         byte[] buffer = new byte[8192];
                         int read;
                         while ((read = zip.read(buffer)) != -1) {
+                            totalUncompressed += read;
+                            if (totalUncompressed > maxTotal) {
+                                throw new IllegalStateException("Web bundle exceeds size limit");
+                            }
                             output.write(buffer, 0, read);
                         }
                         output.flush();

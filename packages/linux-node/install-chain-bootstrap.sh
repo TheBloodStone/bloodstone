@@ -32,6 +32,10 @@ log() {
   if command -v logger >/dev/null 2>&1; then
     logger -t node-bootstrap -- "$*" 2>/dev/null || true
   fi
+  # File log under datadir (audit recommendation)
+  local _logdir="${BLOODSTONE_LOG_DIR:-${DATADIR:-$HOME/.bloodstone}/logs}"
+  mkdir -p "$_logdir" 2>/dev/null || true
+  echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*" >> "$_logdir/bootstrap.log" 2>/dev/null || true
 }
 
 die() {
