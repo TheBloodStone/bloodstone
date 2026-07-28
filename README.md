@@ -1,30 +1,22 @@
 # Bloodstone release downloads
 
-Public binary and document mirror for [bloodstone.rocks/downloads](https://bloodstone.rocks/downloads/).
+Binary packages and operator docs for [TheBloodStone/bloodstone](https://github.com/TheBloodStone/bloodstone).
 
-| | |
-|--|--|
-| **Branch** | `release-downloads` |
-| **Portal** | https://bloodstone.rocks/ |
-| **Source code** | https://github.com/TheBloodStone/bloodstone (`main`) |
+**Raw URL pattern:** `https://github.com/TheBloodStone/bloodstone/raw/release-downloads/<filename>`
 
-## How to download
+Large files (`.apk`, `.tar.gz`, `.zip`, `.exe`, `.docx`) are stored with **Git LFS**.
 
-Raw file URL pattern:
+## Current highlights (2026-07-28)
 
-```text
-https://github.com/TheBloodStone/bloodstone/raw/release-downloads/<filename>
-```
+| Artifact | File |
+|---|---|
+| Android miner APK **1.3.99** (RFC-001 security) | `bloodstone-miner-android-1.3.99.apk` / `bloodstone-miner-android-latest.apk` |
+| Core Qt wallet **0.7.7** Windows | `bloodstone-qt-0.7.7-win64.exe` |
+| Core wallet package **0.7.7** Windows zip | `bloodstone-wallet-0.7.7-win64.zip` |
+| Node **0.7.6 H1** Linux x86_64 | `bloodstone-node-0.7.6-h1-timewarp-linux-x86_64.tar.gz` |
+| Node **0.7.6** Linux aarch64 (Pi) | `bloodstone-node-0.7.6-linux-aarch64.tar.gz` |
+| Nestex listing links | `Bloodstone-Nestex-Listing-Links.md` |
 
-Examples:
+Source code lives on branch `main`. This branch is **downloads only** — not a full source tree.
 
-- Android miner: `…/bloodstone-miner-android-latest.apk`
-- Watch & Earn: `…/bloodstone-watch-earn-1.0.4.apk`
-- H1 node: `…/bloodstone-node-0.7.6-h1-timewarp-linux-x86_64.tar.gz`
-
-Large binaries use **Git LFS**. GitHub serves them transparently via the raw URLs above.
-
-## Note
-
-This branch holds **release artifacts only** (not full git history of the chain).  
-Operator catalog: https://bloodstone.rocks/downloads/
+Mirror: https://bloodstonewallet.mytunnel.org/downloads/ · https://bloodstone.rocks/downloads/
