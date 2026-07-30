@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Bloodstone Multi-Fork Qt Wallet
+Comment=STONE + all live Fork Lab coins
+Exec=python3 /opt/bloodstone-multi-fork-qt/main.py
+Icon=bloodstone-multi-fork-qt
+Categories=Finance;Network;
+Terminal=false
+StartupNotify=true

@@ -1,0 +1,4 @@
+# System package preferred on Ubuntu:
+#   apt-get install -y python3-pyqt5 python3-requests
+PyQt5>=5.12
+requests>=2.22
