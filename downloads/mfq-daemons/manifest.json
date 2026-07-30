@@ -1,0 +1,99 @@
+{
+  "schema": "bloodstone/mfq-daemons/v2",
+  "schema_version": "bloodstone/mfq-daemons/v2",
+  "last_updated": "2026-07-30T00:22:00Z",
+  "updated": "2026-07-30",
+  "notes": "MFQ daemon packs (win64). Schema v2 requires provenance + auxpow_chain_id. source_commit PENDING_* until forks/* full trees land (structure-first Phase 1).",
+  "critical": "",
+  "coins": {
+    "STONE": {
+      "ticker": "STONE",
+      "name": "Bloodstone",
+      "version": "0.7.7",
+      "auxpow_chain_id": 1899,
+      "url": "https://bloodstone.rocks/downloads/mfq-daemons/STONE-win64.zip",
+      "download_url": "https://bloodstone.rocks/downloads/mfq-daemons/STONE-win64.zip",
+      "sha256_url": "https://bloodstone.rocks/downloads/mfq-daemons/STONE-win64.zip.sha256",
+      "sha256": "2f6f5567c7df7903b516d382d8070729c2aaf864cca3681ad6c7e79a6c532b95",
+      "daemon": "bloodstoned.exe",
+      "cli": "bloodstone-cli.exe",
+      "rpc_port": 18332,
+      "p2p_port": 17333,
+      "platform": "win64",
+      "identity": "bloodstone-mainnet",
+      "usable_for_wallets": true,
+      "public_peer": "64.188.22.190:17333",
+      "public_peers": [
+        "64.188.22.190:17333",
+        "192.119.82.145:17333"
+      ],
+      "provenance": {
+        "source_repo": "https://github.com/TheBloodStone/bloodstone",
+        "source_path": "core",
+        "source_commit": "PENDING_STONE_PIN",
+        "build_script": "ops/build-mfq-fork-daemons.sh --coin STONE",
+        "built_utc": "PENDING"
+      }
+    },
+    "LRGK": {
+      "ticker": "LRGK",
+      "name": "Lil Raghnok Coin",
+      "version": "0.1.1",
+      "auxpow_chain_id": 1900,
+      "url": "https://bloodstone.rocks/downloads/mfq-daemons/LRGK-win64.zip",
+      "download_url": "https://bloodstone.rocks/downloads/mfq-daemons/LRGK-win64.zip",
+      "sha256_url": "https://bloodstone.rocks/downloads/mfq-daemons/LRGK-win64.zip.sha256",
+      "sha256": "7a5e27e903ad0dfd19ab1151cf594ea4ebe3e4f8280b1e391eafc5e254030f7b",
+      "daemon": "lrgkd.exe",
+      "cli": "lrgk-cli.exe",
+      "rpc_port": 53685,
+      "p2p_port": 33685,
+      "platform": "win64",
+      "identity": "real-lrgk-win64",
+      "usable_for_wallets": true,
+      "public_peer": "64.188.22.190:33685",
+      "public_peers": [
+        "64.188.22.190:33685"
+      ],
+      "address_prefix_legacy": "L",
+      "bech32_hrp": "lrgk",
+      "provenance": {
+        "source_repo": "https://github.com/TheBloodStone/bloodstone",
+        "source_path": "forks/lrgk",
+        "source_commit": "PENDING_LRGK_PUSH",
+        "build_script": "ops/build-mfq-fork-daemons.sh --coin LRGK",
+        "built_utc": "PENDING"
+      }
+    },
+    "AZURE": {
+      "ticker": "AZURE",
+      "name": "Azure Guardian Coin",
+      "version": "0.1.1",
+      "auxpow_chain_id": 1901,
+      "url": "https://bloodstone.rocks/downloads/mfq-daemons/AZURE-win64.zip",
+      "download_url": "https://bloodstone.rocks/downloads/mfq-daemons/AZURE-win64.zip",
+      "sha256_url": "https://bloodstone.rocks/downloads/mfq-daemons/AZURE-win64.zip.sha256",
+      "sha256": "7fc95b1f754b9c8b542a8da39c4b30ef9f491cdd40d23c5624f74a1e9be616c0",
+      "daemon": "azured.exe",
+      "cli": "azure-cli.exe",
+      "rpc_port": 49825,
+      "p2p_port": 29825,
+      "platform": "win64",
+      "identity": "real-azure-win64",
+      "usable_for_wallets": true,
+      "public_peer": "64.188.22.190:29825",
+      "public_peers": [
+        "64.188.22.190:29825"
+      ],
+      "address_prefix_legacy": "A",
+      "bech32_hrp": "azure",
+      "provenance": {
+        "source_repo": "https://github.com/TheBloodStone/bloodstone",
+        "source_path": "forks/azure",
+        "source_commit": "PENDING_AZURE_PUSH",
+        "build_script": "ops/build-mfq-fork-daemons.sh --coin AZURE",
+        "built_utc": "PENDING"
+      }
+    }
+  }
+}
