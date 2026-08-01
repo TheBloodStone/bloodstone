@@ -1,0 +1,16 @@
+[Unit]
+Description=Fork Lab WP2 process MFQ pack queue + rebuild runtime catalog
+After=network.target fork-lab-wp1-watch.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/fork-lab-wp2
+Environment=PYTHONPATH=/root:/root/fork-lab-wp1:/root/fork-lab-wp2
+Environment=BLOODSTONE_PUBLIC_ROOT=https://bloodstone.rocks
+ExecStart=/usr/bin/python3 /root/fork-lab-wp2/wp2_cli.py process-queue
+Nice=10
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

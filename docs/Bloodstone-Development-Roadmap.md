@@ -12,7 +12,7 @@
 - **Fork Lab RFCs FL-1…FL-5** filed under `docs/rfcs/fork-lab/` and public downloads.
 - **Platform salvage removed**; Goblin Magic = LRGK-only canary.
 - **WP0** burn verifier shipped; **WP1** burn pipeline **shipped** (demand call 2026-08-01; vertical slice closed 2026-08-01: watcher timer, manual reconcile, provision artifacts).
-- **WP1.5** fee curve live; **WP2** (catalog + MFQ two-speed) is the next Track E build item.
+- **WP1.5** fee curve live; **WP2** catalog + MFQ two-speed **shipped** (2026-08-01); **WP3** registry bot is next.
 - Hierarchy reminder: Const → RFC → RFQ/Build Spec → code (Art. IX).
 
 **Changes in v2.1:**
@@ -303,7 +303,8 @@ Nothing in Tracks C or D competes with Track A or the Vault build for builder ca
 | WP0 keyless burn + verifier | **Shipped** · skeptic instructions · [WP0](https://bloodstone.rocks/downloads/Bloodstone-Fork-Lab-Burn-WP0.md) |
 | WP1 burn-triggered pipeline | **Shipped** · fee freeze · 48h open-min · watcher timer · manual reconcile · provision artifacts · [status](https://bloodstone.rocks/downloads/Fork-Lab-WP1-Status.md) |
 | WP1.5 fee decay curve | **Shipped** (enabled; inert until first STEP_BLOCKS boundary) · [fee-curve API](https://bloodstone.rocks/api/fork-lab/fee-curve) |
-| WP2 catalog + MFQ two-speed | **Next** · runtime catalog stub live; daemon-pack zip + installer train still open |
+| WP2 catalog + MFQ two-speed | **Shipped** · runtime catalog + pack publisher + installer train · MFQ 0.2.34 remote catalog · [status](https://bloodstone.rocks/downloads/Fork-Lab-WP2-Status.md) |
+| WP3 registry repo bot | **Next** (auto-push coins/ when volume justifies) |
 | Platform salvage | **Removed** (FL-4 = lifecycle hygiene only) |
 | Goblin Magic | **LRGK canary only** (not platform) |
 | RFC series FL-1…FL-5 | **Filed** · [index](https://bloodstone.rocks/downloads/rfcs/fork-lab/INDEX.md) |
@@ -314,6 +315,6 @@ Nothing in Tracks C or D competes with Track A or the Vault build for builder ca
 
 **Source of truth for mechanisms:** RFCs + RFQ. This roadmap only sequences work.
 
-**Track E next (no audit required):** WP2 — publish T+0 daemon packs for live burn-launched tickers and wire MFQ runtime catalog consumption; keep installer train batched (~24h).
+**Track E next (no audit required):** WP3 — automated `coins/<TICKER>/` push to bloodstone-fork-registry + Chain-Mesh mirror when launch volume justifies (manual provision OK until then).
 
 ---

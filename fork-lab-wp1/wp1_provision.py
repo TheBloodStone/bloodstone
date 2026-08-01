@@ -303,6 +303,18 @@ def provision(draft_id: str) -> dict:
         }
     )
 
+    # WP2 T+0: publish pack (metadata or real) + rebuild catalog + installer train
+    wp2_out = None
+    try:
+        sys.path.insert(0, "/root/fork-lab-wp2")
+        from wp2_daemon_pack import publish_ticker  # type: ignore
+        from wp2_catalog import write_catalog  # type: ignore
+
+        wp2_out = publish_ticker(t)
+        write_catalog()
+    except Exception as exc:
+        wp2_out = {"ok": False, "error": str(exc)[:200]}
+
     with connect() as c:
         detail = {}
         try:
@@ -329,4 +341,5 @@ def provision(draft_id: str) -> dict:
         "runtime_catalog": str(CATALOG_PATH),
         "mfq_queue": str(MFQ_QUEUE),
         "seed_stub": str(SEED_STUB),
+        "wp2": wp2_out,
     }

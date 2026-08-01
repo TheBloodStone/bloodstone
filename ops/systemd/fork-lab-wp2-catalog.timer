@@ -1,0 +1,13 @@
+[Unit]
+Description=Fork Lab WP2 catalog/pack refresh (every 15 minutes)
+Documentation=https://bloodstone.rocks/downloads/Fork-Lab-WP2-Status.md
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=15min
+AccuracySec=1min
+Persistent=true
+Unit=fork-lab-wp2-catalog.service
+
+[Install]
+WantedBy=timers.target
