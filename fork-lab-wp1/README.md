@@ -1,6 +1,6 @@
 # Fork Lab WP1 — Burn-triggered launch pipeline
 
-**Status:** Active (fee freeze + 48h open-min + expiry + portal API)  
+**Status:** Shipped (vertical slice)  
 **Spec:** RFQ v1.5 §2–§3c · FL-1 · FL-2 · FL-3  
 **Depends on:** WP0 (`fork_lab_burn.py`) complete · `fork_lab_fee_curve.py` (§3c)
 
@@ -11,7 +11,8 @@
 | `wp1_db.py` | Draft + burn-watch state (SQLite) |
 | `wp1_draft.py` | Freeze fee from §3c curve, issue burn address, 48h open-min deadline |
 | `wp1_watcher.py` | Sum confirmed UTXOs; open-min / fund / lapse / expire orphans |
-| `wp1_provision.py` | Write `coins/<TICKER>/` artifacts into registry repo |
+| `wp1_reconcile.py` | Manual reconciliation (Decision #13) |
+| `wp1_provision.py` | COIN/PAYMENT, runtime catalog, MFQ queue, seed stub |
 | `wp1_cli.py` | Operator CLI |
 
 ## Rules (locked)
@@ -33,12 +34,16 @@ python3 wp1_cli.py draft-open --ticker DEMO --name "Demo Coin" --creator S...
 
 # 2) Watcher tick (scan STONE chain; apply open-min / fund / expire)
 python3 wp1_cli.py watch-once
+# (also: systemd fork-lab-wp1-watch.timer every 5 min)
 
-# 3) Inspect
+# 3) Manual reconcile if watcher missed a burn
+python3 wp1_cli.py reconcile --draft-id <id> --txid <hex> --auto-provision
+
+# 4) Inspect
 python3 wp1_cli.py get-draft --draft-id <id>
 python3 wp1_cli.py list-drafts
 
-# 4) When funded: provision registry row
+# 5) When funded: provision registry row
 python3 wp1_cli.py provision --draft-id <id>
 
 # Orphan / open-min only
@@ -48,7 +53,7 @@ python3 wp1_cli.py expire
 Env:
 - `FORK_LAB_WP1_DB` — SQLite path (default `/var/lib/bloodstone/fork_lab_wp1.db`)
 - `FORK_LAB_BURN_MIN_CONFS` — default `6`
-- `FORK_LAB_WP1_AUTO_PROVISION` — `1` to provision immediately on fund
+- `FORK_LAB_WP1_AUTO_PROVISION` — `1` to provision immediately on fund (timer sets this)
 - `FORK_LAB_FEE_DECAY` — `1` enables §3c decay (else START)
 
 ## Portal API
@@ -58,12 +63,14 @@ Env:
 | POST | `/api/fork-lab/wp1/draft-open` | public |
 | GET | `/api/fork-lab/wp1/drafts` | public |
 | GET | `/api/fork-lab/wp1/drafts/<id>` | public |
+| POST | `/api/fork-lab/wp1/reconcile` | public |
+| GET | `/api/fork-lab/runtime-catalog` | public |
 | POST | `/api/fork-lab/wp1/watch-once` | admin |
 | POST | `/api/fork-lab/wp1/expire` | admin |
 | POST | `/api/fork-lab/wp1/provision` | admin |
 | GET | `/api/fork-lab/fee-curve` | public |
 
-UI: `/fork-lab/` create panel defaults to **Burn-to-launch**.
+UI: `/fork-lab/` create panel defaults to **Burn-to-launch** (+ reconcile form).
 
 ## Status values
 

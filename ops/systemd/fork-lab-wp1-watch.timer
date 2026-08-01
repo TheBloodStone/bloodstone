@@ -1,0 +1,13 @@
+[Unit]
+Description=Fork Lab WP1 burn watcher timer (every 5 minutes)
+Documentation=https://bloodstone.rocks/downloads/Fork-Lab-WP1-Status.md
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=fork-lab-wp1-watch.service
+
+[Install]
+WantedBy=timers.target

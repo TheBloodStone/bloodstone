@@ -1,0 +1,26 @@
+[Unit]
+Description=Fork Lab WP1 burn watcher (one-shot scan)
+After=network.target
+# Prefer after bloodstoned when unit exists; ignore if not installed
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/fork-lab-wp1
+Environment=FORK_LAB_WP1_DB=/var/lib/bloodstone/fork_lab_wp1.db
+Environment=FORK_LAB_BURN_MIN_CONFS=6
+Environment=BLOODSTONE_CONF=/root/.bloodstone/bloodstone.conf
+Environment=FORK_LAB_REGISTRY=/root/bloodstone-fork-registry
+Environment=FORK_LAB_RUNTIME_CATALOG=/var/www/bloodstone/downloads/fork-lab-runtime-catalog.json
+# Auto-provision when threshold met (burn-triggered launch)
+Environment=FORK_LAB_WP1_AUTO_PROVISION=1
+# Fee curve lives under /root for portal/CLI
+Environment=PYTHONPATH=/root:/root/fork-lab-wp1
+ExecStart=/usr/bin/python3 /root/fork-lab-wp1/wp1_cli.py watch-once
+Nice=10
+# Bound runtime so a hung RPC cannot stack timers
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

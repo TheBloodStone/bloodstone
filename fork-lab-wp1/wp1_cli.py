@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from wp1_db import init  # noqa: E402
 from wp1_draft import draft_open, get_draft, list_drafts  # noqa: E402
 from wp1_provision import provision  # noqa: E402
+from wp1_reconcile import reconcile  # noqa: E402
 from wp1_watcher import expire_orphans, watch_once  # noqa: E402
 
 
@@ -41,6 +42,25 @@ def main(argv=None):
 
     pr = sub.add_parser("provision")
     pr.add_argument("--draft-id", required=True)
+
+    rc = sub.add_parser(
+        "reconcile",
+        help="Manual reconciliation (RFQ Decision #13) — draft_id and/or burn txids",
+    )
+    rc.add_argument("--draft-id", default="")
+    rc.add_argument("--burn-address", default="")
+    rc.add_argument(
+        "--txid",
+        action="append",
+        default=[],
+        dest="txids",
+        help="Burn txid (repeatable)",
+    )
+    rc.add_argument(
+        "--auto-provision",
+        action="store_true",
+        help="Provision immediately if funded",
+    )
 
     fee = sub.add_parser("fee-quote", help="Show current §3c requirement (not frozen)")
 
@@ -73,6 +93,19 @@ def main(argv=None):
         return 0
     if args.cmd == "provision":
         print(json.dumps(provision(args.draft_id), indent=2))
+        return 0
+    if args.cmd == "reconcile":
+        print(
+            json.dumps(
+                reconcile(
+                    draft_id=args.draft_id,
+                    burn_address=args.burn_address,
+                    txids=args.txids,
+                    auto_provision=True if args.auto_provision else None,
+                ),
+                indent=2,
+            )
+        )
         return 0
     if args.cmd == "fee-quote":
         sys.path.insert(0, "/root")
