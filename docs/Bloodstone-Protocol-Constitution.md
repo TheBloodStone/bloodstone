@@ -1,15 +1,14 @@
 # The Bloodstone Protocol Constitution
 
-**Version:** 1.2
+**Version:** 1.3
 **Status:** Governing document — the highest authority in the Bloodstone documentation hierarchy
 **Date:** July 2026
-**Supersedes:** v1.1
+**Supersedes:** v1.2
+**Changes in v1.3:** Article X (Platform Neutrality) added — ratifies the Fork Lab neutrality principle as a foundational governance rule; platform capabilities are universal and neutrally named, coin capabilities belong to their coin, and neutrality cannot be overridden by later coin-specific addition. Article VII compliance test gains a neutrality question (Q13); Article VIII.4 adds X to the foundational set. This is an amendment, not a clarification (Art. VIII.2): it adds an enforceable Article. Justification: a recurring structural need to prevent platform capture by individual coins, surfaced during Fork Lab integration.
 **Changes in v1.2:** Appendix A.6 added — worked example clarifying that Article I.3 restricts *consensus*, not the protocol, from measuring the world, using EPP to show the observer/consensus layer split. Clarification only; no Article altered.
 **Changes in v1.1:** Article IX added (document hierarchy and chain of authority, previously asserted from below rather than defined from above); freeze status clarified as non-constitutional; references to the subordinate execution document made explicit as the *Bloodstone Development Roadmap*; Appendix A.1 strengthened to remove ambiguity on Treasury Vault scope.
 
 **Authority:** Every subordinate document — the Bloodstone Development Roadmap, all RFCs, all build specifications, and all implementations — is subordinate to this Constitution. Where any of them conflicts with this document, the Constitution governs and the conflicting provision is invalid until amended.
-
-**Agent binding:** This file is co-located with `AGENTS.md`. Workspace agents must treat the Constitution as supreme over Roadmap, RFCs, specs, and convenience. Violating an Article is grounds to reject a proposal or change without re-arguing the Article.
 
 ---
 
@@ -155,6 +154,7 @@ The protocol will never:
 12. Claim a security property more broadly than it demonstrably holds.
 13. Begin implementation from a design with unresolved conceptual questions.
 14. Disrupt production systems for research purposes.
+15. Grant any coin platform-level advantage — a coin-specific payout, feature, perk, or priority — or make a platform capability non-universal.
 
 ---
 
@@ -174,6 +174,7 @@ Every RFC must answer these questions explicitly. An RFC that cannot is not read
 10. **Production:** What is the impact on the running network if this fails? *(Art. IV.3)*
 11. **Maturity:** Which questions remain conceptually open, and does the document claim readiness to build? *(Art. V.1)*
 12. **Falsification:** What specific claim should reviewers attempt to break? *(Art. V.5)*
+13. **Neutrality:** Does this grant any coin-specific payout, feature, perk, or priority, or otherwise make a platform capability non-universal? *(Art. X)*
 
 ---
 
@@ -185,7 +186,7 @@ Every RFC must answer these questions explicitly. An RFC that cannot is not read
 
 **VIII.3** A proposal that requires an Article to be amended must say so in its own text. Silent conflict is a defect in the proposal, not a permission.
 
-**VIII.4** Articles I.1, I.3, II.1, II.2, III.2, and IV.2 are considered foundational. Amending them changes what Bloodstone is, not merely how it works, and should be treated accordingly.
+**VIII.4** Articles I.1, I.3, II.1, II.2, III.2, IV.2, and X are considered foundational. Amending them changes what Bloodstone is, not merely how it works, and should be treated accordingly.
 
 ---
 
@@ -221,6 +222,25 @@ Architecture freezes, specification freezes, and scope freezes are properties of
 
 **IX.5 — Code outranks documents on fact; the Constitution outranks code on intent.**
 Where a document describes the system incorrectly, the code is correct and the document is amended (Art. V.4). Where the code violates an Article, the code is wrong and must be changed. Fact flows upward; authority flows downward.
+
+---
+
+# Article X — Platform Neutrality
+
+**X.1 — Platform capabilities are universal and neutrally named.**
+Any capability the platform provides is available to every fork on equal terms and is named neutrally, without reference to any particular coin. Platform-provided capabilities belong to the platform and appear on the platform's surface.
+
+**X.2 — Coin capabilities belong to their coin.**
+Any capability specific to a single coin belongs to that coin, lives on that coin's own surface, and is not presented as a platform capability. The boundary between "platform" and "coin" is the boundary between "available to all equally" and "belonging to one."
+
+**X.3 — The platform never favours specific coins.**
+The platform grants no coin-specific payout, feature, perk, priority, or preferential treatment of any kind. Neutrality is a property of the platform itself, not a default that individual decisions may depart from.
+
+**X.4 — Neutrality cannot be overridden by later addition.**
+This Article cannot be circumvented by introducing a coin-specific payout, feature, or perk at a later date, nor by any accumulation of individually-small exceptions. A proposal that would give one coin platform-level advantage is invalid under this Article regardless of how it is framed or when it is introduced.
+
+**X.5 — Scope.**
+This Article governs the relationship between the platform and the forks it serves. It is foundational (Art. VIII.4): amending it changes what the platform is. It already governs the following settled decisions, which are hereby rule-backed rather than conventional: platform defense capabilities are neutral platform mesh services, not coin-branded; post-quantum cover provisions are platform-neutral; and coin-specific lifecycle mechanisms (including salvage) run only on their own coin's off-platform surface, never as a platform feature.
 
 ---
 
@@ -263,4 +283,4 @@ A proposal claiming consensus verification of a measured property has either mis
 
 ---
 
-*The Bloodstone Protocol Constitution v1.2 — one ledger, derived state, consensus verifies mathematics, attested never becomes self-verifying, no punishment, no new actors, falsify before building.*
+*The Bloodstone Protocol Constitution v1.3 — one ledger, derived state, consensus verifies mathematics, attested never becomes self-verifying, no punishment, no new actors, a neutral platform, falsify before building.*

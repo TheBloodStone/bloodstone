@@ -1,0 +1,33 @@
+{
+  "schema": "bloodstone/fork-lab-burn-vectors/v1",
+  "scheme": "bloodstone/fork-lab/burn/v1-layout",
+  "domain_sep": "bloodstone/fork-lab/burn/v1",
+  "version_byte": 63,
+  "hash": "Hash160 = RIPEMD160(SHA256(x))",
+  "checksum": "Base58Check double-SHA256 first 4 bytes",
+  "rejected_naive_smoke_samples": [
+    {
+      "address": "ScTQ4vujNQNwDqHsU9ybQEBQ9ZDG1ZsZMk",
+      "reason": "naive DOMAIN_SEP||empty concat \u2014 NOT final; do not publish as burn"
+    },
+    {
+      "address": "SaVP5mNi5eGDbD7d83HDxCjAqmRb5ShvsG",
+      "reason": "naive DOMAIN_SEP||draft_id concat \u2014 NOT final; do not publish as burn"
+    }
+  ],
+  "canonical": {
+    "tag": 1,
+    "address": "ShGX17JqtmvKaqTUdKufpS3hqmVsyp3mA3",
+    "material_hex": "010000001b626c6f6f6473746f6e652f666f726b2d6c61622f6275726e2f7631",
+    "payload_hex": "db1ab3996828afaf2deda728b7ccee523aa92169",
+    "verify_ok": true
+  },
+  "sample_draft": {
+    "tag": 2,
+    "draft_id": "wp0-acceptance-draft-001",
+    "address": "SkQJDpZGhjJptscpCnGcMXnx1YP7JqPS7H",
+    "material_hex": "020000001b626c6f6f6473746f6e652f666f726b2d6c61622f6275726e2f7631000000187770302d616363657074616e63652d64726166742d303031",
+    "payload_hex": "fd7bbcd9a346e5607ed5841e4b8aa9209f592b9d",
+    "verify_ok": true
+  }
+}

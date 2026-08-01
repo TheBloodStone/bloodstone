@@ -1,14 +1,22 @@
 # Bloodstone Development Roadmap
 
-**Version:** 2.1
+**Version:** 2.2
 **Status:** Living implementation roadmap
-**Authority:** Subordinate to the **Bloodstone Protocol Constitution** (current: v1.2 in-repo; hierarchy Const. Art. IX.1)
-**Date:** July 2026
-**Supersedes:** v2.0
+**Authority:** Subordinate to the **Bloodstone Protocol Constitution** (current: **v1.3**; hierarchy Const. Art. IX.1)
+**Date:** August 2026
+**Supersedes:** v2.1
+
+**Changes in v2.2:**
+- **Track E — Fork Lab** sequencing added (below H1 / Vault; does not steal Track A capacity).
+- **Constitution v1.3** referenced (Art. **X Platform Neutrality** ratified — was pending in early v2.2 drafts).
+- **Fork Lab RFCs FL-1…FL-5** filed under `docs/rfcs/fork-lab/` and public downloads.
+- **Platform salvage removed**; Goblin Magic = LRGK-only canary.
+- **WP0** burn verifier shipped; **WP1** burn pipeline **unblocked** (operator demand call 2026-08-01).
+- Hierarchy reminder: Const → RFC → RFQ/Build Spec → code (Art. IX).
 
 **Changes in v2.1:**
-- **Naming corrected:** RAL is the **Reward Accounting Layer** throughout (authority: RFC-010). v2.0 used "Reward Allocation Layer" in two places — a defect under Constitution Art. IX.2 / A.5.
-- **Duplicated principles removed** and replaced with Constitution references (Art. IX.2: restating a principle rather than referencing it is a defect, because duplicated text drifts).
+- **Naming corrected:** RAL is the **Reward Accounting Layer** throughout (authority: RFC-010).
+- **Duplicated principles removed** and replaced with Constitution references (Art. IX.2).
 - **Hierarchy diagram aligned** to Constitution Art. IX.1.
 - **Constitutional compliance gate** added to decision gates (Art. VII).
 - Status detail updated (H1 boundary, EPP conservation work).
@@ -282,3 +290,24 @@ Nothing in Tracks C or D competes with Track A or the Vault build for builder ca
 ---
 
 *Bloodstone Development Roadmap v2.1 — a living implementation roadmap governed by the Bloodstone Protocol Constitution (current v1.2).*
+
+
+# Track E — Fork Lab (Launchpad / Application Layer)
+
+**Capacity rule:** Track E does **not** compete with H1 or Treasury Vault for core-chain builders (Art. IV.3).
+
+| Item | Status |
+|------|--------|
+| Build Spec / RFQ v1.5 | **Frozen** · [downloads](https://bloodstone.rocks/downloads/Bloodstone-Fork-Lab-Burn-to-Launch-RFQ-v1.5.md) |
+| WP0 keyless burn + verifier | **Shipped** · skeptic instructions · [WP0](https://bloodstone.rocks/downloads/Bloodstone-Fork-Lab-Burn-WP0.md) |
+| WP1 burn-triggered pipeline | **Active / in build** (demand acknowledged 2026-08-01) |
+| Platform salvage | **Removed** (FL-4 = lifecycle hygiene only) |
+| Goblin Magic | **LRGK canary only** (not platform) |
+| RFC series FL-1…FL-5 | **Filed** · [index](https://bloodstone.rocks/downloads/rfcs/fork-lab/INDEX.md) |
+| Art. X neutrality | **In Constitution v1.3** |
+| PQ Cover RFC | **Deferred** (no RFQ mechanism section) |
+| Ward Mesh rename | **In progress** (user-facing; URLs `/azure-spells/` kept) |
+
+**Source of truth for mechanisms:** RFCs + RFQ. This roadmap only sequences work.
+
+---

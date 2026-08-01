@@ -146,3 +146,14 @@ Independent fork chains (not STONE) live under `forks/` with a public registry i
 | AZURE | [`forks/azure`](forks/azure/) | [`fork-registry/coins/AZURE`](fork-registry/coins/AZURE/) |
 
 GitHub is the source of truth for public review; VPS pulls for builds/seeds.
+
+## Fork Lab (Track E)
+
+- RFQ v1.5: `docs/Bloodstone-Fork-Lab-Burn-to-Launch-RFQ-v1.5.md`
+- RFCs FL-1…FL-5: `docs/rfcs/fork-lab/`
+- WP0 burn verifier: `ops/fork_lab_burn.py` · skeptic: `docs/Bloodstone-Fork-Lab-WP0-Skeptic-Run.md`
+- WP1 pipeline scaffold: `fork-lab-wp1/`
+- Constitution v1.3 (Art. X neutrality): `docs/Bloodstone-Protocol-Constitution.md`
+- Roadmap v2.2: `docs/Bloodstone-Development-Roadmap.md`
+
+GitHub is source of truth; VPS pulls for builds/seeds.
