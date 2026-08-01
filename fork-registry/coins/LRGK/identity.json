@@ -1,0 +1,29 @@
+{
+  "schema": "bloodstone-fork-registry/v1",
+  "name": "Lil Raghnok Goblin Coin",
+  "ticker": "LRGK",
+  "fork_id": "e9d304f3379e96859acd131f",
+  "network_salt": "cc7779f7600b0402083c7e8e8a2fcb89",
+  "message_start_hex": "cab95753",
+  "p2p_port": 33685,
+  "rpc_port": 53685,
+  "block_time_sec": 180,
+  "block_reward": 500.0,
+  "premine": 10000000.0,
+  "datadir_name": ".lrgk",
+  "bech32_hrp": "lrgk",
+  "binaries": ["lrgkd", "lrgk-cli"],
+  "pow_algorithms": ["neoscrypt", "yespower", "sha256d"],
+  "merge_mine_stone": "mandatory",
+  "public_peer": "64.188.22.190:33685",
+  "rpc": "127.0.0.1:53685",
+  "independent": true,
+  "open_source": true,
+  "source": {
+    "monorepo_path": "forks/lrgk",
+    "github_monorepo": "https://github.com/Bloodstone-Team/bloodstone/tree/main/forks/lrgk",
+    "github_dedicated": "https://github.com/TheBloodStone/lrgk",
+    "source_tarball": "https://bloodstone.rocks/downloads/lrgk/lrgk-core-source-latest.tar.gz",
+    "peer_doc": "https://bloodstone.rocks/downloads/LRGK-Public-Peer.md"
+  }
+}

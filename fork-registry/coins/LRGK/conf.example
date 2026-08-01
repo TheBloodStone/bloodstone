@@ -1,0 +1,12 @@
+# Independent LRGK node — NOT Bloodstone
+server=1
+daemon=1
+listen=1
+txindex=1
+port=33685
+rpcport=53685
+rpcbind=127.0.0.1
+rpcallowip=127.0.0.1
+rpcuser=lrgkrpc
+rpcpassword=CHANGE_ME_cc7779f7600b0402
+# datadir=/var/lib/lrgk   # never use Bloodstone datadir

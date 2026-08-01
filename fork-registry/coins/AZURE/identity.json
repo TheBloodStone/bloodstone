@@ -1,0 +1,42 @@
+{
+  "name": "Azure Guardian Coin",
+  "ticker": "AZURE",
+  "fork_id": "7e177be306a616364771bf4c",
+  "network_salt": "91efe9226b8fd785f7c7c69d807b1d50",
+  "magic_hint": "a3d2463e",
+  "p2p_port": 29825,
+  "rpc_port": 49825,
+  "block_time_sec": 90,
+  "block_reward": 100,
+  "premine": 5000000,
+  "datadir_name": ".azure",
+  "pow_algorithms": [
+    "neoscrypt",
+    "yespower",
+    "sha256d"
+  ],
+  "quasar": true,
+  "merge_mine_stone": "mandatory",
+  "seed_status": "online",
+  "planned_peer": "64.188.22.190:29825",
+  "icon_url": "https://bloodstonewallet.mytunnel.org/downloads/fork-icons/azure.png",
+  "store_url": "https://bloodstonewallet.mytunnel.org/fork-lab/store/#coin-7e177be306a616364771bf4c",
+  "public_peer": "64.188.22.190:29825",
+  "rpc": "127.0.0.1:49825",
+  "genesis": "f5e7c12a9a232c07a30835c7934db52ce7372dae41fbe62eedcb36aa5bed87e0",
+  "updated_utc": "2026-07-29T02:27:44Z",
+  "memory_rss_note": "~40 MiB pruned seed",
+  "premine_address": "AHn1Kf6kkYGua1cETaqtug2ukEd4iqURHM",
+  "premine_spendable": true,
+  "auxpow_chain_id": 1901,
+  "schema": "bloodstone-fork-registry/v1",
+  "open_source": true,
+  "independent": true,
+  "source": {
+    "monorepo_path": "forks/azure",
+    "github_monorepo": "https://github.com/Bloodstone-Team/bloodstone/tree/main/forks/azure",
+    "github_dedicated": "https://github.com/TheBloodStone/azure",
+    "source_tarball": "https://bloodstone.rocks/downloads/azure/azure-core-source-latest.tar.gz",
+    "peer_doc": "https://bloodstone.rocks/downloads/AZURE-Public-Peer.md"
+  }
+}

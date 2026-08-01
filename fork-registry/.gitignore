@@ -1,0 +1,5 @@
+*.o
+*.a
+.env
+secrets.conf
+__pycache__/

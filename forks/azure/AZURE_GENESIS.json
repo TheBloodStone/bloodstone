@@ -1,0 +1,14 @@
+{
+  "nNonce": 0,
+  "nTime": 1785291996,
+  "nBits": "0x207fffff",
+  "hash": "f5e7c12a9a232c07a30835c7934db52ce7372dae41fbe62eedcb36aa5bed87e0",
+  "merkle": "db98870fa42636eac958857cbede486a0e3e3534c1690eb0bc5be787b961c516",
+  "timestamp": "29/Jul/2026: AZURE spendable premine 5M salt=91efe9226b8fd785",
+  "premine": 5000000,
+  "premine_pkh": "15f6a8917a11e3808c19cddc63430ffd0286b4f1",
+  "premine_address": "AHn1Kf6kkYGua1cETaqtug2ukEd4iqURHM",
+  "premine_rule": "fork-premine-v1-real-key-only",
+  "network_salt": "91efe9226b8fd785f7c7c69d807b1d50",
+  "independent": true
+}

@@ -1,0 +1,18 @@
+{
+  "schema": "lrgk/independent-chain/v1",
+  "name": "LRGK",
+  "ticker": "LRGK",
+  "fork_id": "e9d304f3379e96859acd131f",
+  "network_salt": "cc7779f7600b0402083c7e8e8a2fcb89",
+  "message_start_hex": "cab95753",
+  "p2p_port": 33685,
+  "rpc_port": 53685,
+  "block_reward": 500.0,
+  "block_time_sec": 180,
+  "premine": 10000000.0,
+  "datadir": ".lrgk",
+  "bech32_hrp": "lrgk",
+  "parent_template": "bloodstone-core-source (template only \u2014 independent consensus)",
+  "isolated": true,
+  "bloodstone_paths_untouched": true
+}

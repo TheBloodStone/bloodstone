@@ -1,0 +1,24 @@
+# Independent AZURE node — NOT Bloodstone, NOT LRGK
+server=1
+daemon=1
+listen=1
+txindex=1
+prune=0
+
+port=29825
+bind=0.0.0.0
+externalip=64.188.22.190
+
+dnsseed=0
+maxconnections=32
+maxuploadtarget=0
+
+rpcport=49825
+rpcbind=127.0.0.1
+rpcallowip=127.0.0.1
+rpcuser=azurerpc
+rpcpassword=CHANGE_ME
+
+fallbackfee=0.0001
+maxtipage=999999999
+allowunconnectedmining=1

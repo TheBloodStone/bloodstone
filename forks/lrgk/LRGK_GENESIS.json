@@ -1,0 +1,16 @@
+{
+  "nNonce": 3,
+  "nTime": 1785217589,
+  "nBits": "0x207fffff",
+  "nBits_int": "0x207fffff",
+  "hash": "c251baf97b7b677312f10bf87bd4e0d06034c74275f7c7fd0c2758cdda20ebeb",
+  "merkle": "c46e11c49078632f3291f3e8574095665c4f9807569a3eb16c959fcffbf6f697",
+  "timestamp": "15/Jul/2026: LRGK independent chain salt=cc7779f7600b0402",
+  "premine_pkh": "548beddd8685b355c3c4427632d8722e2449f806",
+  "premine_address": "LSvzemvYGNLtaS2qF2i7x2CvDAsehMTq7s",
+  "premine_rule": "fork-premine-v1-real-key-only",
+  "network_salt": "cc7779f7600b0402083c7e8e8a2fcb89",
+  "independent": true,
+  "not_bloodstone": true,
+  "mode": "bootstrap_easy_pow"
+}

@@ -1,0 +1,10 @@
+This tree is the INDEPENDENT LRGK coin source.
+Parent lineage: Bloodstone core (template copy only — parent tree untouched).
+It is NOT the Bloodstone production tree.
+Do not copy binaries back into Bloodstone paths.
+Fork ID: e9d304f3379e96859acd131f
+Network salt: cc7779f7600b0402083c7e8e8a2fcb89
+Magic: cab95753
+P2P: 33685  RPC: 53685
+Datadir: .lrgk
+Template used: /root/bloodstone-linux-build

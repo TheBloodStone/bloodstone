@@ -1,42 +1,62 @@
-# LRGK (Lil Raghnok Coin) — monorepo path
+# LRGK — Lil Raghnok Goblin Coin (independent chain)
 
-**Ticker:** LRGK  
-**Fork Lab id:** `e9d304f3379e96859acd131f`  
-**AuxPoW chain id:** **1900** (must not collide with STONE 1899 or AZURE 1901)  
-**Status:** **Structure stub only** (2026-07-30)
-
-## Why this directory exists before the full tree
-
-Auditors asked for monorepo paths and MFQ provenance **before** dumping operator VPS source. This directory locks:
-
-- Canonical `source_path` for `bloodstone/mfq-daemons/v2` → `forks/lrgk`
-- Chain identity pointers
-- Build entry expectation: `ops/build-mfq-fork-daemons.sh --coin LRGK`
-
-## What is not here yet
-
-Full consensus source (`src/`, depends, etc.) is **not** published in this stub. Operator build trees still exist on the build host for production seeds/packs. Landing the full tree is roadmap card **“Publish LRGK source tree into monorepo”**.
-
-## Network identity (public)
+**Open source.** Public source of truth for the LRGK full-node consensus tree.
 
 | Field | Value |
 |-------|--------|
-| P2P | 33685 |
-| RPC | 53685 (localhost on seeds) |
+| Ticker | **LRGK** |
+| Name | Lil Raghnok Goblin Coin |
+| Fork ID | `e9d304f3379e96859acd131f` |
+| Network salt | `cc7779f7600b0402083c7e8e8a2fcb89` |
+| Magic | `cab95753` |
+| P2P | **33685** |
+| RPC | **53685** (localhost only on public seed) |
+| Datadir | `.lrgk` |
+| Binaries | `lrgkd`, `lrgk-cli` |
 | bech32 HRP | `lrgk` |
 | Public seed | `64.188.22.190:33685` |
-| Downloads | https://bloodstone.rocks/downloads/LRGK-Downloads.md |
+| Parent template | Bloodstone core (independent consensus — **not** STONE) |
 
-## MFQ pack (current binary integrity)
+## Source of truth
 
-| Field | Value |
-|-------|--------|
-| Pack | https://bloodstone.rocks/downloads/mfq-daemons/LRGK-win64.zip |
-| SHA256 | `7a5e27e903ad0dfd19ab1151cf594ea4ebe3e4f8280b1e391eafc5e254030f7b` |
-| Provenance commit | `PENDING_LRGK_PUSH` until full tree lands |
+- **This repository / tree** is the public codebase for LRGK.
+- Ops host may pull builds from here; VPS-only closed source is **not** the product direction.
+- Registry entry: [fork-registry/coins/LRGK](../fork-registry/coins/LRGK/) (monorepo layout) or sibling `bloodstone-fork-registry`.
 
-## See also
+## Build (Linux)
 
-- [AUDITOR-MAP.md](../../AUDITOR-MAP.md) §2b, §2c, GitHub-first policy  
-- [MFQ manifest v2](../../docs/mfq-daemons-manifest-v2.md)  
-- [Transparency roadmap](../../docs/Bloodstone-Ecosystem-Transparency-Roadmap.md)  
+```bash
+./autogen.sh
+./configure --disable-tests --without-gui --disable-bench
+make -j"$(nproc)"
+# binaries: src/lrgkd src/lrgk-cli  (names may still follow template until rebrand pass)
+```
+
+Or use the packaged builder on the ops host:
+
+```bash
+/root/lrgk-chain/build-lrgk-daemon.sh
+```
+
+## Run
+
+```bash
+mkdir -p ~/.lrgk
+cp lrgk.conf.example ~/.lrgk/lrgk.conf
+# set rpcpassword; add: addnode=64.188.22.190:33685
+./src/lrgkd -datadir="$HOME/.lrgk" -conf="$HOME/.lrgk/lrgk.conf"
+```
+
+## Downloads & docs
+
+- Peer doc: https://bloodstone.rocks/downloads/LRGK-Public-Peer.md
+- Node packages: https://bloodstone.rocks/downloads/lrgk/
+- Source tarball: https://bloodstone.rocks/downloads/lrgk/lrgk-core-source-latest.tar.gz
+- Fork Lab store: https://bloodstone.rocks/fork-lab/store/
+- Parent monorepo: https://github.com/Bloodstone-Team/bloodstone
+
+## License
+
+MIT / Bitcoin Core heritage — see `COPYING`.
+
+Doc version: 1.0.0 · Prepared: 20260801T0810Z UTC

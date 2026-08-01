@@ -135,3 +135,14 @@ The headless node tarball (`bloodstone-node-*-linux-*.tar.gz`) is **not** the wh
 # After unpacking the tarball on a Pi:
 ./start-node.sh
 ```
+
+## Fork Lab open-source coins
+
+Independent fork chains (not STONE) live under `forks/` with a public registry in `fork-registry/`:
+
+| Ticker | Path | Registry |
+|--------|------|----------|
+| LRGK | [`forks/lrgk`](forks/lrgk/) | [`fork-registry/coins/LRGK`](fork-registry/coins/LRGK/) |
+| AZURE | [`forks/azure`](forks/azure/) | [`fork-registry/coins/AZURE`](fork-registry/coins/AZURE/) |
+
+GitHub is the source of truth for public review; VPS pulls for builds/seeds.

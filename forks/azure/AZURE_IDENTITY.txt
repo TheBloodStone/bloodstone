@@ -1,0 +1,5 @@
+AZURE independent source
+salt=91efe9226b8fd785f7c7c69d807b1d50
+magic=a3d2463e
+p2p=29825
+rpc=49825
