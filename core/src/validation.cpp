@@ -1237,61 +1237,64 @@ CAmount GetBlockSubsidy(int nHeight, const Consensus::Params& consensusParams)
                                                    nHeight))
         return COIN;
 
+    /*
+     * July 2026 Discord lock — stepped issuance + QSE tail when nBlocksPerYear > 0.
+     * Year length: nBlocksPerYear (~394470 at ~80s). Ladder:
+     *   Y1=100, Y2–3=1000, Y4=750, Y5=500, Y6=350, Y7=250, Y8+=qseBaseSubsidy (200).
+     * History through height ~18k is year-1 @ 100 after POST_ICO — matches what mainnet paid.
+     * First divergence vs legacy forever-100/halving path: height nBlocksPerYear (Year 2 → 1000).
+     * Flag day: all full nodes must run this binary before that height.
+     */
+    if (consensusParams.nBlocksPerYear > 0) {
+        const int bpy = consensusParams.nBlocksPerYear;
+        const int yearIndex = nHeight / bpy; /* 0-based issuance year */
+        if (yearIndex <= 0) {
+            /* Year 1 — bootstrap (policy uses initialSubsidy, normally 100 STONE) */
+            return consensusParams.initialSubsidy > 0
+                       ? consensusParams.initialSubsidy
+                       : 100 * COIN;
+        }
+        if (yearIndex <= 2) {
+            return 1000 * COIN; /* Years 2–3 growth */
+        }
+        if (yearIndex == 3) {
+            return 750 * COIN;
+        }
+        if (yearIndex == 4) {
+            return 500 * COIN;
+        }
+        if (yearIndex == 5) {
+            return 350 * COIN;
+        }
+        if (yearIndex == 6) {
+            return 250 * COIN;
+        }
+        /* Year 8+ — QUASAR Security Emission (never zero) */
+        return consensusParams.qseBaseSubsidy > 0
+                   ? consensusParams.qseBaseSubsidy
+                   : 200 * COIN;
+    }
+
+    /* Legacy path (testnet / old params: nBlocksPerYear == 0) */
     const CAmount baseInitial = GetEffectiveInitialSubsidy(nHeight, consensusParams);
 
     int halvings = nHeight / consensusParams.nSubsidyHalvingInterval;
-    // Force block reward to zero when right shift is undefined.
-
     if (halvings >= 64)
         return 0;
-/*
-    CAmount nSubsidy = consensusParams.initialSubsidy;
-    // Subsidy is cut in half every 2,100,000 blocks which will occur approximately every 4 years.
-    nSubsidy >>= halvings;
-    return nSubsidy;
-*/
 
     CAmount nSubsidy = 0;
-//    halvings = round(halvings);
-    if (halvings > 4) { 
-        // calculate coin inflation for this halving
+    if (halvings > 4) {
         CAmount inflateCoins = round(1833823998 * (pow(1.02956, halvings - 3) - pow(1.02956, halvings - 4)));
-        // subsidy is inflateCoins / 210000 * COIN
         nSubsidy = ((int)round((inflateCoins / 1054080.0) * 100)) * (COIN / 100);
-        // Bloodstone relaunch (initialSubsidy < 800 ROD): scale inflation-era
-        // subsidies so era 5+ does not jump above the legacy 800-ROD curve.
         const CAmount legacyInitial = 800 * COIN;
         if (baseInitial > 0 && baseInitial != legacyInitial) {
             nSubsidy = (CAmount)((int64_t)nSubsidy * (int64_t)baseInitial / (int64_t)legacyInitial);
         }
-    } else { 
-        nSubsidy = baseInitial;
-        // Subsidy is cut in half every 210,000 blocks which will occur approximately every 4 years.
-        nSubsidy >>= halvings; 
-        }
-    return nSubsidy;
-//    halvings = nHeight / consensusParams.nSubsidyHalvingInterval;
-        
-// Introduce 5% inflation after 3rd halving 
-/*
-   CAmount nSubsidy = 0;
-    // Inflation starts at halving 4.
-    // At that point, we'd have 19,687,500 (~ 19 million) coins.
-    // Those are our base coins.
-    // See bitcoin supply schedule
-    // After halving 3, we calculate the inflate coin number.
-    if (halvings > 3) {
-        // calculate coin inflation for this halving
-        CAmount inflateCoins = round(19687500 * (pow(1.07, halvings - 3) - pow(1.07, halvings - 4)));
-        // subsidy is inflateCoins / 210000 * COIN
-        nSubsidy = ((int)round((inflateCoins / 210000.0) * 100)) * (COIN / 100);
     } else {
-//        nSubsidy = 50 * COIN;
-        // Subsidy is cut in half every 210,000 blocks which will occur approximately every 4 years.
+        nSubsidy = baseInitial;
         nSubsidy >>= halvings;
     }
-*/
- 
+    return nSubsidy;
 }
 
 CoinsViews::CoinsViews(
